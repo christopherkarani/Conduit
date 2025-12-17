@@ -1,0 +1,40 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "command": "swift-format format -i \"$CLAUDE_FILE_PATH\" 2>/dev/null || true"
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": ".*",
+        "command": "echo \"[$(date +%H:%M:%S)] Subagent completed: $CLAUDE_AGENT_NAME\""
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": ".*", 
+        "command": "swift build 2>&1 | tail -5 || true"
+      }
+    ]
+  },
+  "permissions": {
+    "allowedTools": [
+      "Read",
+      "Write",
+      "Edit",
+      "Bash",
+      "Grep",
+      "Glob",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "deniedCommands": [
+      "rm -rf /",
+      "sudo"
+    ]
+  },
+  "model": "sonnet",
+  "subagentModel": "sonnet"
+}

@@ -1,0 +1,82 @@
+# SwiftLint Configuration for SwiftAI
+
+disabled_rules:
+  - todo
+  - trailing_comma
+
+opt_in_rules:
+  - empty_count
+  - explicit_init
+  - fatal_error_message
+  - first_where
+  - implicitly_unwrapped_optional
+  - private_outlet
+  - redundant_nil_coalescing
+  - closure_spacing
+  - contains_over_first_not_nil
+  - discouraged_object_literal
+  - empty_string
+  - modifier_order
+  - operator_usage_whitespace
+  - overridden_super_call
+  - prohibited_super_call
+  - single_test_class
+  - sorted_first_last
+  - yoda_condition
+
+# Rule configurations
+line_length:
+  warning: 120
+  error: 150
+  ignores_comments: true
+  ignores_urls: true
+
+type_body_length:
+  warning: 300
+  error: 500
+
+file_length:
+  warning: 500
+  error: 1000
+
+function_body_length:
+  warning: 50
+  error: 100
+
+function_parameter_count:
+  warning: 6
+  error: 8
+
+identifier_name:
+  min_length:
+    warning: 2
+    error: 1
+  max_length:
+    warning: 50
+    error: 60
+  excluded:
+    - id
+    - ok
+    - to
+    - x
+    - y
+    - z
+    - i
+    - n
+
+type_name:
+  min_length:
+    warning: 3
+    error: 2
+  max_length:
+    warning: 50
+    error: 60
+
+# Paths to exclude
+excluded:
+  - .build
+  - Package.swift
+  - Tests/SwiftAITests/Mocks
+
+# Reporter type (xcode, json, csv, checkstyle, codeclimate, junit, html, emoji, sonarqube, markdown, github-actions-logging)
+reporter: "xcode"

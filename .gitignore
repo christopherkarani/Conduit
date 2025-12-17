@@ -1,0 +1,16 @@
+.DS_Store
+/.build
+/Packages
+xcuserdata/
+DerivedData/
+.swiftpm/configuration/registries.json
+.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
+.netrc
+
+# Claude Code
+.claude/artifacts/reports/
+.claude/artifacts/reviews/
+
+# Keep planning and decisions tracked
+!.claude/artifacts/planning/
+!.claude/artifacts/decisions/
