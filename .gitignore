@@ -7,13 +7,9 @@ DerivedData/
 .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 .netrc
 
-# Claude Code
-.claude/artifacts/reports/
-.claude/artifacts/reviews/
-
-# Keep planning and decisions tracked
-!.claude/artifacts/planning/
-!.claude/artifacts/decisions/
+# Claude Code - ignore completely
+CLAUDE.md
+.claude/
 
 # Osaurus project (separate codebase)
 osaurus/
