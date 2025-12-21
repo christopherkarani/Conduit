@@ -19,6 +19,7 @@ SwiftAI provides a clean, idiomatic Swift interface for LLM inference. Choose yo
 | Streaming | ✓ | ✓ | ✓ |
 | Embeddings | — | ✓ | — |
 | Transcription | — | ✓ | — |
+| Image Generation | — | ✓ | — |
 | Token Counting | ✓ | — | — |
 | Offline | ✓ | — | ✓ |
 | Privacy | ✓ | — | ✓ |
@@ -128,7 +129,7 @@ let response = try await provider.generate("Hello", model: .llama3_2_1B)
 
 Cloud inference via HuggingFace Inference API. Access hundreds of models.
 
-**Best for:** Large models, embeddings, transcription, model variety
+**Best for:** Large models, embeddings, transcription, image generation, model variety
 
 **Setup:**
 ```bash
@@ -180,6 +181,42 @@ print(result.text)
 for segment in result.segments {
     print("\(segment.startTime)s: \(segment.text)")
 }
+```
+
+**Image Generation:**
+
+```swift
+let provider = HuggingFaceProvider()
+
+// Simple text-to-image
+let result = try await provider.textToImage(
+    model: "stabilityai/stable-diffusion-3",
+    prompt: "A cat wearing a top hat, digital art"
+)
+
+// Use directly in SwiftUI
+result.image  // SwiftUI Image (cross-platform)
+
+// With generation parameters
+let result = try await provider.textToImage(
+    model: "stabilityai/stable-diffusion-xl-base-1.0",
+    prompt: "Mountain landscape at sunset, photorealistic",
+    parameters: HFImageParameters(
+        width: 1024,
+        height: 1024,
+        steps: 30,
+        guidanceScale: 7.5
+    )
+)
+
+// Save to file
+try result.save(to: URL.documentsDirectory.appending(path: "landscape.png"))
+
+// Save to Photos library (iOS only, requires NSPhotoLibraryAddUsageDescription)
+try await result.saveToPhotos()
+
+// Access raw data if needed
+let data = result.data
 ```
 
 ### Foundation Models (iOS 26+)

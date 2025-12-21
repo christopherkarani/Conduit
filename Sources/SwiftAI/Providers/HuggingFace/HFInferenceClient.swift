@@ -70,6 +70,32 @@ internal struct HFFeatureOptions: Codable, Sendable {
     let use_cache: Bool?
 }
 
+/// Request payload for text-to-image generation.
+internal struct HFTextToImageRequest: Codable, Sendable {
+    let inputs: String
+    let parameters: HFImageParameters?
+
+    init(prompt: String, parameters: HFImageParameters? = nil) {
+        self.inputs = prompt
+        self.parameters = parameters
+    }
+}
+
+/// Parameters for image generation.
+internal struct HFImageParameters: Codable, Sendable {
+    let width: Int?
+    let height: Int?
+    let num_inference_steps: Int?
+    let guidance_scale: Float?
+
+    init(width: Int? = nil, height: Int? = nil, steps: Int? = nil, guidanceScale: Float? = nil) {
+        self.width = width
+        self.height = height
+        self.num_inference_steps = steps
+        self.guidance_scale = guidanceScale
+    }
+}
+
 // MARK: - Response DTOs
 
 /// Response from HuggingFace chat completion API.
@@ -351,6 +377,89 @@ internal actor HFInferenceClient {
         urlRequest.httpBody = audioData
 
         return try await performRequestWithRetry(urlRequest, responseType: HFASRResponse.self)
+    }
+
+    // MARK: - Text-to-Image Generation
+
+    /// Generates an image from a text prompt.
+    ///
+    /// - Parameters:
+    ///   - model: The HuggingFace model identifier (e.g., "stabilityai/stable-diffusion-3").
+    ///   - prompt: The text prompt describing the desired image.
+    ///   - parameters: Optional image generation parameters.
+    /// - Returns: A `GeneratedImage` with the image data and convenience methods.
+    /// - Throws: `AIError` if the request fails.
+    ///
+    /// ## Usage
+    /// ```swift
+    /// let result = try await client.textToImage(
+    ///     model: "stabilityai/stable-diffusion-3",
+    ///     prompt: "A cat wearing a top hat"
+    /// )
+    ///
+    /// // Use in SwiftUI
+    /// result.image
+    ///
+    /// // Save to file
+    /// try result.save(to: fileURL)
+    ///
+    /// // Access raw data
+    /// result.data
+    /// ```
+    func textToImage(
+        model: String,
+        prompt: String,
+        parameters: HFImageParameters? = nil
+    ) async throws -> GeneratedImage {
+        let request = HFTextToImageRequest(prompt: prompt, parameters: parameters)
+
+        let url = configuration.baseURL
+            .appendingPathComponent("models")
+            .appendingPathComponent(model)
+
+        var urlRequest = try createURLRequest(url: url, method: "POST")
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.setValue("image/png", forHTTPHeaderField: "Accept")
+        urlRequest.httpBody = try encoder.encode(request)
+
+        let data = try await performImageRequestWithRetry(urlRequest)
+        return GeneratedImage(data: data, format: .png)
+    }
+
+    /// Performs an image request with automatic retry logic.
+    private func performImageRequestWithRetry(_ request: URLRequest) async throws -> Data {
+        var lastError: Error?
+
+        for attempt in 0...configuration.maxRetries {
+            do {
+                let (data, response) = try await session.data(for: request)
+
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw AIError.networkError(URLError(.badServerResponse))
+                }
+
+                if httpResponse.statusCode >= 400 {
+                    try handleHTTPError(statusCode: httpResponse.statusCode, data: data, response: httpResponse)
+                }
+
+                return data
+
+            } catch let error as AIError {
+                lastError = error
+
+                guard error.isRetryable && attempt < configuration.maxRetries else {
+                    throw error
+                }
+
+                let delay = configuration.retryBaseDelay * pow(2.0, Double(attempt))
+                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+
+            } catch {
+                throw AIError.generation(error)
+            }
+        }
+
+        throw lastError ?? AIError.generationFailed(underlying: SendableError(URLError(.unknown)))
     }
 
     // MARK: - Request Execution
