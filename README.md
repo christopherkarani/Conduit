@@ -188,26 +188,23 @@ for segment in result.segments {
 ```swift
 let provider = HuggingFaceProvider()
 
-// Simple text-to-image
+// Simple text-to-image with defaults
 let result = try await provider.textToImage(
-    model: "stabilityai/stable-diffusion-3",
-    prompt: "A cat wearing a top hat, digital art"
+    "A cat wearing a top hat, digital art",
+    model: .huggingFace("stabilityai/stable-diffusion-3")
 )
 
 // Use directly in SwiftUI
 result.image  // SwiftUI Image (cross-platform)
 
-// With generation parameters
+// With configuration presets
 let result = try await provider.textToImage(
-    model: "stabilityai/stable-diffusion-xl-base-1.0",
-    prompt: "Mountain landscape at sunset, photorealistic",
-    parameters: HFImageParameters(
-        width: 1024,
-        height: 1024,
-        steps: 30,
-        guidanceScale: 7.5
-    )
+    "Mountain landscape at sunset, photorealistic",
+    model: .huggingFace("stabilityai/stable-diffusion-xl-base-1.0"),
+    config: .highQuality.width(1024).height(768)
 )
+
+// Available presets: .default, .highQuality, .fast, .square512, .square1024, .landscape, .portrait
 
 // Save to file
 try result.save(to: URL.documentsDirectory.appending(path: "landscape.png"))

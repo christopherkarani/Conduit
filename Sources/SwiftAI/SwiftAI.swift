@@ -32,6 +32,12 @@ import Foundation
 // - TranscriptionResult
 // - TokenCount
 
+// Image Generation Types
+// - GeneratedImage: Image result with SwiftUI support and save methods
+// - ImageGenerationConfig: Configuration for text-to-image (dimensions, steps, guidance)
+// - ImageFormat: Supported image formats (PNG, JPEG, WebP)
+// - GeneratedImageError: Errors for image operations
+
 // Streaming
 // TODO: @_exported import when implemented
 // - GenerationStream

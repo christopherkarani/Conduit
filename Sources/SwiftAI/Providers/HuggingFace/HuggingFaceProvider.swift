@@ -532,6 +532,88 @@ public actor HuggingFaceProvider: AIProvider, TextGenerator, EmbeddingGenerator,
             }
         }
     }
+
+    // MARK: - Image Generation
+
+    /// Generates an image from a text prompt.
+    ///
+    /// Uses HuggingFace's text-to-image models like Stable Diffusion to create
+    /// images from natural language descriptions.
+    ///
+    /// - Parameters:
+    ///   - prompt: Text description of the desired image.
+    ///   - model: Model identifier. Must be a `.huggingFace()` model.
+    ///   - config: Image generation configuration (dimensions, steps, guidance).
+    /// - Returns: A `GeneratedImage` with the image data and convenience methods.
+    /// - Throws: `AIError` if image generation fails.
+    ///
+    /// ## Usage
+    ///
+    /// ```swift
+    /// let provider = HuggingFaceProvider()
+    ///
+    /// // Simple generation with defaults
+    /// let result = try await provider.textToImage(
+    ///     "A sunset over mountains, oil painting style",
+    ///     model: .huggingFace("stabilityai/stable-diffusion-3")
+    /// )
+    ///
+    /// // With custom configuration
+    /// let result = try await provider.textToImage(
+    ///     "A cat wearing a top hat, digital art",
+    ///     model: .huggingFace("stabilityai/stable-diffusion-xl-base-1.0"),
+    ///     config: .highQuality.width(1024).height(768)
+    /// )
+    ///
+    /// // Display in SwiftUI
+    /// if let image = result.image {
+    ///     image.resizable().scaledToFit()
+    /// }
+    ///
+    /// // Save to file
+    /// try result.save(to: URL.documentsDirectory.appending(path: "sunset.png"))
+    ///
+    /// // Save to Photos (iOS only)
+    /// try await result.saveToPhotos()
+    /// ```
+    ///
+    /// ## Supported Models
+    ///
+    /// - `stabilityai/stable-diffusion-3`
+    /// - `stabilityai/stable-diffusion-xl-base-1.0`
+    /// - `runwayml/stable-diffusion-v1-5`
+    /// - Any HuggingFace model supporting the text-to-image pipeline
+    ///
+    /// ## Configuration Presets
+    ///
+    /// | Preset | Description |
+    /// |--------|-------------|
+    /// | `.default` | Model defaults |
+    /// | `.highQuality` | 50 steps, guidance 7.5 |
+    /// | `.fast` | 20 steps for quick previews |
+    /// | `.square1024` | 1024x1024 high resolution |
+    public func textToImage(
+        _ prompt: String,
+        model: ModelID,
+        config: ImageGenerationConfig = .default
+    ) async throws -> GeneratedImage {
+        // Validate model type
+        guard case .huggingFace(let modelId) = model else {
+            throw AIError.invalidInput("HuggingFaceProvider only supports .huggingFace() models for text-to-image")
+        }
+
+        // Convert to HuggingFace-specific parameters if any are set
+        let parameters: HFImageParameters? = config.hasParameters
+            ? HFImageParameters(from: config)
+            : nil
+
+        // Delegate to internal client
+        return try await client.textToImage(
+            model: modelId,
+            prompt: prompt,
+            parameters: parameters
+        )
+    }
 }
 
 // MARK: - Private Implementation

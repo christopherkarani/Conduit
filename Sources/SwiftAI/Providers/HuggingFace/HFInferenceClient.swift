@@ -94,6 +94,18 @@ internal struct HFImageParameters: Codable, Sendable {
         self.num_inference_steps = steps
         self.guidance_scale = guidanceScale
     }
+
+    /// Creates HuggingFace-specific parameters from the public config.
+    ///
+    /// - Parameter config: The public image generation configuration.
+    init(from config: ImageGenerationConfig) {
+        self.init(
+            width: config.width,
+            height: config.height,
+            steps: config.steps,
+            guidanceScale: config.guidanceScale
+        )
+    }
 }
 
 // MARK: - Response DTOs
