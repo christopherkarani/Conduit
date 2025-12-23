@@ -92,7 +92,7 @@ public struct GeneratedImage: Sendable {
         do {
             try data.write(to: url, options: .atomic)
         } catch {
-            throw GeneratedImageError.saveFailed(underlying: error)
+            throw GeneratedImageError.saveFailed(underlying: SendableError(error))
         }
     }
 
@@ -110,7 +110,7 @@ public struct GeneratedImage: Sendable {
         do {
             try data.write(to: url, options: .atomic)
         } catch {
-            throw GeneratedImageError.saveFailed(underlying: error)
+            throw GeneratedImageError.saveFailed(underlying: SendableError(error))
         }
         return url
     }
@@ -175,7 +175,7 @@ public enum GeneratedImageError: Error, LocalizedError, Sendable {
     case photosAccessDenied
 
     /// The save operation failed.
-    case saveFailed(underlying: Error)
+    case saveFailed(underlying: SendableError)
 
     public var errorDescription: String? {
         switch self {
