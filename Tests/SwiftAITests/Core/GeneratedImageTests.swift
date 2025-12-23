@@ -329,7 +329,7 @@ final class GeneratedImageTests: XCTestCase {
 
     func testSaveFailedError() {
         let underlyingError = NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: "Test error"])
-        let error = GeneratedImageError.saveFailed(underlying: underlyingError)
+        let error = GeneratedImageError.saveFailed(underlying: SendableError(underlyingError))
 
         XCTAssertNotNil(error.errorDescription, "Error should have description")
         XCTAssertTrue(error.errorDescription?.contains("Failed to save") ?? false,
