@@ -65,14 +65,21 @@ public actor DiffusionModelRegistry {
     /// Downloaded models tracked by this registry.
     private var downloadedModels: [String: DownloadedDiffusionModel] = [:]
 
-    /// UserDefaults key for persistence.
+    /// Custom user-registered models.
+    private var customModels: [String: DiffusionModelInfo] = [:]
+
+    /// UserDefaults key for downloaded models persistence.
     private nonisolated let storageKey = "swiftai.diffusion.downloaded"
+
+    /// UserDefaults key for custom models persistence.
+    private nonisolated let customModelsKey = "swiftai.diffusion.custom"
 
     // MARK: - Initialization
 
     private init() {
         // Load persisted data using nonisolated helper
         self.downloadedModels = Self.loadFromStorage(key: storageKey)
+        self.customModels = Self.loadCustomModelsFromStorage(key: customModelsKey)
     }
 
     // MARK: - Thread-Safe UserDefaults Access
@@ -90,6 +97,21 @@ public actor DiffusionModelRegistry {
     private nonisolated func persistToStorage(_ models: [String: DownloadedDiffusionModel]) {
         guard let data = try? JSONEncoder().encode(models) else { return }
         UserDefaults.standard.set(data, forKey: storageKey)
+    }
+
+    /// Loads custom models from UserDefaults (nonisolated for thread-safety).
+    private nonisolated static func loadCustomModelsFromStorage(key: String) -> [String: DiffusionModelInfo] {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let models = try? JSONDecoder().decode([String: DiffusionModelInfo].self, from: data) else {
+            return [:]
+        }
+        return models
+    }
+
+    /// Saves custom models to UserDefaults (nonisolated for thread-safety).
+    private nonisolated func persistCustomModels(_ models: [String: DiffusionModelInfo]) {
+        guard let data = try? JSONEncoder().encode(models) else { return }
+        UserDefaults.standard.set(data, forKey: customModelsKey)
     }
 
     // MARK: - Query Methods
@@ -172,12 +194,105 @@ public actor DiffusionModelRegistry {
         downloadedModels.removeAll()
         saveToStorage()
     }
+
+    // MARK: - Custom Model Catalog
+
+    /// All available models (built-in + custom).
+    ///
+    /// Returns a combined list of the built-in model catalog and any
+    /// user-registered custom models.
+    public var allAvailableModels: [DiffusionModelInfo] {
+        var models = Self.availableModels
+        models.append(contentsOf: customModels.values)
+        return models.sorted { $0.name < $1.name }
+    }
+
+    /// Registers a custom diffusion model.
+    ///
+    /// This allows users to add their own models to the catalog, enabling
+    /// downloads and tracking for models not in the built-in list.
+    ///
+    /// ## Usage
+    ///
+    /// ```swift
+    /// let customModel = DiffusionModelInfo(
+    ///     id: "my-org/custom-sd-model",
+    ///     name: "My Custom Model",
+    ///     variant: .sdxlTurbo,
+    ///     sizeGiB: 5.2,
+    ///     description: "Custom fine-tuned model",
+    ///     huggingFaceURL: URL(string: "https://huggingface.co/my-org/custom-sd-model")!,
+    ///     checksum: "abc123..."
+    /// )
+    ///
+    /// await DiffusionModelRegistry.shared.registerCustomModel(customModel)
+    /// ```
+    ///
+    /// - Parameter model: The custom model information to register.
+    public func registerCustomModel(_ model: DiffusionModelInfo) {
+        customModels[model.id] = model
+        saveCustomModels()
+    }
+
+    /// Unregisters a custom model from the catalog.
+    ///
+    /// - Parameter modelId: The HuggingFace repository ID of the custom model.
+    /// - Note: This does not remove the model from downloaded records or delete files.
+    public func unregisterCustomModel(_ modelId: String) {
+        customModels.removeValue(forKey: modelId)
+        saveCustomModels()
+    }
+
+    /// Checks if a model ID is a custom (user-registered) model.
+    ///
+    /// - Parameter modelId: The HuggingFace repository ID.
+    /// - Returns: `true` if this is a custom model.
+    public func isCustomModel(_ modelId: String) -> Bool {
+        customModels[modelId] != nil
+    }
+
+    /// All custom models registered by the user.
+    public var allCustomModels: [DiffusionModelInfo] {
+        Array(customModels.values).sorted { $0.name < $1.name }
+    }
+
+    /// Number of registered custom models.
+    public var customModelCount: Int {
+        customModels.count
+    }
+
+    /// Finds a model in the catalog (built-in or custom).
+    ///
+    /// - Parameter modelId: The HuggingFace repository ID.
+    /// - Returns: Model info if found in either catalog.
+    public func findModel(_ modelId: String) -> DiffusionModelInfo? {
+        // Check custom models first (allows overriding built-in)
+        if let custom = customModels[modelId] {
+            return custom
+        }
+
+        // Check built-in models
+        return Self.availableModels.first { $0.id == modelId }
+    }
+
+    /// Clears all custom model registrations.
+    ///
+    /// - Note: This does not affect downloaded models or files.
+    public func clearAllCustomModels() {
+        customModels.removeAll()
+        saveCustomModels()
+    }
+
+    private func saveCustomModels() {
+        let current = customModels
+        persistCustomModels(current)
+    }
 }
 
 // MARK: - Model Info Types
 
 /// Information about an available diffusion model.
-public struct DiffusionModelInfo: Sendable, Identifiable {
+public struct DiffusionModelInfo: Sendable, Identifiable, Codable {
 
     /// HuggingFace repository ID (e.g., "mlx-community/sdxl-turbo").
     public let id: String

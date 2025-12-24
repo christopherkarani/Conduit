@@ -400,18 +400,31 @@ public actor MLXImageProvider: ImageGenerator {
         }
 
         do {
+            // Validate OS version requirements
+            try validateOSVersion()
+
+            // Validate model files exist and are complete
+            try validateModelFiles(at: path)
+
             // Map variant to StableDiffusionConfiguration preset
             let sdConfig: StableDiffusionConfiguration
             switch variant {
             case .sdxlTurbo:
                 sdConfig = .presetSDXLTurbo
             case .sd15:
-                // Use SD 2.1 base preset (closest available to SD 1.5)
-                sdConfig = .presetStableDiffusion21Base
+                // SD 1.5 is not natively supported by mlx-swift-examples StableDiffusion library
+                // The library only provides presets for SDXL Turbo and SD 2.1
+                throw AIError.unsupportedPlatform(
+                    "Stable Diffusion 1.5 is not currently supported. " +
+                    "Please use SDXL Turbo (.sdxlTurbo) instead."
+                )
             case .flux:
                 // Flux is not natively supported by mlx-swift-examples StableDiffusion library
-                // Fall back to SD 2.1 base for now
-                sdConfig = .presetStableDiffusion21Base
+                // The library only provides presets for SDXL Turbo and SD 2.1
+                throw AIError.unsupportedPlatform(
+                    "Flux is not currently supported by the MLX StableDiffusion library. " +
+                    "Please use SDXL Turbo (.sdxlTurbo) instead."
+                )
             }
 
             // Configure GPU memory limits during model loading (optimization)
@@ -514,6 +527,112 @@ public actor MLXImageProvider: ImageGenerator {
         #if arch(arm64)
         MLX.GPU.clearCache()
         #endif
+    }
+
+    /// Validates that the OS version meets minimum requirements for MLX.
+    ///
+    /// MLX image generation requires:
+    /// - macOS 14.0+ (Sonoma)
+    /// - iOS 17.0+
+    /// - visionOS 1.0+
+    ///
+    /// - Throws: `AIError.unsupportedPlatform` if OS version is too old.
+    private nonisolated func validateOSVersion() throws {
+        #if os(macOS)
+        if #available(macOS 14.0, *) {
+            // OS version is supported
+        } else {
+            throw AIError.unsupportedPlatform(
+                "MLX image generation requires macOS 14.0 (Sonoma) or later"
+            )
+        }
+        #elseif os(iOS)
+        if #available(iOS 17.0, *) {
+            // OS version is supported
+        } else {
+            throw AIError.unsupportedPlatform(
+                "MLX image generation requires iOS 17.0 or later"
+            )
+        }
+        #elseif os(visionOS)
+        if #available(visionOS 1.0, *) {
+            // OS version is supported
+        } else {
+            throw AIError.unsupportedPlatform(
+                "MLX image generation requires visionOS 1.0 or later"
+            )
+        }
+        #else
+        throw AIError.unsupportedPlatform(
+            "MLX image generation is only supported on macOS, iOS, and visionOS"
+        )
+        #endif
+    }
+
+    /// Validates that model files are present and complete.
+    ///
+    /// Checks for essential model files in the directory:
+    /// - At least one `.safetensors` file (model weights)
+    /// - Configuration files (`.json`)
+    /// - Tokenizer files
+    ///
+    /// - Parameter path: The model directory path.
+    /// - Throws: `AIError.fileError` if required files are missing.
+    private nonisolated func validateModelFiles(at path: URL) throws {
+        let fileManager = FileManager.default
+
+        // Check directory exists
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: path.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            throw AIError.fileError(
+                path: path.path,
+                message: "Model directory does not exist"
+            )
+        }
+
+        // Get directory contents
+        let contents: [String]
+        do {
+            contents = try fileManager.contentsOfDirectory(atPath: path.path)
+        } catch {
+            throw AIError.fileError(
+                path: path.path,
+                message: "Cannot read model directory: \(error.localizedDescription)"
+            )
+        }
+
+        // Verify at least one .safetensors file exists
+        let hasSafetensors = contents.contains { $0.hasSuffix(".safetensors") }
+        guard hasSafetensors else {
+            throw AIError.fileError(
+                path: path.path,
+                message: "Model directory is missing .safetensors weight files. " +
+                "Please ensure the model is fully downloaded."
+            )
+        }
+
+        // Verify at least one .json configuration file exists
+        let hasConfig = contents.contains { $0.hasSuffix(".json") }
+        guard hasConfig else {
+            throw AIError.fileError(
+                path: path.path,
+                message: "Model directory is missing .json configuration files. " +
+                "Please ensure the model is fully downloaded."
+            )
+        }
+
+        // Check for tokenizer files (tokenizer.json or tokenizer_config.json)
+        let hasTokenizer = contents.contains {
+            $0.contains("tokenizer") && ($0.hasSuffix(".json") || $0.hasSuffix(".model"))
+        }
+        guard hasTokenizer else {
+            throw AIError.fileError(
+                path: path.path,
+                message: "Model directory is missing tokenizer files. " +
+                "Please ensure the model is fully downloaded."
+            )
+        }
     }
 
     /// Converts an MLXArray to PNG data.
