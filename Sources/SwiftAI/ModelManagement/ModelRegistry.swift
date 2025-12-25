@@ -76,7 +76,7 @@ public enum ModelCapability: String, Sendable, Codable, CaseIterable {
 ///
 /// ## Usage
 /// ```swift
-/// let model = ModelRegistry.info(for: .llama3_2_1B)!
+/// let model = ModelRegistry.info(for: .llama3_2_1b)!
 /// print("\(model.name): \(model.size.displayName), \(model.contextWindow) tokens")
 ///
 /// if model.isRecommended {
@@ -226,7 +226,7 @@ public struct ModelInfo: Sendable, Identifiable, Hashable {
 /// let allModels = ModelRegistry.allModels
 ///
 /// // Find a specific model
-/// if let model = ModelRegistry.info(for: .llama3_2_1B) {
+/// if let model = ModelRegistry.info(for: .llama3_2_1b) {
 ///     print("\(model.name): \(model.description)")
 /// }
 ///
@@ -257,7 +257,7 @@ public enum ModelRegistry {
         // MARK: MLX Text Generation Models (7)
 
         ModelInfo(
-            identifier: .llama3_2_1B,
+            identifier: .llama3_2_1b,
             name: "Llama 3.2 1B",
             description: "Fast and efficient model ideal for quick responses and low memory usage",
             size: .small,
@@ -270,7 +270,7 @@ public enum ModelRegistry {
         ),
 
         ModelInfo(
-            identifier: .llama3_2_3B,
+            identifier: .llama3_2_3b,
             name: "Llama 3.2 3B",
             description: "Balanced model offering good quality and reasonable speed",
             size: .small,
@@ -309,7 +309,7 @@ public enum ModelRegistry {
         ),
 
         ModelInfo(
-            identifier: .qwen2_5_3B,
+            identifier: .qwen2_5_3b,
             name: "Qwen 2.5 3B",
             description: "Multilingual model with strong instruction following and large context window",
             size: .small,
@@ -335,7 +335,7 @@ public enum ModelRegistry {
         ),
 
         ModelInfo(
-            identifier: .gemma2_2B,
+            identifier: .gemma2_2b,
             name: "Gemma 2 2B",
             description: "Google's efficient model with strong instruction following capabilities",
             size: .small,
@@ -480,7 +480,7 @@ public enum ModelRegistry {
     ///
     /// ## Usage
     /// ```swift
-    /// if let model = ModelRegistry.info(for: .llama3_2_1B) {
+    /// if let model = ModelRegistry.info(for: .llama3_2_1b) {
     ///     print("Found: \(model.name)")
     ///     print("Size: \(model.size.displayName)")
     ///     print("Context: \(model.contextWindow) tokens")

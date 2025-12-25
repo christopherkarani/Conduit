@@ -49,7 +49,7 @@ struct MessageTests {
         let metadata = MessageMetadata(
             tokenCount: 42,
             generationTime: 1.5,
-            model: "llama3_2_1B",
+            model: "llama3_2_1b",
             tokensPerSecond: 28.0
         )
 
@@ -61,7 +61,7 @@ struct MessageTests {
 
         #expect(message.metadata?.tokenCount == 42)
         #expect(message.metadata?.generationTime == 1.5)
-        #expect(message.metadata?.model == "llama3_2_1B")
+        #expect(message.metadata?.model == "llama3_2_1b")
         #expect(message.metadata?.tokensPerSecond == 28.0)
     }
 
@@ -122,7 +122,7 @@ struct MessageTests {
         let content = Message.Content.parts([])
 
         #expect(content.isEmpty)
-        #expect(content.textValue == "")
+        #expect(content.textValue.isEmpty)
     }
 
     @Test("Image-only parts has empty text")
@@ -132,7 +132,7 @@ struct MessageTests {
         ])
 
         #expect(content.isEmpty)
-        #expect(content.textValue == "")
+        #expect(content.textValue.isEmpty)
     }
 
     // MARK: - ImageContent Tests

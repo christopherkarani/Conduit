@@ -62,7 +62,7 @@ struct PromptBuilderTests {
     func emptyExamples() {
         let examples = Examples([])
 
-        #expect(examples.render() == "")
+        #expect(examples.render().isEmpty)
     }
 
     // MARK: - PromptContent Tests

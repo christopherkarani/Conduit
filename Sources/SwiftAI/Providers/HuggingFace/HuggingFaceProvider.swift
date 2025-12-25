@@ -111,11 +111,20 @@ public actor HuggingFaceProvider: AIProvider, TextGenerator, EmbeddingGenerator,
     /// Flag for cancellation support.
     private var isCancelled: Bool = false
 
+    /// Current image generation task for cancellation support.
+    private var currentImageTask: Task<GeneratedImage, Error>?
+
+    /// Default model for image generation.
+    /// Can be overridden when calling textToImage() by passing a different model.
+    public let defaultImageModel: String
+
     // MARK: - Initialization
 
     /// Creates a HuggingFace provider with the specified configuration.
     ///
-    /// - Parameter configuration: HuggingFace configuration settings. Defaults to `.default`.
+    /// - Parameters:
+    ///   - configuration: HuggingFace configuration settings. Defaults to `.default`.
+    ///   - defaultImageModel: Default model for image generation. Defaults to Stable Diffusion 3.
     ///
     /// ## Example
     /// ```swift
@@ -126,28 +135,49 @@ public actor HuggingFaceProvider: AIProvider, TextGenerator, EmbeddingGenerator,
     /// let provider = HuggingFaceProvider(
     ///     configuration: .default.timeout(120).maxRetries(5)
     /// )
+    ///
+    /// // Use custom image model
+    /// let provider = HuggingFaceProvider(
+    ///     defaultImageModel: "stabilityai/stable-diffusion-xl-base-1.0"
+    /// )
     /// ```
-    public init(configuration: HFConfiguration = .default) {
+    public init(
+        configuration: HFConfiguration = .default,
+        defaultImageModel: String = "stabilityai/stable-diffusion-3"
+    ) {
         self.configuration = configuration
         self.client = HFInferenceClient(configuration: configuration)
+        self.defaultImageModel = defaultImageModel
     }
 
     /// Creates a HuggingFace provider with an explicit API token.
     ///
     /// Convenience initializer for providing a static token.
     ///
-    /// - Parameter token: HuggingFace API token (starts with "hf_").
+    /// - Parameters:
+    ///   - token: HuggingFace API token (starts with "hf_").
+    ///   - defaultImageModel: Default model for image generation. Defaults to Stable Diffusion 3.
     ///
     /// ## Example
     /// ```swift
     /// let provider = HuggingFaceProvider(token: "hf_...")
+    ///
+    /// // With custom image model
+    /// let provider = HuggingFaceProvider(
+    ///     token: "hf_...",
+    ///     defaultImageModel: "stabilityai/stable-diffusion-xl-base-1.0"
+    /// )
     /// ```
     ///
     /// - Warning: Do not hardcode tokens in source code. Load from secure storage.
-    public init(token: String) {
+    public init(
+        token: String,
+        defaultImageModel: String = "stabilityai/stable-diffusion-3"
+    ) {
         let config = HFConfiguration.default.token(.static(token))
         self.configuration = config
         self.client = HFInferenceClient(configuration: config)
+        self.defaultImageModel = defaultImageModel
     }
 
     // MARK: - AIProvider: Availability
@@ -279,9 +309,36 @@ public actor HuggingFaceProvider: AIProvider, TextGenerator, EmbeddingGenerator,
 
     /// Cancels any in-flight generation request.
     ///
-    /// Sets the cancellation flag to stop generation at the next opportunity.
+    /// Cancels both text and image generation tasks. For text generation,
+    /// sets the cancellation flag to stop at the next opportunity. For image
+    /// generation, cancels the HTTP request.
+    ///
+    /// ## Behavior
+    ///
+    /// - For text generation: Sets cancellation flag checked during streaming
+    /// - For image generation: Cancels the current HTTP request
+    /// - Cleans up task references
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let provider = HuggingFaceProvider()
+    ///
+    /// let task = Task {
+    ///     try await provider.generate("Write a long story...", model: .llama3_1_8B)
+    /// }
+    ///
+    /// // Cancel after 5 seconds
+    /// try await Task.sleep(for: .seconds(5))
+    /// await provider.cancelGeneration()
+    /// ```
     public func cancelGeneration() async {
+        // Set cancellation flag for text generation
         isCancelled = true
+
+        // Cancel any ongoing image generation
+        currentImageTask?.cancel()
+        currentImageTask = nil
     }
 
     // MARK: - TextGenerator
@@ -542,7 +599,8 @@ public actor HuggingFaceProvider: AIProvider, TextGenerator, EmbeddingGenerator,
     ///
     /// - Parameters:
     ///   - prompt: Text description of the desired image.
-    ///   - model: Model identifier. Must be a `.huggingFace()` model.
+    ///   - model: Model identifier. Must be a `.huggingFace()` model. If not provided, uses `defaultImageModel`.
+    ///   - negativePrompt: Optional text describing what to avoid in the image.
     ///   - config: Image generation configuration (dimensions, steps, guidance).
     /// - Returns: A `GeneratedImage` with the image data and convenience methods.
     /// - Throws: `AIError` if image generation fails.
@@ -552,17 +610,22 @@ public actor HuggingFaceProvider: AIProvider, TextGenerator, EmbeddingGenerator,
     /// ```swift
     /// let provider = HuggingFaceProvider()
     ///
-    /// // Simple generation with defaults
+    /// // Simple generation with default model
     /// let result = try await provider.textToImage(
-    ///     "A sunset over mountains, oil painting style",
-    ///     model: .huggingFace("stabilityai/stable-diffusion-3")
+    ///     "A sunset over mountains, oil painting style"
     /// )
     ///
-    /// // With custom configuration
+    /// // With explicit model
     /// let result = try await provider.textToImage(
     ///     "A cat wearing a top hat, digital art",
-    ///     model: .huggingFace("stabilityai/stable-diffusion-xl-base-1.0"),
-    ///     config: .highQuality.width(1024).height(768)
+    ///     model: .huggingFace("stabilityai/stable-diffusion-xl-base-1.0")
+    /// )
+    ///
+    /// // With negative prompt
+    /// let result = try await provider.textToImage(
+    ///     "A professional portrait photograph",
+    ///     negativePrompt: "blurry, low quality, distorted, cartoon",
+    ///     config: .highQuality
     /// )
     ///
     /// // Display in SwiftUI
@@ -594,23 +657,33 @@ public actor HuggingFaceProvider: AIProvider, TextGenerator, EmbeddingGenerator,
     /// | `.square1024` | 1024x1024 high resolution |
     public func textToImage(
         _ prompt: String,
-        model: ModelID,
+        model: ModelID? = nil,
+        negativePrompt: String? = nil,
         config: ImageGenerationConfig = .default
     ) async throws -> GeneratedImage {
-        // Validate model type
-        guard case .huggingFace(let modelId) = model else {
-            throw AIError.invalidInput("HuggingFaceProvider only supports .huggingFace() models for text-to-image")
+        // Resolve model ID
+        let modelId: String
+        if let model = model {
+            // Validate model type
+            guard case .huggingFace(let id) = model else {
+                throw AIError.invalidInput("HuggingFaceProvider only supports .huggingFace() models for text-to-image")
+            }
+            modelId = id
+        } else {
+            // Use default image model
+            modelId = defaultImageModel
         }
 
         // Convert to HuggingFace-specific parameters if any are set
-        let parameters: HFImageParameters? = config.hasParameters
-            ? HFImageParameters(from: config)
+        let parameters: HFImageParameters? = (config.hasParameters || negativePrompt != nil)
+            ? HFImageParameters(from: config, negativePrompt: negativePrompt)
             : nil
 
         // Delegate to internal client
         return try await client.textToImage(
             model: modelId,
             prompt: prompt,
+            negativePrompt: negativePrompt,
             parameters: parameters
         )
     }
@@ -725,6 +798,116 @@ extension HuggingFaceProvider {
             return .contentFilter
         default:
             return .stop
+        }
+    }
+}
+
+// MARK: - ImageGenerator Conformance
+
+extension HuggingFaceProvider: ImageGenerator {
+
+    /// Generates an image using HuggingFace's cloud API.
+    ///
+    /// This is a convenience wrapper around `textToImage()` that conforms
+    /// to the `ImageGenerator` protocol for unified usage across providers.
+    ///
+    /// ## Cloud-Based Progress
+    ///
+    /// Cloud-based image generation happens server-side, so true progress tracking
+    /// is not available. The `onProgress` callback will be invoked twice:
+    /// - Once at the start (progress: 0%)
+    /// - Once upon completion (progress: 100%)
+    ///
+    /// For real-time progress updates, use a local provider like `MLXImageProvider`.
+    ///
+    /// ## Usage
+    ///
+    /// ```swift
+    /// let provider = HuggingFaceProvider()
+    ///
+    /// // Using ImageGenerator protocol
+    /// let image = try await provider.generateImage(
+    ///     prompt: "A sunset over mountains",
+    ///     config: .highQuality
+    /// )
+    ///
+    /// // With negative prompt
+    /// let image = try await provider.generateImage(
+    ///     prompt: "A professional portrait",
+    ///     negativePrompt: "blurry, low quality",
+    ///     config: .square1024
+    /// )
+    ///
+    /// // With synthetic progress tracking
+    /// let image = try await provider.generateImage(
+    ///     prompt: "A futuristic cityscape",
+    ///     config: .highQuality
+    /// ) { progress in
+    ///     print("Progress: \(progress.percentComplete)%")
+    ///     // Will print: "Progress: 0%" then "Progress: 100%"
+    /// }
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - prompt: Text description of the desired image.
+    ///   - negativePrompt: Optional text describing what to avoid.
+    ///     Supported by most Stable Diffusion models on HuggingFace.
+    ///   - config: Image generation configuration.
+    ///   - onProgress: Progress callback. Receives synthetic progress updates
+    ///     (start and completion only) since cloud generation doesn't support
+    ///     step-by-step progress.
+    /// - Returns: The generated image.
+    /// - Throws: `AIError` if generation fails.
+    public func generateImage(
+        prompt: String,
+        negativePrompt: String?,
+        config: ImageGenerationConfig,
+        onProgress: (@Sendable (ImageGenerationProgress) -> Void)?
+    ) async throws -> GeneratedImage {
+        // Report initial progress if callback provided
+        if let onProgress = onProgress {
+            let startProgress = ImageGenerationProgress(
+                currentStep: 0,
+                totalSteps: config.steps ?? 30
+            )
+            onProgress(startProgress)
+        }
+
+        // Create a cancellable task for image generation
+        let task = Task<GeneratedImage, Error> {
+            try await textToImage(
+                prompt,
+                model: nil, // Use default image model
+                negativePrompt: negativePrompt,
+                config: config
+            )
+        }
+
+        // Store for cancellation support
+        currentImageTask = task
+
+        do {
+            // Wait for generation to complete
+            let image = try await task.value
+
+            // Clear the task reference
+            currentImageTask = nil
+
+            // Report completion progress if callback provided
+            if let onProgress = onProgress {
+                let completionProgress = ImageGenerationProgress(
+                    currentStep: config.steps ?? 30,
+                    totalSteps: config.steps ?? 30
+                )
+                onProgress(completionProgress)
+            }
+
+            return image
+
+        } catch {
+            // Clear the task reference on error
+            currentImageTask = nil
+            throw error
         }
     }
 }

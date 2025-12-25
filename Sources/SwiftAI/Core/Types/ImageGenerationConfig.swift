@@ -2,6 +2,7 @@
 // SwiftAI
 
 import Foundation
+import os.log
 
 /// Configuration for text-to-image generation.
 ///
@@ -51,6 +52,12 @@ import Foundation
 ///   Higher = more literal interpretation, lower = more creative freedom.
 public struct ImageGenerationConfig: Sendable, Hashable {
 
+    /// Logger for validation warnings.
+    private static let logger = Logger(
+        subsystem: "com.swiftai.framework",
+        category: "ImageGenerationConfig"
+    )
+
     /// The desired image width in pixels.
     ///
     /// Should be divisible by 8 for most diffusion models.
@@ -77,6 +84,24 @@ public struct ImageGenerationConfig: Sendable, Hashable {
     /// - Typical default: 7.5
     public let guidanceScale: Float?
 
+    // MARK: - DALL-E Properties
+
+    /// DALL-E image size.
+    ///
+    /// Only used by OpenAI DALL-E models. MLX providers use width/height instead.
+    /// Overrides width/height for DALL-E providers.
+    public let dalleSize: DALLEImageSize?
+
+    /// DALL-E 3 quality setting.
+    ///
+    /// Only applicable to DALL-E 3. Ignored for DALL-E 2 and local models.
+    public let dalleQuality: DALLEQuality?
+
+    /// DALL-E 3 style setting.
+    ///
+    /// Only applicable to DALL-E 3. Ignored for DALL-E 2 and local models.
+    public let dalleStyle: DALLEStyle?
+
     /// Creates an image generation configuration.
     ///
     /// - Parameters:
@@ -84,16 +109,25 @@ public struct ImageGenerationConfig: Sendable, Hashable {
     ///   - height: Image height in pixels (nil for model default).
     ///   - steps: Number of inference steps (nil for model default).
     ///   - guidanceScale: Prompt guidance scale (nil for model default).
+    ///   - dalleSize: DALL-E image size (nil for default).
+    ///   - dalleQuality: DALL-E 3 quality setting (nil for default).
+    ///   - dalleStyle: DALL-E 3 style setting (nil for default).
     public init(
         width: Int? = nil,
         height: Int? = nil,
         steps: Int? = nil,
-        guidanceScale: Float? = nil
+        guidanceScale: Float? = nil,
+        dalleSize: DALLEImageSize? = nil,
+        dalleQuality: DALLEQuality? = nil,
+        dalleStyle: DALLEStyle? = nil
     ) {
         self.width = width
         self.height = height
         self.steps = steps
         self.guidanceScale = guidanceScale
+        self.dalleSize = dalleSize
+        self.dalleQuality = dalleQuality
+        self.dalleStyle = dalleStyle
     }
 
     // MARK: - Presets
@@ -134,6 +168,42 @@ public struct ImageGenerationConfig: Sendable, Hashable {
     /// Tall format suitable for portraits, characters, and vertical compositions.
     public static let portrait = ImageGenerationConfig(width: 768, height: 1024)
 
+    // MARK: - DALL-E Presets
+
+    /// DALL-E 3 high quality preset.
+    ///
+    /// Uses HD quality with vivid style for detailed, dramatic images.
+    /// Best for final output and professional use.
+    public static let dalleHD = ImageGenerationConfig(
+        dalleSize: .large1024,
+        dalleQuality: .hd,
+        dalleStyle: .vivid
+    )
+
+    /// DALL-E 3 natural style preset.
+    ///
+    /// Uses standard quality with natural style for photorealistic images.
+    /// Best for product photos, documentation, and realistic scenes.
+    public static let dalleNatural = ImageGenerationConfig(
+        dalleSize: .large1024,
+        dalleQuality: .standard,
+        dalleStyle: .natural
+    )
+
+    /// DALL-E 3 landscape preset.
+    ///
+    /// Wide format (1792×1024) suitable for landscapes, scenes, and horizontal compositions.
+    public static let dalleLandscape = ImageGenerationConfig(
+        dalleSize: .landscape1792x1024
+    )
+
+    /// DALL-E 3 portrait preset.
+    ///
+    /// Tall format (1024×1792) suitable for portraits and vertical compositions.
+    public static let dallePortrait = ImageGenerationConfig(
+        dalleSize: .portrait1024x1792
+    )
+
     // MARK: - Fluent Builders
 
     /// Sets the image width.
@@ -148,7 +218,10 @@ public struct ImageGenerationConfig: Sendable, Hashable {
             width: value,
             height: self.height,
             steps: self.steps,
-            guidanceScale: self.guidanceScale
+            guidanceScale: self.guidanceScale,
+            dalleSize: self.dalleSize,
+            dalleQuality: self.dalleQuality,
+            dalleStyle: self.dalleStyle
         )
     }
 
@@ -164,7 +237,10 @@ public struct ImageGenerationConfig: Sendable, Hashable {
             width: self.width,
             height: value,
             steps: self.steps,
-            guidanceScale: self.guidanceScale
+            guidanceScale: self.guidanceScale,
+            dalleSize: self.dalleSize,
+            dalleQuality: self.dalleQuality,
+            dalleStyle: self.dalleStyle
         )
     }
 
@@ -183,7 +259,10 @@ public struct ImageGenerationConfig: Sendable, Hashable {
             width: width,
             height: height,
             steps: self.steps,
-            guidanceScale: self.guidanceScale
+            guidanceScale: self.guidanceScale,
+            dalleSize: self.dalleSize,
+            dalleQuality: self.dalleQuality,
+            dalleStyle: self.dalleStyle
         )
     }
 
@@ -200,7 +279,10 @@ public struct ImageGenerationConfig: Sendable, Hashable {
             width: self.width,
             height: self.height,
             steps: value,
-            guidanceScale: self.guidanceScale
+            guidanceScale: self.guidanceScale,
+            dalleSize: self.dalleSize,
+            dalleQuality: self.dalleQuality,
+            dalleStyle: self.dalleStyle
         )
     }
 
@@ -218,7 +300,63 @@ public struct ImageGenerationConfig: Sendable, Hashable {
             width: self.width,
             height: self.height,
             steps: self.steps,
-            guidanceScale: value
+            guidanceScale: value,
+            dalleSize: self.dalleSize,
+            dalleQuality: self.dalleQuality,
+            dalleStyle: self.dalleStyle
+        )
+    }
+
+    // MARK: - DALL-E Fluent Builders
+
+    /// Sets the DALL-E image size.
+    ///
+    /// - Parameter size: The image size for DALL-E generation.
+    /// - Returns: A new configuration with the updated size.
+    /// - Note: Overrides width/height for DALL-E providers.
+    public func dalleSize(_ size: DALLEImageSize) -> ImageGenerationConfig {
+        ImageGenerationConfig(
+            width: self.width,
+            height: self.height,
+            steps: self.steps,
+            guidanceScale: self.guidanceScale,
+            dalleSize: size,
+            dalleQuality: self.dalleQuality,
+            dalleStyle: self.dalleStyle
+        )
+    }
+
+    /// Sets the DALL-E 3 quality.
+    ///
+    /// - Parameter quality: The quality level for DALL-E 3 generation.
+    /// - Returns: A new configuration with the updated quality.
+    /// - Note: Only applicable to DALL-E 3. Ignored for DALL-E 2 and local models.
+    public func dalleQuality(_ quality: DALLEQuality) -> ImageGenerationConfig {
+        ImageGenerationConfig(
+            width: self.width,
+            height: self.height,
+            steps: self.steps,
+            guidanceScale: self.guidanceScale,
+            dalleSize: self.dalleSize,
+            dalleQuality: quality,
+            dalleStyle: self.dalleStyle
+        )
+    }
+
+    /// Sets the DALL-E 3 style.
+    ///
+    /// - Parameter style: The style for DALL-E 3 generation.
+    /// - Returns: A new configuration with the updated style.
+    /// - Note: Only applicable to DALL-E 3. Ignored for DALL-E 2 and local models.
+    public func dalleStyle(_ style: DALLEStyle) -> ImageGenerationConfig {
+        ImageGenerationConfig(
+            width: self.width,
+            height: self.height,
+            steps: self.steps,
+            guidanceScale: self.guidanceScale,
+            dalleSize: self.dalleSize,
+            dalleQuality: self.dalleQuality,
+            dalleStyle: style
         )
     }
 
@@ -226,7 +364,8 @@ public struct ImageGenerationConfig: Sendable, Hashable {
 
     /// Whether any parameters are set (non-nil).
     internal var hasParameters: Bool {
-        width != nil || height != nil || steps != nil || guidanceScale != nil
+        width != nil || height != nil || steps != nil || guidanceScale != nil ||
+        dalleSize != nil || dalleQuality != nil || dalleStyle != nil
     }
 
     // MARK: - Validation
@@ -234,27 +373,34 @@ public struct ImageGenerationConfig: Sendable, Hashable {
     /// Validates image dimension (width/height).
     private func validateDimension(_ value: Int, name: String) {
         if value <= 0 {
-            print("⚠️ ImageGenerationConfig: \(name) must be greater than 0 (got \(value))")
+            Self.logger.warning("ImageGenerationConfig: \(name) must be greater than 0 (got \(value))")
         } else if value % 8 != 0 {
-            print("⚠️ ImageGenerationConfig: \(name) should be divisible by 8 for best compatibility with diffusion models (got \(value))")
+            // Note: OSLog requires a single string literal, can't use + concatenation
+            Self.logger.warning(
+                "ImageGenerationConfig: \(name) should be divisible by 8 (got \(value))"
+            )
         }
     }
 
     /// Validates inference steps.
     private func validateSteps(_ value: Int) {
         if value < 1 {
-            print("⚠️ ImageGenerationConfig: steps must be at least 1 (got \(value))")
+            Self.logger.warning("ImageGenerationConfig: steps must be at least 1 (got \(value))")
         } else if value > 150 {
-            print("⚠️ ImageGenerationConfig: steps above 150 may be excessive and slow (got \(value))")
+            Self.logger.warning("ImageGenerationConfig: steps above 150 may be excessive and slow (got \(value))")
         }
     }
 
     /// Validates guidance scale.
     private func validateGuidanceScale(_ value: Float) {
         if value < 0.0 {
-            print("⚠️ ImageGenerationConfig: guidanceScale must be non-negative (got \(value))")
+            Self.logger.warning(
+                "ImageGenerationConfig: guidanceScale must be non-negative (got \(value))"
+            )
         } else if value > 30.0 {
-            print("⚠️ ImageGenerationConfig: guidanceScale above 30.0 may produce poor results (got \(value))")
+            Self.logger.warning(
+                "ImageGenerationConfig: guidanceScale above 30.0 may produce poor results (got \(value))"
+            )
         }
     }
 }

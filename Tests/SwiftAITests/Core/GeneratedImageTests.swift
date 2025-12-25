@@ -300,7 +300,10 @@ final class GeneratedImageTests: XCTestCase {
         let data = createTestPNGData()
         let image = GeneratedImage(data: data)
 
-        XCTAssertThrowsError(try image.save(toDirectory: invalidDir, filename: "test"), "Should throw error for invalid directory") { error in
+        XCTAssertThrowsError(
+            try image.save(toDirectory: invalidDir, filename: "test"),
+            "Should throw error for invalid directory"
+        ) { error in
             // Verify it throws GeneratedImageError.saveFailed
             guard case GeneratedImageError.saveFailed = error else {
                 XCTFail("Expected GeneratedImageError.saveFailed, got \(error)")
@@ -329,7 +332,7 @@ final class GeneratedImageTests: XCTestCase {
 
     func testSaveFailedError() {
         let underlyingError = NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: "Test error"])
-        let error = GeneratedImageError.saveFailed(underlying: underlyingError)
+        let error = GeneratedImageError.saveFailed(underlying: SendableError(underlyingError))
 
         XCTAssertNotNil(error.errorDescription, "Error should have description")
         XCTAssertTrue(error.errorDescription?.contains("Failed to save") ?? false,

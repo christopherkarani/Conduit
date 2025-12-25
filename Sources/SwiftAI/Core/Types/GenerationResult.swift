@@ -10,7 +10,7 @@ import Foundation
 ///
 /// ## Usage
 /// ```swift
-/// let result = try await provider.generate(messages: messages, model: .llama3_2_1B, config: .default)
+/// let result = try await provider.generate(messages: messages, model: .llama3_2_1b, config: .default)
 /// print(result.text)
 /// print("Generated \(result.tokenCount) tokens in \(result.generationTime)s")
 /// print("Speed: \(result.tokensPerSecond) tok/s")

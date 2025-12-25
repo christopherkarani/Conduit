@@ -65,6 +65,30 @@ public enum ProviderType: String, Sendable, Codable, CaseIterable {
     /// Best for: System integration, Apple Intelligence features.
     case foundationModels
 
+    /// OpenAI API (cloud).
+    ///
+    /// Connects to OpenAI's hosted inference endpoints.
+    /// Best for: Access to GPT-4, DALL-E, Whisper models.
+    case openAI
+
+    /// OpenRouter API aggregator (cloud).
+    ///
+    /// Routes requests to multiple providers via unified API.
+    /// Best for: Access to 400+ models, provider fallbacks.
+    case openRouter
+
+    /// Ollama local inference server.
+    ///
+    /// Runs models locally via HTTP server.
+    /// Best for: Cross-platform local inference, model sharing.
+    case ollama
+
+    /// Azure OpenAI Service (cloud).
+    ///
+    /// Microsoft's enterprise OpenAI deployment.
+    /// Best for: Enterprise compliance, Azure integration.
+    case azure
+
     /// Human-readable name for display purposes.
     public var displayName: String {
         switch self {
@@ -74,6 +98,14 @@ public enum ProviderType: String, Sendable, Codable, CaseIterable {
             return "HuggingFace (Cloud)"
         case .foundationModels:
             return "Apple Foundation Models"
+        case .openAI:
+            return "OpenAI"
+        case .openRouter:
+            return "OpenRouter"
+        case .ollama:
+            return "Ollama (Local)"
+        case .azure:
+            return "Azure OpenAI"
         }
     }
 
@@ -83,9 +115,9 @@ public enum ProviderType: String, Sendable, Codable, CaseIterable {
     /// can operate offline.
     public var requiresNetwork: Bool {
         switch self {
-        case .mlx, .foundationModels:
+        case .mlx, .foundationModels, .ollama:
             return false
-        case .huggingFace:
+        case .huggingFace, .openAI, .openRouter, .azure:
             return true
         }
     }

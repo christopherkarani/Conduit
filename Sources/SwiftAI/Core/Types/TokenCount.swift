@@ -10,7 +10,7 @@ import Foundation
 ///
 /// ## Usage
 /// ```swift
-/// let count = try await provider.countTokens(in: "Hello, world!", for: .llama3_2_1B)
+/// let count = try await provider.countTokens(in: "Hello, world!", for: .llama3_2_1b)
 /// print("Token count: \(count.count)")
 /// print("Fits in 4K context: \(count.fitsInContext(of: .context4K))")
 /// ```
@@ -18,6 +18,13 @@ public struct TokenCount: Sendable, Hashable {
 
     /// Total number of tokens.
     public let count: Int
+
+    /// Whether this count is an estimate rather than precise.
+    ///
+    /// Set to `true` when token counting uses approximation algorithms
+    /// (e.g., character-based estimation) instead of actual tokenization.
+    /// Estimated counts may vary from actual counts by ±50% or more.
+    public let isEstimate: Bool
 
     /// The text that was counted.
     public let text: String
@@ -43,6 +50,7 @@ public struct TokenCount: Sendable, Hashable {
     ///
     /// - Parameters:
     ///   - count: Total number of tokens.
+    ///   - isEstimate: Whether this is an estimated count. Default is `false`.
     ///   - text: The text that was counted.
     ///   - tokenizer: The tokenizer identifier used.
     ///   - tokenIds: Optional array of token IDs.
@@ -51,6 +59,7 @@ public struct TokenCount: Sendable, Hashable {
     ///   - specialTokens: Optional count of special tokens.
     public init(
         count: Int,
+        isEstimate: Bool = false,
         text: String = "",
         tokenizer: String = "",
         tokenIds: [Int]? = nil,
@@ -59,6 +68,7 @@ public struct TokenCount: Sendable, Hashable {
         specialTokens: Int? = nil
     ) {
         self.count = count
+        self.isEstimate = isEstimate
         self.text = text
         self.tokenizer = tokenizer
         self.tokenIds = tokenIds
@@ -132,6 +142,9 @@ public struct TokenCount: Sendable, Hashable {
 extension TokenCount: CustomStringConvertible {
     public var description: String {
         var parts = ["\(count) tokens"]
+        if isEstimate {
+            parts.append("estimated")
+        }
         if let prompt = promptTokens {
             parts.append("prompt: \(prompt)")
         }
@@ -169,15 +182,18 @@ extension TokenCount {
     ///   - promptTokens: Tokens from prompts.
     ///   - specialTokens: Special/template tokens.
     ///   - tokenizer: The tokenizer used.
+    ///   - isEstimate: Whether this is an estimated count. Default is `false`.
     /// - Returns: A TokenCount for message-based counting.
     public static func fromMessages(
         count: Int,
         promptTokens: Int,
         specialTokens: Int,
-        tokenizer: String
+        tokenizer: String,
+        isEstimate: Bool = false
     ) -> TokenCount {
         TokenCount(
             count: count,
+            isEstimate: isEstimate,
             text: "",
             tokenizer: tokenizer,
             promptTokens: promptTokens,

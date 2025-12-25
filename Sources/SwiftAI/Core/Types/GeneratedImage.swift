@@ -40,14 +40,22 @@ public struct GeneratedImage: Sendable {
     /// The image format.
     public let format: ImageFormat
 
+    /// Additional metadata from the generation process.
+    ///
+    /// Contains provider-specific information like DALL-E 3's revised prompt.
+    /// Returns `nil` for providers that don't supply metadata.
+    public let metadata: ImageGenerationMetadata?
+
     /// Creates a generated image from raw data.
     ///
     /// - Parameters:
     ///   - data: Raw image bytes.
     ///   - format: The image format (default: PNG).
-    public init(data: Data, format: ImageFormat = .png) {
+    ///   - metadata: Optional metadata from the generation process.
+    public init(data: Data, format: ImageFormat = .png, metadata: ImageGenerationMetadata? = nil) {
         self.data = data
         self.format = format
+        self.metadata = metadata
     }
 
     // MARK: - SwiftUI Image
@@ -92,7 +100,7 @@ public struct GeneratedImage: Sendable {
         do {
             try data.write(to: url, options: .atomic)
         } catch {
-            throw GeneratedImageError.saveFailed(underlying: error)
+            throw GeneratedImageError.saveFailed(underlying: SendableError(error))
         }
     }
 
@@ -110,7 +118,7 @@ public struct GeneratedImage: Sendable {
         do {
             try data.write(to: url, options: .atomic)
         } catch {
-            throw GeneratedImageError.saveFailed(underlying: error)
+            throw GeneratedImageError.saveFailed(underlying: SendableError(error))
         }
         return url
     }
@@ -175,7 +183,7 @@ public enum GeneratedImageError: Error, LocalizedError, Sendable {
     case photosAccessDenied
 
     /// The save operation failed.
-    case saveFailed(underlying: Error)
+    case saveFailed(underlying: SendableError)
 
     public var errorDescription: String? {
         switch self {

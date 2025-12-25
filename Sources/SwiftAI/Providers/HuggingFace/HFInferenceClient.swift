@@ -87,23 +87,34 @@ internal struct HFImageParameters: Codable, Sendable {
     let height: Int?
     let num_inference_steps: Int?
     let guidance_scale: Float?
+    let negative_prompt: String?
 
-    init(width: Int? = nil, height: Int? = nil, steps: Int? = nil, guidanceScale: Float? = nil) {
+    init(
+        width: Int? = nil,
+        height: Int? = nil,
+        steps: Int? = nil,
+        guidanceScale: Float? = nil,
+        negativePrompt: String? = nil
+    ) {
         self.width = width
         self.height = height
         self.num_inference_steps = steps
         self.guidance_scale = guidanceScale
+        self.negative_prompt = negativePrompt
     }
 
     /// Creates HuggingFace-specific parameters from the public config.
     ///
-    /// - Parameter config: The public image generation configuration.
-    init(from config: ImageGenerationConfig) {
+    /// - Parameters:
+    ///   - config: The public image generation configuration.
+    ///   - negativePrompt: Optional negative prompt text.
+    init(from config: ImageGenerationConfig, negativePrompt: String? = nil) {
         self.init(
             width: config.width,
             height: config.height,
             steps: config.steps,
-            guidanceScale: config.guidanceScale
+            guidanceScale: config.guidanceScale,
+            negativePrompt: negativePrompt
         )
     }
 }
@@ -398,6 +409,7 @@ internal actor HFInferenceClient {
     /// - Parameters:
     ///   - model: The HuggingFace model identifier (e.g., "stabilityai/stable-diffusion-3").
     ///   - prompt: The text prompt describing the desired image.
+    ///   - negativePrompt: Optional text describing what to avoid in the image.
     ///   - parameters: Optional image generation parameters.
     /// - Returns: A `GeneratedImage` with the image data and convenience methods.
     /// - Throws: `AIError` if the request fails.
@@ -406,7 +418,8 @@ internal actor HFInferenceClient {
     /// ```swift
     /// let result = try await client.textToImage(
     ///     model: "stabilityai/stable-diffusion-3",
-    ///     prompt: "A cat wearing a top hat"
+    ///     prompt: "A cat wearing a top hat",
+    ///     negativePrompt: "blurry, low quality"
     /// )
     ///
     /// // Use in SwiftUI
@@ -421,9 +434,30 @@ internal actor HFInferenceClient {
     func textToImage(
         model: String,
         prompt: String,
+        negativePrompt: String? = nil,
         parameters: HFImageParameters? = nil
     ) async throws -> GeneratedImage {
-        let request = HFTextToImageRequest(prompt: prompt, parameters: parameters)
+        // Merge negative prompt into parameters if provided
+        let finalParameters: HFImageParameters?
+        if let negativePrompt = negativePrompt {
+            if let params = parameters {
+                // Merge negative prompt with existing parameters
+                finalParameters = HFImageParameters(
+                    width: params.width,
+                    height: params.height,
+                    steps: params.num_inference_steps,
+                    guidanceScale: params.guidance_scale,
+                    negativePrompt: negativePrompt
+                )
+            } else {
+                // Create parameters with just negative prompt
+                finalParameters = HFImageParameters(negativePrompt: negativePrompt)
+            }
+        } else {
+            finalParameters = parameters
+        }
+
+        let request = HFTextToImageRequest(prompt: prompt, parameters: finalParameters)
 
         let url = configuration.baseURL
             .appendingPathComponent("models")
@@ -656,7 +690,9 @@ internal actor HFInferenceClient {
     /// Resolves the API token from the configuration.
     private func resolveToken() throws -> String {
         guard let token = configuration.tokenProvider.token, !token.isEmpty else {
-            throw AIError.authenticationFailed("No HuggingFace API token configured. Set HF_TOKEN environment variable or provide a token explicitly.")
+            throw AIError.authenticationFailed(
+                "No HuggingFace API token configured. Set HF_TOKEN environment variable or provide a token explicitly."
+            )
         }
 
         return token

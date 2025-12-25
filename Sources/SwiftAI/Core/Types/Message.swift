@@ -15,7 +15,7 @@ import Foundation
 /// let metadata = MessageMetadata(
 ///     tokenCount: 42,
 ///     generationTime: 1.5,
-///     model: "llama3_2_1B",
+///     model: "llama3_2_1b",
 ///     tokensPerSecond: 28.0
 /// )
 /// ```
@@ -304,17 +304,6 @@ extension Message {
 
         // MARK: - Codable
 
-        private enum CodingKeys: String, CodingKey {
-            case type
-            case text
-            case parts
-        }
-
-        private enum ContentType: String, Codable {
-            case text
-            case parts
-        }
-
         /// Decodes content from JSON.
         ///
         /// - Parameter decoder: The decoder to read from.
@@ -324,7 +313,7 @@ extension Message {
         /// - Text: `{"type": "text", "text": "..."}`
         /// - Parts: `{"type": "parts", "parts": [...]}`
         public init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let container = try decoder.container(keyedBy: ContentCodingKeys.self)
             let type = try container.decode(ContentType.self, forKey: .type)
 
             switch type {
@@ -346,7 +335,7 @@ extension Message {
         /// - Text: `{"type": "text", "text": "..."}`
         /// - Parts: `{"type": "parts", "parts": [...]}`
         public func encode(to encoder: Encoder) throws {
-            var container = encoder.container(keyedBy: CodingKeys.self)
+            var container = encoder.container(keyedBy: ContentCodingKeys.self)
 
             switch self {
             case .text(let string):
@@ -357,6 +346,19 @@ extension Message {
                 try container.encode(parts, forKey: .parts)
             }
         }
+    }
+
+    // MARK: - Content Codable Support
+
+    private enum ContentCodingKeys: String, CodingKey {
+        case type
+        case text
+        case parts
+    }
+
+    private enum ContentType: String, Codable {
+        case text
+        case parts
     }
 }
 
@@ -393,18 +395,6 @@ extension Message {
 
         // MARK: - Codable
 
-        private enum CodingKeys: String, CodingKey {
-            case type
-            case text
-            case base64Data
-            case mimeType
-        }
-
-        private enum PartType: String, Codable {
-            case text
-            case image
-        }
-
         /// Decodes a content part from JSON.
         ///
         /// - Parameter decoder: The decoder to read from.
@@ -414,7 +404,7 @@ extension Message {
         /// - Text: `{"type": "text", "text": "..."}`
         /// - Image: `{"type": "image", "base64Data": "...", "mimeType": "..."}`
         public init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let container = try decoder.container(keyedBy: ContentPartCodingKeys.self)
             let type = try container.decode(PartType.self, forKey: .type)
 
             switch type {
@@ -437,7 +427,7 @@ extension Message {
         /// - Text: `{"type": "text", "text": "..."}`
         /// - Image: `{"type": "image", "base64Data": "...", "mimeType": "..."}`
         public func encode(to encoder: Encoder) throws {
-            var container = encoder.container(keyedBy: CodingKeys.self)
+            var container = encoder.container(keyedBy: ContentPartCodingKeys.self)
 
             switch self {
             case .text(let string):
@@ -449,6 +439,20 @@ extension Message {
                 try container.encode(imageContent.mimeType, forKey: .mimeType)
             }
         }
+    }
+
+    // MARK: - ContentPart Codable Support
+
+    private enum ContentPartCodingKeys: String, CodingKey {
+        case type
+        case text
+        case base64Data
+        case mimeType
+    }
+
+    private enum PartType: String, Codable {
+        case text
+        case image
     }
 }
 

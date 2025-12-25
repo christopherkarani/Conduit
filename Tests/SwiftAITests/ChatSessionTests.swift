@@ -189,9 +189,9 @@ enum MockError: Error {
 struct ChatSessionTests {
 
     @Test("Initialization sets default values")
-    func initialization() async {
+    func initialization() async throws {
         let provider = MockTextProvider()
-        let session = ChatSession(provider: provider, model: .llama3_2_1B)
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
 
         #expect(session.messages.isEmpty)
         #expect(session.isGenerating == false)
@@ -199,10 +199,10 @@ struct ChatSessionTests {
     }
 
     @Test("Initialization with custom config")
-    func initializationWithConfig() async {
+    func initializationWithConfig() async throws {
         let provider = MockTextProvider()
         let config = GenerateConfig.creative
-        let session = ChatSession(provider: provider, model: .llama3_2_1B, config: config)
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b, config: config)
 
         #expect(session.config.temperature == config.temperature)
     }
@@ -210,9 +210,9 @@ struct ChatSessionTests {
     // MARK: - System Prompt Tests
 
     @Test("setSystemPrompt adds system message at beginning")
-    func setSystemPromptAddsMessage() async {
+    func setSystemPromptAddsMessage() async throws {
         let provider = MockTextProvider()
-        let session = ChatSession(provider: provider, model: .llama3_2_1B)
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
 
         session.setSystemPrompt("You are helpful.")
 
@@ -222,9 +222,9 @@ struct ChatSessionTests {
     }
 
     @Test("setSystemPrompt replaces existing system message")
-    func setSystemPromptReplacesExisting() async {
+    func setSystemPromptReplacesExisting() async throws {
         let provider = MockTextProvider()
-        let session = ChatSession(provider: provider, model: .llama3_2_1B)
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
 
         session.setSystemPrompt("First prompt")
         session.setSystemPrompt("Second prompt")
@@ -234,9 +234,9 @@ struct ChatSessionTests {
     }
 
     @Test("hasSystemPrompt returns correct value")
-    func hasSystemPromptProperty() async {
+    func hasSystemPromptProperty() async throws {
         let provider = MockTextProvider()
-        let session = ChatSession(provider: provider, model: .llama3_2_1B)
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
 
         #expect(session.hasSystemPrompt == false)
 
@@ -246,9 +246,9 @@ struct ChatSessionTests {
     }
 
     @Test("systemPrompt property returns current prompt")
-    func systemPromptProperty() async {
+    func systemPromptProperty() async throws {
         let provider = MockTextProvider()
-        let session = ChatSession(provider: provider, model: .llama3_2_1B)
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
 
         #expect(session.systemPrompt == nil)
 
@@ -264,7 +264,7 @@ struct ChatSessionTests {
         let provider = MockTextProvider()
         await provider.reset()
 
-        let session = ChatSession(provider: provider, model: .llama3_2_1B)
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
 
         let response = try await session.send("Hello")
 
@@ -279,7 +279,7 @@ struct ChatSessionTests {
     @Test("send passes all messages to provider")
     func sendPassesAllMessages() async throws {
         let provider = MockTextProvider()
-        let session = ChatSession(provider: provider, model: .llama3_2_1B)
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
 
         session.setSystemPrompt("System")
         _ = try await session.send("User message")
@@ -296,7 +296,7 @@ struct ChatSessionTests {
     @Test("clearHistory removes all messages except system")
     func clearHistoryPreservesSystem() async throws {
         let provider = MockTextProvider()
-        let session = ChatSession(provider: provider, model: .llama3_2_1B)
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
 
         session.setSystemPrompt("System prompt")
         _ = try await session.send("Hello")
@@ -310,7 +310,7 @@ struct ChatSessionTests {
     @Test("clearHistory with no system prompt results in empty array")
     func clearHistoryNoSystem() async throws {
         let provider = MockTextProvider()
-        let session = ChatSession(provider: provider, model: .llama3_2_1B)
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
 
         _ = try await session.send("Hello")
 
@@ -324,7 +324,7 @@ struct ChatSessionTests {
     @Test("undoLastExchange removes last user-assistant pair")
     func undoLastExchange() async throws {
         let provider = MockTextProvider()
-        let session = ChatSession(provider: provider, model: .llama3_2_1B)
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
 
         session.setSystemPrompt("System")
         _ = try await session.send("First question")
@@ -341,9 +341,9 @@ struct ChatSessionTests {
     }
 
     @Test("undoLastExchange on empty history does nothing")
-    func undoLastExchangeEmpty() async {
+    func undoLastExchangeEmpty() async throws {
         let provider = MockTextProvider()
-        let session = ChatSession(provider: provider, model: .llama3_2_1B)
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
 
         session.undoLastExchange()
 
@@ -353,9 +353,9 @@ struct ChatSessionTests {
     // MARK: - Inject History Tests
 
     @Test("injectHistory adds messages while preserving system prompt")
-    func injectHistoryPreservesSystem() async {
+    func injectHistoryPreservesSystem() async throws {
         let provider = MockTextProvider()
-        let session = ChatSession(provider: provider, model: .llama3_2_1B)
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
 
         session.setSystemPrompt("System")
 
@@ -373,9 +373,9 @@ struct ChatSessionTests {
     }
 
     @Test("injectHistory filters out system messages from injected history")
-    func injectHistoryFiltersSystem() async {
+    func injectHistoryFiltersSystem() async throws {
         let provider = MockTextProvider()
-        let session = ChatSession(provider: provider, model: .llama3_2_1B)
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
 
         session.setSystemPrompt("Current system")
 
@@ -396,7 +396,7 @@ struct ChatSessionTests {
     @Test("messageCount returns total message count")
     func messageCountProperty() async throws {
         let provider = MockTextProvider()
-        let session = ChatSession(provider: provider, model: .llama3_2_1B)
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
 
         #expect(session.messageCount == 0)
 
@@ -409,7 +409,7 @@ struct ChatSessionTests {
     @Test("userMessageCount returns only user messages")
     func userMessageCountProperty() async throws {
         let provider = MockTextProvider()
-        let session = ChatSession(provider: provider, model: .llama3_2_1B)
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
 
         #expect(session.userMessageCount == 0)
 
@@ -459,7 +459,7 @@ struct ChatSessionTests {
 
         let session = try await ChatSession(
             provider: provider,
-            model: .llama3_2_1B,
+            model: .llama3_2_1b,
             warmup: .default
         )
 
@@ -477,7 +477,7 @@ struct ChatSessionTests {
 
         let session = try await ChatSession(
             provider: provider,
-            model: .llama3_2_1B,
+            model: .llama3_2_1b,
             warmup: .eager
         )
 
@@ -494,7 +494,7 @@ struct ChatSessionTests {
         if let firstMessage = lastMessages.first {
             #expect(firstMessage.role == .user)
             // Warmup text should be ~50 chars with "Hi! " pattern
-            let content = firstMessage.content.textValue ?? ""
+            let content = firstMessage.content.textValue
             #expect(content.count <= 50)
             #expect(content.contains("Hi!"))
         }
@@ -512,7 +512,7 @@ struct ChatSessionTests {
 
         let session = try await ChatSession(
             provider: provider,
-            model: .llama3_2_1B,
+            model: .llama3_2_1b,
             warmup: customWarmup
         )
 
@@ -526,7 +526,7 @@ struct ChatSessionTests {
         // Verify the warmup text respects prefillChars
         let lastMessages = await provider.lastReceivedMessages
         if let firstMessage = lastMessages.first {
-            let content = firstMessage.content.textValue ?? ""
+            let content = firstMessage.content.textValue
             #expect(content.count <= 20)
         }
     }
@@ -536,9 +536,9 @@ struct ChatSessionTests {
         let provider = MockTextProvider()
 
         // Synchronous init - no warmup parameter
-        let session = ChatSession(
+        let session = try await ChatSession(
             provider: provider,
-            model: .llama3_2_1B
+            model: .llama3_2_1b
         )
 
         // Verify session was created

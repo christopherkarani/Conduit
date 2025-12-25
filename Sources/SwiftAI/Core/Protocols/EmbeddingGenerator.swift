@@ -53,7 +53,7 @@ import Foundation
 ///
 /// // 4. Generate answer using retrieved context
 /// let prompt = buildPrompt(query: userQuery, context: relevantChunks)
-/// let answer = try await textProvider.generate(prompt, model: .llama3_2_1B)
+/// let answer = try await textProvider.generate(prompt, model: .llama3_2_1b)
 /// ```
 ///
 /// ### 3. Clustering & Classification

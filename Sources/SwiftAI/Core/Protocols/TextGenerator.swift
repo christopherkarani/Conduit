@@ -25,7 +25,7 @@ import Foundation
 /// let provider = MLXProvider()
 /// let response = try await provider.generate(
 ///     "Explain quantum computing",
-///     model: .llama3_2_1B,
+///     model: .llama3_2_1b,
 ///     config: .default
 /// )
 /// print(response)
@@ -40,7 +40,7 @@ import Foundation
 /// ]
 /// let result = try await provider.generate(
 ///     messages: messages,
-///     model: .llama3_2_1B,
+///     model: .llama3_2_1b,
 ///     config: .default
 /// )
 /// print(result.text)
@@ -52,7 +52,7 @@ import Foundation
 /// ```swift
 /// let stream = provider.stream(
 ///     "Write a poem about AI",
-///     model: .llama3_2_1B,
+///     model: .llama3_2_1b,
 ///     config: .default
 /// )
 ///
@@ -66,7 +66,7 @@ import Foundation
 /// ```swift
 /// let stream = provider.streamWithMetadata(
 ///     messages: messages,
-///     model: .llama3_2_1B,
+///     model: .llama3_2_1b,
 ///     config: .default
 /// )
 ///
@@ -116,7 +116,7 @@ public protocol TextGenerator: Sendable {
     /// ```swift
     /// let response = try await provider.generate(
     ///     "What is the capital of France?",
-    ///     model: .llama3_2_1B,
+    ///     model: .llama3_2_1b,
     ///     config: .default
     /// )
     /// print(response) // "The capital of France is Paris."
@@ -155,7 +155,7 @@ public protocol TextGenerator: Sendable {
     ///
     /// let result = try await provider.generate(
     ///     messages: messages,
-    ///     model: .llama3_2_1B,
+    ///     model: .llama3_2_1b,
     ///     config: GenerateConfig(temperature: 0.7, maxTokens: 500)
     /// )
     ///
@@ -192,7 +192,7 @@ public protocol TextGenerator: Sendable {
     /// ```swift
     /// let stream = provider.stream(
     ///     "Write a haiku about programming",
-    ///     model: .llama3_2_1B,
+    ///     model: .llama3_2_1b,
     ///     config: .default
     /// )
     ///
@@ -241,7 +241,7 @@ public protocol TextGenerator: Sendable {
     ///
     /// let stream = provider.streamWithMetadata(
     ///     messages: messages,
-    ///     model: .llama3_2_1B,
+    ///     model: .llama3_2_1b,
     ///     config: .default
     /// )
     ///
@@ -397,12 +397,12 @@ extension TextGenerator {
     /// ```swift
     /// // At app startup
     /// let provider = MLXProvider()
-    /// try await provider.warmUp(model: .llama3_2_1B)
+    /// try await provider.warmUp(model: .llama3_2_1b)
     ///
     /// // Later, user-initiated generation is fast
     /// let response = try await provider.generate(
     ///     "Hello",
-    ///     model: .llama3_2_1B,
+    ///     model: .llama3_2_1b,
     ///     config: .default
     /// )
     /// ```
@@ -412,7 +412,7 @@ extension TextGenerator {
     /// ```swift
     /// // Use domain-specific warmup text
     /// try await provider.warmUp(
-    ///     model: .llama3_2_1B,
+    ///     model: .llama3_2_1b,
     ///     prefillText: "Assistant:"
     /// )
     /// ```
@@ -422,7 +422,7 @@ extension TextGenerator {
     /// ```swift
     /// // Generate more tokens to warm up longer sequences
     /// try await provider.warmUp(
-    ///     model: .llama3_2_1B,
+    ///     model: .llama3_2_1b,
     ///     prefillText: "The quick brown fox",
     ///     maxTokens: 10
     /// )
@@ -433,7 +433,7 @@ extension TextGenerator {
     /// ```swift
     /// // Warm up asynchronously without blocking UI
     /// Task.detached {
-    ///     try? await provider.warmUp(model: .llama3_2_1B)
+    ///     try? await provider.warmUp(model: .llama3_2_1b)
     /// }
     /// ```
     ///

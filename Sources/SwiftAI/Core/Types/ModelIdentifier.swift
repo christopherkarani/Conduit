@@ -216,7 +216,7 @@ extension ModelIdentifier {
 /// ```swift
 /// let response = try await provider.generate(
 ///     "Hello!",
-///     model: .llama3_2_1B,
+///     model: .llama3_2_1b,
 ///     config: .default
 /// )
 /// ```
@@ -227,12 +227,12 @@ public extension ModelIdentifier {
     /// Llama 3.2 1B (4-bit quantized) - Fast, lightweight
     ///
     /// Ideal for: Quick responses, low memory usage (~800MB RAM)
-    static let llama3_2_1B = ModelIdentifier.mlx("mlx-community/Llama-3.2-1B-Instruct-4bit")
+    static let llama3_2_1b = ModelIdentifier.mlx("mlx-community/Llama-3.2-1B-Instruct-4bit")
 
     /// Llama 3.2 3B (4-bit quantized) - Balanced performance
     ///
     /// Ideal for: General purpose use, good quality/speed tradeoff (~2GB RAM)
-    static let llama3_2_3B = ModelIdentifier.mlx("mlx-community/Llama-3.2-3B-Instruct-4bit")
+    static let llama3_2_3b = ModelIdentifier.mlx("mlx-community/Llama-3.2-3B-Instruct-4bit")
 
     /// Phi-3 Mini (4-bit quantized) - Microsoft's efficient model
     ///
@@ -247,7 +247,7 @@ public extension ModelIdentifier {
     /// Qwen 2.5 3B (4-bit quantized)
     ///
     /// Ideal for: Multilingual support, instruction following (~2GB RAM)
-    static let qwen2_5_3B = ModelIdentifier.mlx("mlx-community/Qwen2.5-3B-Instruct-4bit")
+    static let qwen2_5_3b = ModelIdentifier.mlx("mlx-community/Qwen2.5-3B-Instruct-4bit")
 
     /// Mistral 7B (4-bit quantized)
     ///
@@ -257,7 +257,7 @@ public extension ModelIdentifier {
     /// Gemma 2 2B (4-bit quantized)
     ///
     /// Ideal for: Google's efficient model, good instruction following (~1.5GB RAM)
-    static let gemma2_2B = ModelIdentifier.mlx("mlx-community/gemma-2-2b-it-4bit")
+    static let gemma2_2b = ModelIdentifier.mlx("mlx-community/gemma-2-2b-it-4bit")
 
     // MARK: - MLX Embedding Models
 

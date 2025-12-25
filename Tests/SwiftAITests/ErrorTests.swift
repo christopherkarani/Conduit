@@ -9,12 +9,13 @@ final class ErrorTests: XCTestCase {
     // MARK: - AIError Description Tests
 
     func testAllErrorCasesHaveDescriptions() {
-        // Test that all 17 error cases have non-empty errorDescription
+        // Test that all 18 error cases have non-empty errorDescription
         let errors: [AIError] = [
             .providerUnavailable(reason: .deviceNotSupported),
-            .modelNotFound(.llama3_2_1B),
-            .modelNotCached(.llama3_2_1B),
+            .modelNotFound(.llama3_2_1b),
+            .modelNotCached(.llama3_2_1b),
             .authenticationFailed("Invalid API key"),
+            .unsupportedModel(variant: "Flux Schnell", reason: "Not supported"),
             .generationFailed(underlying: SendableError(NSError(domain: "test", code: 0))),
             .tokenLimitExceeded(count: 5000, limit: 4096),
             .contentFiltered(reason: "Policy violation"),
@@ -44,14 +45,14 @@ final class ErrorTests: XCTestCase {
     }
 
     func testModelNotFoundDescription() {
-        let error = AIError.modelNotFound(.llama3_2_1B)
+        let error = AIError.modelNotFound(.llama3_2_1b)
         XCTAssertTrue(error.errorDescription!.contains("not found"))
         // Model identifier has "Llama" with capital L
         XCTAssertTrue(error.errorDescription!.lowercased().contains("llama"))
     }
 
     func testModelNotCachedDescription() {
-        let error = AIError.modelNotCached(.llama3_2_1B)
+        let error = AIError.modelNotCached(.llama3_2_1b)
         XCTAssertTrue(error.errorDescription!.contains("not cached"))
     }
 
@@ -59,6 +60,16 @@ final class ErrorTests: XCTestCase {
         let error = AIError.authenticationFailed("Invalid key")
         XCTAssertTrue(error.errorDescription!.contains("Authentication failed"))
         XCTAssertTrue(error.errorDescription!.contains("Invalid key"))
+    }
+
+    func testUnsupportedModelDescription() {
+        let error = AIError.unsupportedModel(
+            variant: "Flux Schnell",
+            reason: "Requires different architecture"
+        )
+        XCTAssertTrue(error.errorDescription!.contains("Unsupported model variant"))
+        XCTAssertTrue(error.errorDescription!.contains("Flux Schnell"))
+        XCTAssertTrue(error.errorDescription!.contains("Requires different architecture"))
     }
 
     func testGenerationFailedDescription() {
@@ -158,17 +169,21 @@ final class ErrorTests: XCTestCase {
     // MARK: - Recovery Suggestion Tests
 
     func testRecoverySuggestions() {
-        let modelNotCachedError = AIError.modelNotCached(.llama3_2_1B)
+        let modelNotCachedError = AIError.modelNotCached(.llama3_2_1b)
         XCTAssertNotNil(modelNotCachedError.recoverySuggestion)
         XCTAssertTrue(modelNotCachedError.recoverySuggestion!.lowercased().contains("download"))
 
-        let modelNotFoundError = AIError.modelNotFound(.llama3_2_1B)
+        let modelNotFoundError = AIError.modelNotFound(.llama3_2_1b)
         XCTAssertNotNil(modelNotFoundError.recoverySuggestion)
         XCTAssertTrue(modelNotFoundError.recoverySuggestion!.contains("Check"))
 
         let authError = AIError.authenticationFailed("Invalid key")
         XCTAssertNotNil(authError.recoverySuggestion)
         XCTAssertTrue(authError.recoverySuggestion!.contains("API key"))
+
+        let unsupportedModelError = AIError.unsupportedModel(variant: "Flux", reason: "Not available")
+        XCTAssertNotNil(unsupportedModelError.recoverySuggestion)
+        XCTAssertTrue(unsupportedModelError.recoverySuggestion!.contains("supported model variant"))
 
         let tokenError = AIError.tokenLimitExceeded(count: 5000, limit: 4096)
         XCTAssertNotNil(tokenError.recoverySuggestion)
@@ -293,7 +308,7 @@ final class ErrorTests: XCTestCase {
     }
 
     func testModelNotFoundIsNotRetryable() {
-        let error = AIError.modelNotFound(.llama3_2_1B)
+        let error = AIError.modelNotFound(.llama3_2_1b)
         XCTAssertFalse(error.isRetryable)
     }
 
@@ -302,15 +317,22 @@ final class ErrorTests: XCTestCase {
         XCTAssertFalse(error.isRetryable)
     }
 
+    func testUnsupportedModelIsNotRetryable() {
+        let error = AIError.unsupportedModel(variant: "Flux", reason: "Not available")
+        XCTAssertFalse(error.isRetryable)
+    }
+
     // MARK: - Error Category Tests
 
     func testErrorCategories() {
         XCTAssertEqual(AIError.providerUnavailable(reason: .deviceNotSupported).category, .provider)
-        XCTAssertEqual(AIError.modelNotFound(.llama3_2_1B).category, .provider)
-        XCTAssertEqual(AIError.modelNotCached(.llama3_2_1B).category, .provider)
+        XCTAssertEqual(AIError.modelNotFound(.llama3_2_1b).category, .provider)
+        XCTAssertEqual(AIError.modelNotCached(.llama3_2_1b).category, .provider)
         XCTAssertEqual(AIError.authenticationFailed("test").category, .provider)
+        XCTAssertEqual(AIError.unsupportedModel(variant: "Flux", reason: "Not available").category, .provider)
 
-        XCTAssertEqual(AIError.generationFailed(underlying: SendableError(NSError(domain: "", code: 0))).category, .generation)
+        let generationError = AIError.generationFailed(underlying: SendableError(NSError(domain: "", code: 0)))
+        XCTAssertEqual(generationError.category, .generation)
         XCTAssertEqual(AIError.tokenLimitExceeded(count: 5000, limit: 4096).category, .generation)
         XCTAssertEqual(AIError.contentFiltered(reason: nil).category, .generation)
         XCTAssertEqual(AIError.cancelled.category, .generation)
@@ -320,9 +342,12 @@ final class ErrorTests: XCTestCase {
         XCTAssertEqual(AIError.serverError(statusCode: 500, message: nil).category, .network)
         XCTAssertEqual(AIError.rateLimited(retryAfter: nil).category, .network)
 
-        XCTAssertEqual(AIError.insufficientMemory(required: .gigabytes(8), available: .gigabytes(4)).category, .resource)
-        XCTAssertEqual(AIError.downloadFailed(underlying: SendableError(NSError(domain: "", code: 0))).category, .resource)
-        XCTAssertEqual(AIError.fileError(underlying: SendableError(NSError(domain: "", code: 0))).category, .resource)
+        let memoryError = AIError.insufficientMemory(required: .gigabytes(8), available: .gigabytes(4))
+        XCTAssertEqual(memoryError.category, .resource)
+        let downloadError = AIError.downloadFailed(underlying: SendableError(NSError(domain: "", code: 0)))
+        XCTAssertEqual(downloadError.category, .resource)
+        let fileError = AIError.fileError(underlying: SendableError(NSError(domain: "", code: 0)))
+        XCTAssertEqual(fileError.category, .resource)
 
         XCTAssertEqual(AIError.invalidInput("test").category, .input)
         XCTAssertEqual(AIError.unsupportedAudioFormat("wav").category, .input)
@@ -350,7 +375,11 @@ final class ErrorTests: XCTestCase {
     // MARK: - Convenience Initializer Tests
 
     func testGenerationConvenienceInitializer() {
-        let underlyingError = NSError(domain: "TestDomain", code: 42, userInfo: [NSLocalizedDescriptionKey: "Test error"])
+        let underlyingError = NSError(
+            domain: "TestDomain",
+            code: 42,
+            userInfo: [NSLocalizedDescriptionKey: "Test error"]
+        )
         let aiError = AIError.generation(underlyingError)
 
         if case .generationFailed(let wrapped) = aiError {
@@ -361,7 +390,11 @@ final class ErrorTests: XCTestCase {
     }
 
     func testDownloadConvenienceInitializer() {
-        let underlyingError = NSError(domain: "TestDomain", code: 42, userInfo: [NSLocalizedDescriptionKey: "Download error"])
+        let underlyingError = NSError(
+            domain: "TestDomain",
+            code: 42,
+            userInfo: [NSLocalizedDescriptionKey: "Download error"]
+        )
         let aiError = AIError.download(underlyingError)
 
         if case .downloadFailed(let wrapped) = aiError {
@@ -372,7 +405,11 @@ final class ErrorTests: XCTestCase {
     }
 
     func testFileConvenienceInitializer() {
-        let underlyingError = NSError(domain: "TestDomain", code: 42, userInfo: [NSLocalizedDescriptionKey: "File error"])
+        let underlyingError = NSError(
+            domain: "TestDomain",
+            code: 42,
+            userInfo: [NSLocalizedDescriptionKey: "File error"]
+        )
         let aiError = AIError.file(underlyingError)
 
         if case .fileError(let wrapped) = aiError {
@@ -385,7 +422,7 @@ final class ErrorTests: XCTestCase {
     // MARK: - CustomStringConvertible Tests
 
     func testCustomStringConvertible() {
-        let error = AIError.modelNotFound(.llama3_2_1B)
+        let error = AIError.modelNotFound(.llama3_2_1b)
         XCTAssertFalse(error.description.isEmpty)
         XCTAssertEqual(error.description, error.errorDescription)
     }
@@ -746,12 +783,12 @@ final class ByteCountTests: XCTestCase {
     }
 
     func testEquatable() {
-        let a = ByteCount.megabytes(1000)
-        let b = ByteCount(1_000_000_000)
-        let c = ByteCount.gigabytes(2)
+        let megabytes1000 = ByteCount.megabytes(1000)
+        let bytes1Billion = ByteCount(1_000_000_000)
+        let gigabytes2 = ByteCount.gigabytes(2)
 
-        XCTAssertEqual(a, b)
-        XCTAssertNotEqual(a, c)
+        XCTAssertEqual(megabytes1000, bytes1Billion)
+        XCTAssertNotEqual(megabytes1000, gigabytes2)
     }
 
     func testHashable() {

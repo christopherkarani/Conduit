@@ -37,6 +37,12 @@ import Foundation
 // - ImageGenerationConfig: Configuration for text-to-image (dimensions, steps, guidance)
 // - ImageFormat: Supported image formats (PNG, JPEG, WebP)
 // - GeneratedImageError: Errors for image operations
+// - ImageGenerator: Protocol for text-to-image providers (v1.2.0)
+// - ImageGenerationProgress: Progress tracking for local diffusion models (v1.2.0)
+// - MLXImageProvider: Local on-device image generation using MLX StableDiffusion (v1.2.0)
+// - DiffusionVariant: Supported diffusion model variants (SDXL Turbo, SD 1.5, Flux) (v1.2.0)
+// - DiffusionModelRegistry: Registry for managing diffusion model downloads (v1.2.0)
+// - DiffusionModelDownloader: Downloads diffusion models from HuggingFace (v1.2.0)
 
 // Streaming
 // TODO: @_exported import when implemented
@@ -67,4 +73,8 @@ import Foundation
 // MARK: - Version
 
 /// The current version of the SwiftAI framework.
-public let swiftAIVersion = "0.1.0"
+///
+/// ## Version History
+/// - 1.2.0: Added image generation (ImageGenerator protocol, MLXImageProvider, DiffusionModelRegistry)
+/// - 0.1.0: Initial release with text generation, embeddings, transcription
+public let swiftAIVersion = "1.2.0"

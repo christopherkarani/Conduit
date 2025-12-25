@@ -295,9 +295,9 @@ final class DownloadTaskTests: XCTestCase {
     // MARK: - Initialization Tests
 
     func testInitialization() {
-        let task = DownloadTask(model: .llama3_2_1B)
+        let task = DownloadTask(model: .llama3_2_1b)
 
-        XCTAssertEqual(task.model, .llama3_2_1B)
+        XCTAssertEqual(task.model, .llama3_2_1b)
         XCTAssertEqual(task.state, .pending)
         XCTAssertEqual(task.progress.bytesDownloaded, 0)
     }
@@ -305,7 +305,7 @@ final class DownloadTaskTests: XCTestCase {
     // MARK: - Cancel Tests
 
     func testCancelFromPending() {
-        let task = DownloadTask(model: .llama3_2_1B)
+        let task = DownloadTask(model: .llama3_2_1b)
 
         task.cancel()
 
@@ -313,7 +313,7 @@ final class DownloadTaskTests: XCTestCase {
     }
 
     func testCancelIdempotent() {
-        let task = DownloadTask(model: .llama3_2_1B)
+        let task = DownloadTask(model: .llama3_2_1b)
 
         task.cancel()
         task.cancel() // Second call should be no-op
@@ -322,7 +322,7 @@ final class DownloadTaskTests: XCTestCase {
     }
 
     func testCancelFromTerminalStateNoOp() {
-        let task = DownloadTask(model: .llama3_2_1B)
+        let task = DownloadTask(model: .llama3_2_1b)
         task.updateState(.cancelled)
 
         // Should be no-op since already cancelled
@@ -334,7 +334,7 @@ final class DownloadTaskTests: XCTestCase {
     // MARK: - Pause/Resume Tests
 
     func testPauseFromDownloading() {
-        let task = DownloadTask(model: .llama3_2_1B)
+        let task = DownloadTask(model: .llama3_2_1b)
         task.updateState(.downloading)
 
         task.pause()
@@ -343,7 +343,7 @@ final class DownloadTaskTests: XCTestCase {
     }
 
     func testPauseFromNonDownloadingNoOp() {
-        let task = DownloadTask(model: .llama3_2_1B)
+        let task = DownloadTask(model: .llama3_2_1b)
         // Task is in pending state
 
         task.pause()
@@ -353,7 +353,7 @@ final class DownloadTaskTests: XCTestCase {
     }
 
     func testResumeFromPaused() {
-        let task = DownloadTask(model: .llama3_2_1B)
+        let task = DownloadTask(model: .llama3_2_1b)
         task.updateState(.downloading)
         task.pause()
 
@@ -365,7 +365,7 @@ final class DownloadTaskTests: XCTestCase {
     }
 
     func testResumeFromNonPausedNoOp() {
-        let task = DownloadTask(model: .llama3_2_1B)
+        let task = DownloadTask(model: .llama3_2_1b)
         task.updateState(.downloading)
 
         task.resume()
@@ -377,7 +377,7 @@ final class DownloadTaskTests: XCTestCase {
     // MARK: - Progress Update Tests
 
     func testUpdateProgress() {
-        let task = DownloadTask(model: .llama3_2_1B)
+        let task = DownloadTask(model: .llama3_2_1b)
 
         let newProgress = DownloadProgress(
             bytesDownloaded: 500_000_000,
@@ -392,7 +392,7 @@ final class DownloadTaskTests: XCTestCase {
     // MARK: - State Update Tests
 
     func testUpdateState() {
-        let task = DownloadTask(model: .llama3_2_1B)
+        let task = DownloadTask(model: .llama3_2_1b)
 
         task.updateState(.downloading)
         XCTAssertEqual(task.state, .downloading)
@@ -405,10 +405,10 @@ final class DownloadTaskTests: XCTestCase {
     // MARK: - Sendable Tests
 
     func testSendableConformance() async {
-        let task = DownloadTask(model: .llama3_2_1B)
+        let task = DownloadTask(model: .llama3_2_1b)
 
         await Task {
-            XCTAssertEqual(task.model, .llama3_2_1B)
+            XCTAssertEqual(task.model, .llama3_2_1b)
             XCTAssertEqual(task.state, .pending)
         }.value
     }
@@ -426,12 +426,12 @@ final class CachedModelInfoTests: XCTestCase {
         let size = ByteCount.gigabytes(4)
 
         let info = CachedModelInfo(
-            identifier: .llama3_2_1B,
+            identifier: .llama3_2_1b,
             path: path,
             size: size
         )
 
-        XCTAssertEqual(info.identifier, .llama3_2_1B)
+        XCTAssertEqual(info.identifier, .llama3_2_1b)
         XCTAssertEqual(info.path, path)
         XCTAssertEqual(info.size, size)
         XCTAssertNil(info.revision)
@@ -447,7 +447,7 @@ final class CachedModelInfoTests: XCTestCase {
         let lastAccessedAt = Date(timeIntervalSince1970: 1700100000)
 
         let info = CachedModelInfo(
-            identifier: .llama3_2_1B,
+            identifier: .llama3_2_1b,
             path: path,
             size: size,
             downloadedAt: downloadedAt,
@@ -455,7 +455,7 @@ final class CachedModelInfoTests: XCTestCase {
             revision: "main"
         )
 
-        XCTAssertEqual(info.identifier, .llama3_2_1B)
+        XCTAssertEqual(info.identifier, .llama3_2_1b)
         XCTAssertEqual(info.path, path)
         XCTAssertEqual(info.size, size)
         XCTAssertEqual(info.downloadedAt, downloadedAt)
@@ -467,12 +467,12 @@ final class CachedModelInfoTests: XCTestCase {
 
     func testIdentifiableId() {
         let info = CachedModelInfo(
-            identifier: .llama3_2_1B,
+            identifier: .llama3_2_1b,
             path: URL(fileURLWithPath: "/tmp/model"),
             size: .gigabytes(4)
         )
 
-        XCTAssertEqual(info.id, ModelIdentifier.llama3_2_1B.rawValue)
+        XCTAssertEqual(info.id, ModelIdentifier.llama3_2_1b.rawValue)
     }
 
     // MARK: - Codable Tests
@@ -482,7 +482,7 @@ final class CachedModelInfoTests: XCTestCase {
         let path = URL(fileURLWithPath: "/tmp/models/llama")
 
         let original = CachedModelInfo(
-            identifier: .llama3_2_1B,
+            identifier: .llama3_2_1b,
             path: path,
             size: .gigabytes(4),
             downloadedAt: originalDate,
@@ -501,15 +501,23 @@ final class CachedModelInfoTests: XCTestCase {
         XCTAssertEqual(original.identifier, decoded.identifier)
         XCTAssertEqual(original.path, decoded.path)
         XCTAssertEqual(original.size, decoded.size)
-        XCTAssertEqual(original.downloadedAt.timeIntervalSince1970, decoded.downloadedAt.timeIntervalSince1970, accuracy: 1.0)
-        XCTAssertEqual(original.lastAccessedAt.timeIntervalSince1970, decoded.lastAccessedAt.timeIntervalSince1970, accuracy: 1.0)
+        XCTAssertEqual(
+            original.downloadedAt.timeIntervalSince1970,
+            decoded.downloadedAt.timeIntervalSince1970,
+            accuracy: 1.0
+        )
+        XCTAssertEqual(
+            original.lastAccessedAt.timeIntervalSince1970,
+            decoded.lastAccessedAt.timeIntervalSince1970,
+            accuracy: 1.0
+        )
         XCTAssertEqual(original.revision, decoded.revision)
     }
 
     func testCodableWithNilRevision() throws {
         let path = URL(fileURLWithPath: "/tmp/models/llama")
         let original = CachedModelInfo(
-            identifier: .llama3_2_1B,
+            identifier: .llama3_2_1b,
             path: path,
             size: .megabytes(500)
         )
@@ -550,12 +558,12 @@ final class ByteCountModelManagementTests: XCTestCase {
     }
 
     func testEquatable() {
-        let a = ByteCount.megabytes(500)
-        let b = ByteCount.megabytes(500)
-        let c = ByteCount.megabytes(600)
+        let size1 = ByteCount.megabytes(500)
+        let size2 = ByteCount.megabytes(500)
+        let size3 = ByteCount.megabytes(600)
 
-        XCTAssertEqual(a, b)
-        XCTAssertNotEqual(a, c)
+        XCTAssertEqual(size1, size2)
+        XCTAssertNotEqual(size1, size3)
     }
 
     func testFormattedOutput() {
@@ -582,16 +590,16 @@ final class ByteCountModelManagementTests: XCTestCase {
     }
 
     func testHashable() {
-        let a = ByteCount.megabytes(100)
-        let b = ByteCount.megabytes(100)
-        let c = ByteCount.megabytes(200)
+        let size1 = ByteCount.megabytes(100)
+        let size2 = ByteCount.megabytes(100)
+        let size3 = ByteCount.megabytes(200)
 
         var set = Set<ByteCount>()
-        set.insert(a)
-        set.insert(b)
-        set.insert(c)
+        set.insert(size1)
+        set.insert(size2)
+        set.insert(size3)
 
-        XCTAssertEqual(set.count, 2) // a and b are equal
+        XCTAssertEqual(set.count, 2) // size1 and size2 are equal
     }
 }
 
@@ -651,13 +659,13 @@ final class ModelCacheTests: XCTestCase {
         try FileManager.default.createDirectory(at: modelPath, withIntermediateDirectories: true)
 
         let info = CachedModelInfo(
-            identifier: .llama3_2_1B,
+            identifier: .llama3_2_1b,
             path: modelPath,
             size: .gigabytes(4)
         )
         try await cache.add(info)
 
-        let isCached = await cache.isCached(.llama3_2_1B)
+        let isCached = await cache.isCached(.llama3_2_1b)
         XCTAssertTrue(isCached)
 
         let count = await cache.count
@@ -671,16 +679,16 @@ final class ModelCacheTests: XCTestCase {
         try FileManager.default.createDirectory(at: modelPath, withIntermediateDirectories: true)
 
         let info = CachedModelInfo(
-            identifier: .llama3_2_1B,
+            identifier: .llama3_2_1b,
             path: modelPath,
             size: .gigabytes(4),
             revision: "v1.0"
         )
         try await cache.add(info)
 
-        let retrieved = await cache.info(for: .llama3_2_1B)
+        let retrieved = await cache.info(for: .llama3_2_1b)
         XCTAssertNotNil(retrieved)
-        XCTAssertEqual(retrieved?.identifier, .llama3_2_1B)
+        XCTAssertEqual(retrieved?.identifier, .llama3_2_1b)
         XCTAssertEqual(retrieved?.path, modelPath)
         XCTAssertEqual(retrieved?.size, .gigabytes(4))
         XCTAssertEqual(retrieved?.revision, "v1.0")
@@ -689,7 +697,7 @@ final class ModelCacheTests: XCTestCase {
     func testInfoForNonExistentModel() async throws {
         let cache = try await ModelCache(cacheDirectory: tempDirectory)
 
-        let info = await cache.info(for: .llama3_2_1B)
+        let info = await cache.info(for: .llama3_2_1b)
         XCTAssertNil(info)
     }
 
@@ -700,20 +708,20 @@ final class ModelCacheTests: XCTestCase {
         try FileManager.default.createDirectory(at: modelPath, withIntermediateDirectories: true)
 
         let info = CachedModelInfo(
-            identifier: .llama3_2_1B,
+            identifier: .llama3_2_1b,
             path: modelPath,
             size: .gigabytes(4)
         )
         try await cache.add(info)
 
-        let path = await cache.localPath(for: .llama3_2_1B)
+        let path = await cache.localPath(for: .llama3_2_1b)
         XCTAssertEqual(path, modelPath)
     }
 
     func testLocalPathForNonExistentModel() async throws {
         let cache = try await ModelCache(cacheDirectory: tempDirectory)
 
-        let path = await cache.localPath(for: .llama3_2_1B)
+        let path = await cache.localPath(for: .llama3_2_1b)
         XCTAssertNil(path)
     }
 
@@ -728,13 +736,13 @@ final class ModelCacheTests: XCTestCase {
         try FileManager.default.createDirectory(at: model2Path, withIntermediateDirectories: true)
 
         try await cache.add(CachedModelInfo(
-            identifier: .llama3_2_1B,
+            identifier: .llama3_2_1b,
             path: model1Path,
             size: .gigabytes(4)
         ))
 
         try await cache.add(CachedModelInfo(
-            identifier: .llama3_2_3B,
+            identifier: .llama3_2_3b,
             path: model2Path,
             size: .gigabytes(6)
         ))
@@ -760,7 +768,7 @@ final class ModelCacheTests: XCTestCase {
 
         let originalDate = Date(timeIntervalSinceNow: -3600) // 1 hour ago
         let info = CachedModelInfo(
-            identifier: .llama3_2_1B,
+            identifier: .llama3_2_1b,
             path: modelPath,
             size: .gigabytes(4),
             lastAccessedAt: originalDate
@@ -770,9 +778,9 @@ final class ModelCacheTests: XCTestCase {
         // Wait briefly to ensure timestamp difference
         try await Task.sleep(nanoseconds: 10_000_000) // 10ms
 
-        await cache.markAccessed(.llama3_2_1B)
+        await cache.markAccessed(.llama3_2_1b)
 
-        let updated = await cache.info(for: .llama3_2_1B)
+        let updated = await cache.info(for: .llama3_2_1b)
         XCTAssertNotNil(updated)
         XCTAssertGreaterThan(updated!.lastAccessedAt, originalDate)
     }
@@ -781,9 +789,9 @@ final class ModelCacheTests: XCTestCase {
         let cache = try await ModelCache(cacheDirectory: tempDirectory)
 
         // Should not crash
-        await cache.markAccessed(.llama3_2_1B)
+        await cache.markAccessed(.llama3_2_1b)
 
-        let info = await cache.info(for: .llama3_2_1B)
+        let info = await cache.info(for: .llama3_2_1b)
         XCTAssertNil(info)
     }
 
@@ -796,21 +804,21 @@ final class ModelCacheTests: XCTestCase {
         try FileManager.default.createDirectory(at: modelPath, withIntermediateDirectories: true)
 
         let info = CachedModelInfo(
-            identifier: .llama3_2_1B,
+            identifier: .llama3_2_1b,
             path: modelPath,
             size: .gigabytes(4)
         )
         try await cache.add(info)
 
         // Verify it's added
-        var isCached = await cache.isCached(.llama3_2_1B)
+        var isCached = await cache.isCached(.llama3_2_1b)
         XCTAssertTrue(isCached)
 
         // Remove it
-        try await cache.remove(.llama3_2_1B)
+        try await cache.remove(.llama3_2_1b)
 
         // Verify it's removed
-        isCached = await cache.isCached(.llama3_2_1B)
+        isCached = await cache.isCached(.llama3_2_1b)
         XCTAssertFalse(isCached)
 
         // Verify directory is deleted
@@ -821,7 +829,7 @@ final class ModelCacheTests: XCTestCase {
         let cache = try await ModelCache(cacheDirectory: tempDirectory)
 
         // Should not throw
-        try await cache.remove(.llama3_2_1B)
+        try await cache.remove(.llama3_2_1b)
     }
 
     // MARK: - Clear All Tests
@@ -835,13 +843,13 @@ final class ModelCacheTests: XCTestCase {
         try FileManager.default.createDirectory(at: model2Path, withIntermediateDirectories: true)
 
         try await cache.add(CachedModelInfo(
-            identifier: .llama3_2_1B,
+            identifier: .llama3_2_1b,
             path: model1Path,
             size: .gigabytes(4)
         ))
 
         try await cache.add(CachedModelInfo(
-            identifier: .llama3_2_3B,
+            identifier: .llama3_2_3b,
             path: model2Path,
             size: .gigabytes(6)
         ))
@@ -878,14 +886,14 @@ final class ModelCacheTests: XCTestCase {
         // Add models with specific access times (oldest first)
         let now = Date()
         try await cache.add(CachedModelInfo(
-            identifier: .llama3_2_1B,
+            identifier: .llama3_2_1b,
             path: model1Path,
             size: .gigabytes(4),
             lastAccessedAt: now.addingTimeInterval(-3600) // 1 hour ago (oldest)
         ))
 
         try await cache.add(CachedModelInfo(
-            identifier: .llama3_2_3B,
+            identifier: .llama3_2_3b,
             path: model2Path,
             size: .gigabytes(4),
             lastAccessedAt: now.addingTimeInterval(-1800) // 30 min ago
@@ -901,13 +909,13 @@ final class ModelCacheTests: XCTestCase {
         // Total is 12GB, evict to fit in 8GB
         let evicted = try await cache.evictToFit(maxSize: .gigabytes(8))
 
-        // Should evict the oldest model (llama3_2_1B)
+        // Should evict the oldest model (llama3_2_1b)
         XCTAssertEqual(evicted.count, 1)
-        XCTAssertEqual(evicted.first?.identifier, .llama3_2_1B)
+        XCTAssertEqual(evicted.first?.identifier, .llama3_2_1b)
 
         // Verify remaining models
-        let isCached1B = await cache.isCached(.llama3_2_1B)
-        let isCached3B = await cache.isCached(.llama3_2_3B)
+        let isCached1B = await cache.isCached(.llama3_2_1b)
+        let isCached3B = await cache.isCached(.llama3_2_3b)
         let isCachedMLX = await cache.isCached(.mlx("test/model"))
 
         XCTAssertFalse(isCached1B, "Oldest model should be evicted")
@@ -926,7 +934,7 @@ final class ModelCacheTests: XCTestCase {
         try FileManager.default.createDirectory(at: modelPath, withIntermediateDirectories: true)
 
         try await cache.add(CachedModelInfo(
-            identifier: .llama3_2_1B,
+            identifier: .llama3_2_1b,
             path: modelPath,
             size: .gigabytes(4)
         ))
@@ -936,7 +944,7 @@ final class ModelCacheTests: XCTestCase {
 
         XCTAssertTrue(evicted.isEmpty, "No models should be evicted when under limit")
 
-        let isCached = await cache.isCached(.llama3_2_1B)
+        let isCached = await cache.isCached(.llama3_2_1b)
         XCTAssertTrue(isCached)
     }
 
@@ -945,8 +953,8 @@ final class ModelCacheTests: XCTestCase {
 
         // Create 4 models of 4GB each (16GB total)
         let models: [(ModelIdentifier, TimeInterval)] = [
-            (.llama3_2_1B, -4000),  // Oldest
-            (.llama3_2_3B, -3000),
+            (.llama3_2_1b, -4000),  // Oldest
+            (.llama3_2_3b, -3000),
             (.mlx("model/a"), -2000),
             (.mlx("model/b"), -1000)  // Newest
         ]
@@ -971,8 +979,8 @@ final class ModelCacheTests: XCTestCase {
 
         // Verify oldest two were evicted (LRU order)
         let evictedIds = Set(evicted.map { $0.identifier })
-        XCTAssertTrue(evictedIds.contains(.llama3_2_1B))
-        XCTAssertTrue(evictedIds.contains(.llama3_2_3B))
+        XCTAssertTrue(evictedIds.contains(.llama3_2_1b))
+        XCTAssertTrue(evictedIds.contains(.llama3_2_3b))
 
         let count = await cache.count
         XCTAssertEqual(count, 2)
@@ -985,8 +993,8 @@ final class ModelCacheTests: XCTestCase {
 
         let now = Date()
         let models: [(ModelIdentifier, TimeInterval)] = [
-            (.llama3_2_1B, -3600),  // Oldest
-            (.llama3_2_3B, -1800),
+            (.llama3_2_1b, -3600),  // Oldest
+            (.llama3_2_3b, -1800),
             (.mlx("test/model"), 0)  // Most recent
         ]
 
@@ -1007,7 +1015,7 @@ final class ModelCacheTests: XCTestCase {
         XCTAssertEqual(allModels.count, 3)
         // Should be sorted most recent first
         XCTAssertEqual(allModels[0].identifier, .mlx("test/model"))
-        XCTAssertEqual(allModels[1].identifier, .llama3_2_3B)
-        XCTAssertEqual(allModels[2].identifier, .llama3_2_1B)
+        XCTAssertEqual(allModels[1].identifier, .llama3_2_3b)
+        XCTAssertEqual(allModels[2].identifier, .llama3_2_1b)
     }
 }

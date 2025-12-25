@@ -19,7 +19,7 @@ import Foundation
 /// ## Usage
 /// ```swift
 /// do {
-///     let response = try await provider.generate("Hello", model: .llama3_2_1B)
+///     let response = try await provider.generate("Hello", model: .llama3_2_1b)
 /// } catch let error as AIError {
 ///     print(error.errorDescription ?? "Unknown error")
 ///     if error.isRetryable {
@@ -64,6 +64,17 @@ public enum AIError: Error, Sendable, LocalizedError, CustomStringConvertible {
     ///
     /// API key is invalid, expired, or missing.
     case authenticationFailed(String)
+
+    /// The model variant is not supported by the provider.
+    ///
+    /// This occurs when attempting to use a model variant that the provider
+    /// cannot handle, such as trying to load Flux or SD 1.5 models with
+    /// MLXImageProvider when only SDXL Turbo is natively supported.
+    ///
+    /// - Parameters:
+    ///   - variant: The name of the unsupported variant
+    ///   - reason: Explanation of why it's not supported and alternatives
+    case unsupportedModel(variant: String, reason: String)
 
     // MARK: - Generation Errors
 
@@ -130,6 +141,35 @@ public enum AIError: Error, Sendable, LocalizedError, CustomStringConvertible {
     /// Wraps file system errors (permissions, disk full, etc.).
     case fileError(underlying: SendableError)
 
+    /// Insufficient disk space for download.
+    ///
+    /// - Parameters:
+    ///   - required: Disk space required by the download
+    ///   - available: Disk space currently available
+    case insufficientDiskSpace(required: ByteCount, available: ByteCount)
+
+    /// Checksum verification failed.
+    ///
+    /// The downloaded file's checksum does not match the expected value.
+    /// - Parameters:
+    ///   - expected: The expected SHA256 checksum
+    ///   - actual: The actual SHA256 checksum of the downloaded file
+    case checksumMismatch(expected: String, actual: String)
+
+    // MARK: - Platform Errors
+
+    /// The current platform is not supported for this operation.
+    ///
+    /// Thrown when an operation requires specific hardware or OS features
+    /// that are not available on the current device.
+    case unsupportedPlatform(String)
+
+    /// The required model is not loaded.
+    ///
+    /// For providers that require explicit model loading (like MLXImageProvider),
+    /// this error is thrown when attempting operations before loading a model.
+    case modelNotLoaded(String)
+
     // MARK: - Input Errors
 
     /// Invalid input was provided.
@@ -167,6 +207,9 @@ public enum AIError: Error, Sendable, LocalizedError, CustomStringConvertible {
 
         case .authenticationFailed(let message):
             return "Authentication failed: \(message)"
+
+        case .unsupportedModel(let variant, let reason):
+            return "Unsupported model variant '\(variant)': \(reason)"
 
         case .generationFailed(let error):
             return "Generation failed: \(error.localizedDescription)"
@@ -210,6 +253,12 @@ public enum AIError: Error, Sendable, LocalizedError, CustomStringConvertible {
         case .fileError(let error):
             return "File error: \(error.localizedDescription)"
 
+        case .insufficientDiskSpace(let required, let available):
+            return "Insufficient disk space: requires \(required.formatted), available \(available.formatted)"
+
+        case .checksumMismatch(let expected, let actual):
+            return "Checksum verification failed: expected \(expected.prefix(16))..., got \(actual.prefix(16))..."
+
         case .invalidInput(let message):
             return "Invalid input: \(message)"
 
@@ -218,6 +267,12 @@ public enum AIError: Error, Sendable, LocalizedError, CustomStringConvertible {
 
         case .unsupportedLanguage(let language):
             return "Unsupported language: \(language)"
+
+        case .unsupportedPlatform(let message):
+            return "Unsupported platform: \(message)"
+
+        case .modelNotLoaded(let message):
+            return "Model not loaded: \(message)"
         }
     }
 
@@ -238,6 +293,9 @@ public enum AIError: Error, Sendable, LocalizedError, CustomStringConvertible {
 
         case .authenticationFailed:
             return "Verify your API key is correct and has not expired."
+
+        case .unsupportedModel:
+            return "Use a supported model variant (e.g., .sdxlTurbo) or switch to a cloud provider for this model."
 
         case .generationFailed:
             return "Try again or use a different model. If the problem persists, check your input."
@@ -278,6 +336,12 @@ public enum AIError: Error, Sendable, LocalizedError, CustomStringConvertible {
         case .fileError:
             return "Check file permissions and available disk space."
 
+        case .insufficientDiskSpace(let required, _):
+            return "Free up at least \(required.formatted) of disk space and try again."
+
+        case .checksumMismatch:
+            return "The downloaded file may be corrupted. Delete the model and try downloading again."
+
         case .invalidInput:
             return "Check the input format and try again."
 
@@ -286,6 +350,12 @@ public enum AIError: Error, Sendable, LocalizedError, CustomStringConvertible {
 
         case .unsupportedLanguage:
             return "Use a supported language or enable auto-detection."
+
+        case .unsupportedPlatform:
+            return "This operation requires specific hardware. Use a cloud provider as an alternative."
+
+        case .modelNotLoaded:
+            return "Load a model using the provider's loadModel() method before attempting this operation."
         }
     }
 
@@ -355,6 +425,9 @@ public enum AIError: Error, Sendable, LocalizedError, CustomStringConvertible {
         case .downloadFailed:
             return true
 
+        case .unsupportedPlatform, .modelNotLoaded:
+            return false
+
         default:
             return false
         }
@@ -403,13 +476,14 @@ extension AIError {
     /// The category of this error.
     public var category: ErrorCategory {
         switch self {
-        case .providerUnavailable, .modelNotFound, .modelNotCached, .incompatibleModel, .authenticationFailed:
+        case .providerUnavailable, .modelNotFound, .modelNotCached, .incompatibleModel,
+             .authenticationFailed, .unsupportedPlatform, .modelNotLoaded, .unsupportedModel:
             return .provider
         case .generationFailed, .tokenLimitExceeded, .contentFiltered, .cancelled, .timeout:
             return .generation
         case .networkError, .serverError, .rateLimited:
             return .network
-        case .insufficientMemory, .downloadFailed, .fileError:
+        case .insufficientMemory, .downloadFailed, .fileError, .insufficientDiskSpace, .checksumMismatch:
             return .resource
         case .invalidInput, .unsupportedAudioFormat, .unsupportedLanguage:
             return .input
