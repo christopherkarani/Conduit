@@ -190,10 +190,37 @@ public enum OpenAIEndpoint: Sendable, Hashable {
             return URL(string: "https://openrouter.ai/api/v1")!
 
         case .ollama(let host, let port):
-            // Validate and sanitize host, use fallback for invalid URLs
-            let sanitizedHost = host.isEmpty ? "localhost" : host
+            // Validate and sanitize host to prevent URL injection
+            let sanitizedHost: String
+            if host.isEmpty {
+                sanitizedHost = "localhost"
+            } else {
+                // Remove any URL scheme, path separators, or invalid characters
+                var cleaned = host
+                    .replacingOccurrences(of: "http://", with: "")
+                    .replacingOccurrences(of: "https://", with: "")
+                    .replacingOccurrences(of: "/", with: "")
+                    .replacingOccurrences(of: "\\", with: "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                // If cleaning resulted in an empty string, use localhost
+                if cleaned.isEmpty {
+                    cleaned = "localhost"
+                }
+                sanitizedHost = cleaned
+            }
+
             let validPort = (1...65535).contains(port) ? port : 11434
-            guard let url = URL(string: "http://\(sanitizedHost):\(validPort)/v1") else {
+
+            // Use URLComponents for safer URL construction
+            var components = URLComponents()
+            components.scheme = "http"
+            components.host = sanitizedHost
+            components.port = validPort
+            components.path = "/v1"
+
+            guard let url = components.url else {
+                // Fallback to localhost if URL construction fails
                 return URL(string: "http://localhost:11434/v1")!
             }
             return url

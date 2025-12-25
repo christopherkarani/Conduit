@@ -234,6 +234,16 @@ public actor MLXImageProvider: ImageGenerator {
         do {
             // 10. Generate latents with progress tracking
             let (finalLatent, totalSteps) = try await container.perform { generator in
+                // Ensure cleanup happens on all exit paths (cancellation, error, success)
+                defer {
+                    // Clean up GPU resources if cancelled or errored
+                    if Task.isCancelled || isCancelled {
+                        #if arch(arm64)
+                        MLX.GPU.clearCache()
+                        #endif
+                    }
+                }
+
                 // Ensure model is loaded
                 generator.ensureLoaded()
 

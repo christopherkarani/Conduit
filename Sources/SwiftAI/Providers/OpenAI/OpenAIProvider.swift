@@ -96,9 +96,6 @@ public actor OpenAIProvider: AIProvider, TextGenerator, EmbeddingGenerator, Toke
     /// Active image generation task for cancellation.
     private var activeImageTask: Task<GeneratedImage, Error>?
 
-    /// Flag indicating image generation should be cancelled.
-    private var isImageCancelled = false
-
     // MARK: - Initialization
 
     /// Creates a provider with a full configuration.
@@ -191,7 +188,6 @@ public actor OpenAIProvider: AIProvider, TextGenerator, EmbeddingGenerator, Toke
         activeTask?.cancel()
         activeTask = nil
         // Also cancel image generation
-        isImageCancelled = true
         activeImageTask?.cancel()
         activeImageTask = nil
     }
@@ -486,19 +482,11 @@ public actor OpenAIProvider: AIProvider, TextGenerator, EmbeddingGenerator, Toke
     ) async throws -> GeneratedImage {
         // 1. Check cancellation
         try Task.checkCancellation()
-        isImageCancelled = false
 
         // 2. Validate prompt
         let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedPrompt.isEmpty else {
             throw AIError.invalidInput("Prompt cannot be empty")
-        }
-
-        // 2b. Validate prompt length (DALL-E 3: 4000 chars, DALL-E 2: 1000 chars)
-        // We check against the higher limit; model-specific validation happens after model selection
-        let maxPromptLength = 4000
-        if trimmedPrompt.count > maxPromptLength {
-            throw AIError.invalidInput("Prompt exceeds maximum length of \(maxPromptLength) characters")
         }
 
         // 3. Validate endpoint supports image generation
@@ -516,7 +504,21 @@ public actor OpenAIProvider: AIProvider, TextGenerator, EmbeddingGenerator, Toke
             model = "dall-e-3"
         }
 
-        // 5. Determine size
+        // 5. Validate prompt length based on selected model
+        // DALL-E 3: 4000 character limit
+        // DALL-E 2: 1000 character limit
+        // Note: Using character count as a proxy since actual token limits are:
+        // DALL-E 3: ~1000 tokens, DALL-E 2: ~400 tokens
+        // Character limits are more conservative and easier to validate
+        let maxPromptLength = model == "dall-e-3" ? 4000 : 1000
+        if trimmedPrompt.count > maxPromptLength {
+            throw AIError.invalidInput(
+                "Prompt exceeds maximum length of \(maxPromptLength) characters for \(model). " +
+                "Current length: \(trimmedPrompt.count) characters."
+            )
+        }
+
+        // 6. Determine size
         let size: String
         if let dalleSize = config.dalleSize {
             size = dalleSize.rawValue
@@ -526,7 +528,7 @@ public actor OpenAIProvider: AIProvider, TextGenerator, EmbeddingGenerator, Toke
             size = "1024x1024"
         }
 
-        // 6. Build request
+        // 7. Build request
         let url = configuration.endpoint.imagesGenerationsURL
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -535,7 +537,7 @@ public actor OpenAIProvider: AIProvider, TextGenerator, EmbeddingGenerator, Toke
             request.setValue(value, forHTTPHeaderField: name)
         }
 
-        // 7. Build request body
+        // 8. Build request body
         var body: [String: Any] = [
             "model": model,
             "prompt": trimmedPrompt,
@@ -556,9 +558,8 @@ public actor OpenAIProvider: AIProvider, TextGenerator, EmbeddingGenerator, Toke
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        // 8. Execute request
+        // 9. Execute request
         try Task.checkCancellation()
-        if isImageCancelled { throw AIError.cancelled }
 
         let (data, response) = try await session.data(for: request)
 
@@ -585,7 +586,6 @@ public actor OpenAIProvider: AIProvider, TextGenerator, EmbeddingGenerator, Toke
 
         // 10. Check cancellation after response
         try Task.checkCancellation()
-        if isImageCancelled { throw AIError.cancelled }
 
         // 11. Parse response
         return try parseImageResponse(data: data, model: model)
@@ -648,11 +648,23 @@ public actor OpenAIProvider: AIProvider, TextGenerator, EmbeddingGenerator, Toke
         }
 
         guard httpResponse.statusCode == 200 else {
-            // Try to read error body
+            // Try to read error body with size limit to prevent DoS
+            let maxErrorSize = 10_000 // 10KB should be enough for error messages
             var errorData = Data()
+            errorData.reserveCapacity(min(1024, maxErrorSize))
+
             for try await byte in bytes {
+                // Enforce size limit
+                guard errorData.count < maxErrorSize else {
+                    let message = String(data: errorData, encoding: .utf8)
+                    throw AIError.serverError(
+                        statusCode: httpResponse.statusCode,
+                        message: (message ?? "") + " (error message truncated)"
+                    )
+                }
                 errorData.append(byte)
             }
+
             let message = String(data: errorData, encoding: .utf8)
             throw AIError.serverError(statusCode: httpResponse.statusCode, message: message)
         }
@@ -664,7 +676,15 @@ public actor OpenAIProvider: AIProvider, TextGenerator, EmbeddingGenerator, Toke
         for try await byte in bytes {
             try Task.checkCancellation()
 
-            buffer.append(Character(UnicodeScalar(byte)))
+            // Validate UTF-8 byte before creating UnicodeScalar
+            guard let scalar = UnicodeScalar(byte) else {
+                throw AIError.generationFailed(underlying: SendableError(NSError(
+                    domain: "OpenAIProvider",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "Invalid UTF-8 byte (\(byte)) in streaming response"]
+                )))
+            }
+            buffer.append(Character(scalar))
 
             // Process complete lines
             while let lineEnd = buffer.firstIndex(of: "\n") {
@@ -791,7 +811,16 @@ public actor OpenAIProvider: AIProvider, TextGenerator, EmbeddingGenerator, Toke
 
                 if attempt > 0 {
                     let delay = configuration.retryConfig.delay(forAttempt: attempt)
-                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    // Prevent overflow by capping delay at 60 seconds
+                    let cappedDelay = min(delay, 60.0)
+                    // Use checked multiplication to prevent overflow
+                    let nanoseconds = cappedDelay * 1_000_000_000
+                    // Ensure the result fits in UInt64
+                    guard nanoseconds <= Double(UInt64.max) else {
+                        try await Task.sleep(nanoseconds: UInt64.max)
+                        continue
+                    }
+                    try await Task.sleep(nanoseconds: UInt64(nanoseconds))
                 }
 
                 let (data, response) = try await session.data(for: request)

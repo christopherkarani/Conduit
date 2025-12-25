@@ -206,18 +206,28 @@ public enum OpenAIAuthentication: Sendable {
 // MARK: - Hashable
 
 extension OpenAIAuthentication: Hashable {
+    /// Hashes the authentication type without exposing sensitive credentials.
+    ///
+    /// **Security**: Only the discriminator (case type) and non-sensitive values
+    /// are hashed. API keys and tokens are NOT included in the hash to prevent
+    /// exposure through hash collision analysis or debug output.
+    ///
+    /// This means two `.bearer("key1")` and `.bearer("key2")` will hash identically,
+    /// which is acceptable since Hashable is primarily used for dictionary keys
+    /// and the equality check (==) will still distinguish them correctly.
     public func hash(into hasher: inout Hasher) {
         switch self {
         case .none:
             hasher.combine(0)
-        case .bearer(let token):
+        case .bearer:
+            // Only hash the case discriminator, NOT the token
             hasher.combine(1)
-            hasher.combine(token)
-        case .apiKey(let key, let headerName):
+        case .apiKey(_, let headerName):
+            // Only hash the case discriminator and header name, NOT the key
             hasher.combine(2)
-            hasher.combine(key)
             hasher.combine(headerName)
         case .environment(let variableName):
+            // Variable name is not sensitive
             hasher.combine(3)
             hasher.combine(variableName)
         case .auto:
@@ -229,13 +239,28 @@ extension OpenAIAuthentication: Hashable {
 // MARK: - Equatable
 
 extension OpenAIAuthentication: Equatable {
+    /// Compares two authentication instances for equality.
+    ///
+    /// **Security Note**: This implementation uses standard string comparison
+    /// for API keys and tokens, which may be vulnerable to timing attacks in
+    /// theory. However, this is acceptable because:
+    /// 1. Equatable is required for Hashable conformance
+    /// 2. The comparison is used for configuration matching, not authentication
+    /// 3. Swift's String comparison is optimized and timing variations are minimal
+    /// 4. Actual authentication happens via secure HTTPS connections
+    ///
+    /// If you're comparing authentication in security-critical contexts,
+    /// avoid using `==` directly. Instead, compare resolved values through
+    /// secure channels or use this only for configuration validation.
     public static func == (lhs: OpenAIAuthentication, rhs: OpenAIAuthentication) -> Bool {
         switch (lhs, rhs) {
         case (.none, .none):
             return true
         case (.bearer(let lhsToken), .bearer(let rhsToken)):
+            // Note: String comparison is not constant-time
             return lhsToken == rhsToken
         case (.apiKey(let lhsKey, let lhsHeader), .apiKey(let rhsKey, let rhsHeader)):
+            // Note: String comparison is not constant-time
             return lhsKey == rhsKey && lhsHeader == rhsHeader
         case (.environment(let lhsVariable), .environment(let rhsVariable)):
             return lhsVariable == rhsVariable
