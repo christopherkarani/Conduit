@@ -31,7 +31,8 @@ struct ImageGenerationProgressTests {
         #expect(progress.currentStep == 3)
         #expect(progress.totalSteps == 10)
         #expect(progress.elapsedTime == 0)
-        #expect(progress.estimatedTimeRemaining == nil)
+        // When elapsedTime is 0, ETA is calculated as 0 (0 time per step × remaining steps)
+        #expect(progress.estimatedTimeRemaining == 0)
     }
 
     @Test("Auto-calculates ETA when not provided")

@@ -49,7 +49,12 @@ final class ImageGenerationConfigTests: XCTestCase {
         XCTAssertNil(config.width, "High quality should not set width")
         XCTAssertNil(config.height, "High quality should not set height")
         XCTAssertEqual(config.steps, 50, "High quality should have 50 steps")
-        XCTAssertEqual(config.guidanceScale, 7.5, accuracy: 0.001, "High quality should have guidance scale of 7.5")
+        XCTAssertEqual(
+            Double(config.guidanceScale!),
+            7.5,
+            accuracy: 0.001,
+            "High quality should have guidance scale of 7.5"
+        )
         XCTAssertTrue(config.hasParameters, "High quality should have parameters")
     }
 
@@ -129,7 +134,7 @@ final class ImageGenerationConfigTests: XCTestCase {
         let modified = original.guidanceScale(8.0)
 
         XCTAssertNil(original.guidanceScale, "Original should remain unchanged")
-        XCTAssertEqual(modified.guidanceScale, 8.0, accuracy: 0.001, "Modified should have new guidance scale")
+        XCTAssertEqual(Double(modified.guidanceScale!), 8.0, accuracy: 0.001, "Modified should have new guidance scale")
     }
 
     func testFluentSizeReturnsNewInstance() {
@@ -152,7 +157,7 @@ final class ImageGenerationConfigTests: XCTestCase {
         XCTAssertEqual(config.width, 1024, "Chained width should be set")
         XCTAssertEqual(config.height, 768, "Chained height should be set")
         XCTAssertEqual(config.steps, 40, "Chained steps should be set")
-        XCTAssertEqual(config.guidanceScale, 10.0, accuracy: 0.001, "Chained guidance scale should be set")
+        XCTAssertEqual(Double(config.guidanceScale!), 10.0, accuracy: 0.001, "Chained guidance scale should be set")
     }
 
     func testFluentChainingWithSize() {
@@ -164,7 +169,7 @@ final class ImageGenerationConfigTests: XCTestCase {
         XCTAssertEqual(config.width, 512, "Width should be set via size()")
         XCTAssertEqual(config.height, 512, "Height should be set via size()")
         XCTAssertEqual(config.steps, 25, "Steps should be set")
-        XCTAssertEqual(config.guidanceScale, 7.5, accuracy: 0.001, "Guidance scale should be set")
+        XCTAssertEqual(Double(config.guidanceScale!), 7.5, accuracy: 0.001, "Guidance scale should be set")
     }
 
     func testFluentModificationPreservesOtherProperties() {
@@ -174,7 +179,7 @@ final class ImageGenerationConfigTests: XCTestCase {
         XCTAssertEqual(modified.width, 1024, "Width should be updated")
         XCTAssertEqual(modified.height, 512, "Height should be preserved")
         XCTAssertEqual(modified.steps, 30, "Steps should be preserved")
-        XCTAssertEqual(modified.guidanceScale, 7.5, accuracy: 0.001, "Guidance scale should be preserved")
+        XCTAssertEqual(Double(modified.guidanceScale!), 7.5, accuracy: 0.001, "Guidance scale should be preserved")
     }
 
     // MARK: - hasParameters Tests
@@ -296,7 +301,12 @@ final class ImageGenerationConfigTests: XCTestCase {
 
     func testNegativeGuidanceScale() {
         let config = ImageGenerationConfig(guidanceScale: -1.0)
-        XCTAssertEqual(config.guidanceScale, -1.0, accuracy: 0.001, "Negative guidance scale should be allowed")
+        XCTAssertEqual(
+            Double(config.guidanceScale!),
+            -1.0,
+            accuracy: 0.001,
+            "Negative guidance scale should be allowed"
+        )
     }
 
     func testComplexChaining() {
@@ -309,7 +319,12 @@ final class ImageGenerationConfigTests: XCTestCase {
         XCTAssertEqual(config.width, 1024, "Complex chain should set width")
         XCTAssertEqual(config.height, 768, "Complex chain should set height")
         XCTAssertEqual(config.steps, 60, "Complex chain should override steps from preset")
-        XCTAssertEqual(config.guidanceScale, 12.0, accuracy: 0.001, "Complex chain should override guidance scale")
+        XCTAssertEqual(
+            Double(config.guidanceScale!),
+            12.0,
+            accuracy: 0.001,
+            "Complex chain should override guidance scale"
+        )
     }
 
     func testPresetModification() {
@@ -382,19 +397,29 @@ final class ImageGenerationConfigTests: XCTestCase {
     func testValidGuidanceScale() {
         // Valid guidance scale (0-30) - should not print warning
         let config = ImageGenerationConfig.default.guidanceScale(7.5)
-        XCTAssertEqual(config.guidanceScale, 7.5, accuracy: 0.001, "Should accept valid guidance scale")
+        XCTAssertEqual(Double(config.guidanceScale!), 7.5, accuracy: 0.001, "Should accept valid guidance scale")
     }
 
     func testNegativeGuidanceScaleValidation() {
         // Negative guidance scale - prints warning but still sets value
         let config = ImageGenerationConfig.default.guidanceScale(-5.0)
-        XCTAssertEqual(config.guidanceScale, -5.0, accuracy: 0.001, "Should accept negative guidance scale with warning")
+        XCTAssertEqual(
+            Double(config.guidanceScale!),
+            -5.0,
+            accuracy: 0.001,
+            "Should accept negative guidance scale with warning"
+        )
     }
 
     func testExcessiveGuidanceScale() {
         // Guidance scale above 30 - prints warning but still sets value
         let config = ImageGenerationConfig.default.guidanceScale(50.0)
-        XCTAssertEqual(config.guidanceScale, 50.0, accuracy: 0.001, "Should accept high guidance scale with warning")
+        XCTAssertEqual(
+            Double(config.guidanceScale!),
+            50.0,
+            accuracy: 0.001,
+            "Should accept high guidance scale with warning"
+        )
     }
 
     func testSizeValidation() {

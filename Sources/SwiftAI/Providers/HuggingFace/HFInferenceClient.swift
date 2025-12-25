@@ -690,7 +690,9 @@ internal actor HFInferenceClient {
     /// Resolves the API token from the configuration.
     private func resolveToken() throws -> String {
         guard let token = configuration.tokenProvider.token, !token.isEmpty else {
-            throw AIError.authenticationFailed("No HuggingFace API token configured. Set HF_TOKEN environment variable or provide a token explicitly.")
+            throw AIError.authenticationFailed(
+                "No HuggingFace API token configured. Set HF_TOKEN environment variable or provide a token explicitly."
+            )
         }
 
         return token

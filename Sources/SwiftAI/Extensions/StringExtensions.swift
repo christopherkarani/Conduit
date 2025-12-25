@@ -17,7 +17,7 @@ extension String {
     /// let provider = MLXProvider()
     /// let response = try await "What is Swift?".generate(
     ///     with: provider,
-    ///     model: .llama3_2_1B,
+    ///     model: .llama3_2_1b,
     ///     config: .default
     /// )
     /// print(response)
@@ -31,7 +31,7 @@ extension String {
     ///
     /// let story = try await "Write a sci-fi story:".generate(
     ///     with: mlxProvider,
-    ///     model: .llama3_2_1B,
+    ///     model: .llama3_2_1b,
     ///     config: config
     /// )
     /// ```
@@ -71,7 +71,7 @@ extension String {
     ///
     /// for try await token in "Tell me a story".stream(
     ///     with: provider,
-    ///     model: .llama3_2_1B
+    ///     model: .llama3_2_1b
     /// ) {
     ///     print(token, terminator: "")
     /// }
@@ -85,7 +85,7 @@ extension String {
     /// var fullText = ""
     /// for try await token in "Write a haiku about AI".stream(
     ///     with: provider,
-    ///     model: .llama3_2_1B,
+    ///     model: .llama3_2_1b,
     ///     config: config
     /// ) {
     ///     print(token, terminator: "")
@@ -203,7 +203,7 @@ extension String {
     ///
     /// let count = try await text.tokenCount(
     ///     with: provider,
-    ///     model: .llama3_2_1B
+    ///     model: .llama3_2_1b
     /// )
     /// print("Token count: \(count)")
     /// ```

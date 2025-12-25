@@ -35,7 +35,7 @@ import Foundation
 /// let messages = [Message.user("What is Swift?")]
 /// let response = try await provider.generate(
 ///     messages: messages,
-///     model: .llama3_2_1B,
+///     model: .llama3_2_1b,
 ///     config: .default
 /// )
 /// print(response.text)
@@ -48,7 +48,7 @@ import Foundation
 /// let messages = [Message.user("Explain concurrency")]
 /// let stream = provider.stream(
 ///     messages: messages,
-///     model: .llama3_2_1B,
+///     model: .llama3_2_1b,
 ///     config: .default
 /// )
 ///
@@ -77,7 +77,7 @@ import Foundation
 ///     let messages = [Message.user("Long request...")]
 ///     let response = try await provider.generate(
 ///         messages: messages,
-///         model: .llama3_2_1B,
+///         model: .llama3_2_1b,
 ///         config: .default
 ///     )
 /// }
@@ -280,7 +280,7 @@ public protocol AIProvider<Response>: Actor, Sendable {
     /// let task = Task {
     ///     try await provider.generate(
     ///         messages: longMessages,
-    ///         model: .llama3_2_1B,
+    ///         model: .llama3_2_1b,
     ///         config: .default
     ///     )
     /// }
@@ -317,7 +317,7 @@ public protocol AIProvider<Response>: Actor, Sendable {
     /// do {
     ///     let response = try await provider.generate(
     ///         messages: messages,
-    ///         model: .llama3_2_1B,
+    ///         model: .llama3_2_1b,
     ///         config: GenerateConfig.default
     ///             .temperature(0.7)
     ///             .maxTokens(100)
@@ -409,7 +409,7 @@ public protocol AIProvider<Response>: Actor, Sendable {
     ///
     /// let stream = provider.stream(
     ///     messages: messages,
-    ///     model: .llama3_2_1B,
+    ///     model: .llama3_2_1b,
     ///     config: .default
     /// )
     ///

@@ -10,18 +10,19 @@ struct HFMetadataServiceTests {
     @Test("Service singleton is accessible")
     func testSingletonAccess() {
         let service = HFMetadataService.shared
-        #expect(service != nil)
+        // Service is an actor, not optional - always accessible
+        #expect(type(of: service) == HFMetadataService.self)
     }
 
     @Test("MLX file patterns are defined")
     func testMLXFilePatterns() {
         let patterns = HFMetadataService.mlxFilePatterns
-        #expect(patterns.count > 0)
+        #expect(!patterns.isEmpty)
 
-        // Should include common MLX model files
+        // Should include glob patterns for common MLX model files
         #expect(patterns.contains("*.safetensors"))
-        #expect(patterns.contains("config.json"))
-        #expect(patterns.contains("tokenizer.json"))
+        #expect(patterns.contains("*.json"))  // Covers config.json, tokenizer.json, etc.
+        #expect(patterns.contains("*.model")) // Covers tokenizer.model, spiece.model
     }
 
     @Test("Service can fetch metadata for known model", .disabled())
@@ -31,12 +32,13 @@ struct HFMetadataServiceTests {
 
         let service = HFMetadataService.shared
 
-        do {
-            let metadata = try await service.fetchModelInfo(repoId: "mlx-community/Llama-3.2-1B-Instruct-4bit")
-            #expect(metadata != nil)
-        } catch {
+        let metadata = await service.fetchModelDetails(repoId: "mlx-community/Llama-3.2-1B-Instruct-4bit")
+        if let details = metadata {
+            #expect(details.id == "mlx-community/Llama-3.2-1B-Instruct-4bit")
+            #expect(!details.tags.isEmpty)
+        } else {
             // Network tests may fail in CI - that's okay
-            Issue.record("Network test failed (expected in some environments): \(error)")
+            Issue.record("Network test failed (expected in some environments)")
         }
     }
 
@@ -62,12 +64,8 @@ struct HFMetadataServiceTests {
 
         let service = HFMetadataService.shared
 
-        do {
-            _ = try await service.fetchModelInfo(repoId: "invalid/nonexistent-model-12345")
-            Issue.record("Expected error for invalid repo ID")
-        } catch {
-            // Expected to fail
-            #expect(error != nil)
-        }
+        let metadata = await service.fetchModelDetails(repoId: "invalid/nonexistent-model-12345")
+        // fetchModelDetails returns nil on failure (doesn't throw)
+        #expect(metadata == nil)
     }
 }

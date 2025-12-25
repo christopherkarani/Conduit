@@ -282,7 +282,7 @@ public struct MessageBuilder: Sendable {
 ///
 /// let response = try await provider.generate(
 ///     messages: messages,
-///     model: .llama3_2_1B,
+///     model: .llama3_2_1b,
 ///     config: .default
 /// )
 /// ```

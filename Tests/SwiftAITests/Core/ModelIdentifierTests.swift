@@ -182,17 +182,17 @@ final class ModelIdentifierTests: XCTestCase {
     // MARK: - Registry Constant Tests
 
     func testRegistryMLXModels() {
-        XCTAssertEqual(ModelIdentifier.llama3_2_1B.provider, .mlx)
-        XCTAssertEqual(ModelIdentifier.llama3_2_1B.rawValue, "mlx-community/Llama-3.2-1B-Instruct-4bit")
+        XCTAssertEqual(ModelIdentifier.llama3_2_1b.provider, .mlx)
+        XCTAssertEqual(ModelIdentifier.llama3_2_1b.rawValue, "mlx-community/Llama-3.2-1B-Instruct-4bit")
 
-        XCTAssertEqual(ModelIdentifier.llama3_2_3B.provider, .mlx)
-        XCTAssertEqual(ModelIdentifier.llama3_2_3B.rawValue, "mlx-community/Llama-3.2-3B-Instruct-4bit")
+        XCTAssertEqual(ModelIdentifier.llama3_2_3b.provider, .mlx)
+        XCTAssertEqual(ModelIdentifier.llama3_2_3b.rawValue, "mlx-community/Llama-3.2-3B-Instruct-4bit")
 
         XCTAssertEqual(ModelIdentifier.phi3Mini.provider, .mlx)
         XCTAssertEqual(ModelIdentifier.phi4.provider, .mlx)
-        XCTAssertEqual(ModelIdentifier.qwen2_5_3B.provider, .mlx)
+        XCTAssertEqual(ModelIdentifier.qwen2_5_3b.provider, .mlx)
         XCTAssertEqual(ModelIdentifier.mistral7B.provider, .mlx)
-        XCTAssertEqual(ModelIdentifier.gemma2_2B.provider, .mlx)
+        XCTAssertEqual(ModelIdentifier.gemma2_2b.provider, .mlx)
     }
 
     func testRegistryEmbeddingModels() {
@@ -295,7 +295,7 @@ final class ModelIdentifierTests: XCTestCase {
 
     func testModelInfoIdentifiable() {
         let model = ModelInfo(
-            identifier: .llama3_2_1B,
+            identifier: .llama3_2_1b,
             name: "Test Model",
             description: "Test description",
             size: .small,
@@ -309,7 +309,7 @@ final class ModelIdentifierTests: XCTestCase {
 
     func testModelInfoHashable() {
         let model1 = ModelInfo(
-            identifier: .llama3_2_1B,
+            identifier: .llama3_2_1b,
             name: "Model 1",
             description: "Description 1",
             size: .small,
@@ -318,7 +318,7 @@ final class ModelIdentifierTests: XCTestCase {
         )
 
         let model2 = ModelInfo(
-            identifier: .llama3_2_1B,
+            identifier: .llama3_2_1b,
             name: "Model 2", // Different name
             description: "Description 2",
             size: .medium,
@@ -327,7 +327,7 @@ final class ModelIdentifierTests: XCTestCase {
         )
 
         let model3 = ModelInfo(
-            identifier: .llama3_2_3B,
+            identifier: .llama3_2_3b,
             name: "Model 3",
             description: "Description 3",
             size: .small,
@@ -362,11 +362,11 @@ final class ModelIdentifierTests: XCTestCase {
     }
 
     func testRegistryInfoLookup() {
-        let model = ModelRegistry.info(for: .llama3_2_1B)
+        let model = ModelRegistry.info(for: .llama3_2_1b)
 
         XCTAssertNotNil(model)
         XCTAssertEqual(model?.name, "Llama 3.2 1B")
-        XCTAssertEqual(model?.identifier, .llama3_2_1B)
+        XCTAssertEqual(model?.identifier, .llama3_2_1b)
         XCTAssertEqual(model?.size, .small)
         XCTAssertEqual(model?.contextWindow, 8192)
         XCTAssertTrue(model?.isRecommended ?? false)
@@ -485,7 +485,7 @@ final class ModelIdentifierTests: XCTestCase {
     // MARK: - DiskSize Tests
 
     func testModelInfoWithDiskSize() {
-        let model = ModelRegistry.info(for: .llama3_2_1B)
+        let model = ModelRegistry.info(for: .llama3_2_1b)
         XCTAssertNotNil(model?.diskSize)
         XCTAssertEqual(model?.diskSize, .megabytes(800))
     }
@@ -498,7 +498,7 @@ final class ModelIdentifierTests: XCTestCase {
     // MARK: - Context Window Tests
 
     func testModelInfoContextWindows() {
-        let llama32 = ModelRegistry.info(for: .llama3_2_1B)
+        let llama32 = ModelRegistry.info(for: .llama3_2_1b)
         XCTAssertEqual(llama32?.contextWindow, 8192)
 
         let llama31 = ModelRegistry.info(for: .llama3_1_70B)

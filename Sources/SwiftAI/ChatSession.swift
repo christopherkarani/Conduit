@@ -39,7 +39,7 @@ import Foundation
 /// // Warmup automatically on init
 /// let session = try await ChatSession(
 ///     provider: provider,
-///     model: .llama3_2_1B,
+///     model: .llama3_2_1b,
 ///     warmup: .eager
 /// )
 /// // First message will be fast (~100-300ms)
@@ -51,7 +51,7 @@ import Foundation
 /// // No warmup overhead during init
 /// let session = ChatSession(
 ///     provider: provider,
-///     model: .llama3_2_1B,
+///     model: .llama3_2_1b,
 ///     warmup: .default
 /// )
 /// // First message will include warmup time (~2-4s)
@@ -67,7 +67,7 @@ import Foundation
 /// )
 /// let session = try await ChatSession(
 ///     provider: provider,
-///     model: .llama3_2_1B,
+///     model: .llama3_2_1b,
 ///     warmup: customWarmup
 /// )
 /// ```
@@ -159,7 +159,7 @@ public struct WarmupConfig: Sendable {
 /// let provider = MLXProvider()
 /// let session = ChatSession(
 ///     provider: provider,
-///     model: .llama3_2_1B
+///     model: .llama3_2_1b
 /// )
 ///
 /// // Set system prompt
@@ -279,7 +279,7 @@ where Provider.ModelID == ModelIdentifier {
     /// let provider = MLXProvider()
     /// let session = ChatSession(
     ///     provider: provider,
-    ///     model: .llama3_2_1B,
+    ///     model: .llama3_2_1b,
     ///     config: .default.temperature(0.8)
     /// )
     /// ```
@@ -312,7 +312,7 @@ where Provider.ModelID == ModelIdentifier {
     /// ```swift
     /// let session = try await ChatSession(
     ///     provider: provider,
-    ///     model: .llama3_2_1B,
+    ///     model: .llama3_2_1b,
     ///     warmup: .eager
     /// )
     /// // First message will be fast
@@ -323,7 +323,7 @@ where Provider.ModelID == ModelIdentifier {
     /// ```swift
     /// let session = try await ChatSession(
     ///     provider: provider,
-    ///     model: .llama3_2_1B,
+    ///     model: .llama3_2_1b,
     ///     warmup: .default  // or omit, .default is the default
     /// )
     /// // First message will include warmup overhead

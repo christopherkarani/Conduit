@@ -10,11 +10,14 @@ import Foundation
 ///
 /// ## Choosing a Variant
 ///
-/// | Variant | Size | Steps | Speed | Quality | Best For |
-/// |---------|------|-------|-------|---------|----------|
-/// | `.sdxlTurbo` | ~6.5GB | 4 | Fast | Excellent | General use |
-/// | `.sd15` | ~2GB | 20 | Slow | Good | Memory-constrained devices |
-/// | `.flux` | ~4GB | 4 | Fast | Very Good | Balance of speed/quality |
+/// | Variant | Size | Steps | Speed | Quality | MLX Support | Best For |
+/// |---------|------|-------|-------|---------|-------------|----------|
+/// | `.sdxlTurbo` | ~6.5GB | 4 | ⚡ Fast | ⭐⭐⭐⭐ | ✅ Native | General use, fast iteration |
+/// | `.sd15` | ~2GB | 20 | 🐢 Slow | ⭐⭐⭐ | ☁️ Cloud | Memory-constrained devices |
+/// | `.flux` | ~4GB | 4 | ⚡ Fast | ⭐⭐⭐⭐ | ☁️ Cloud | Quality/speed balance |
+///
+/// **Note**: Variants marked ☁️ Cloud require `HuggingFaceProvider` for inference.
+/// Only ✅ Native variants can be loaded with `MLXImageProvider.loadModel()`.
 ///
 /// ## Usage
 ///
@@ -127,6 +130,57 @@ public enum DiffusionVariant: String, Sendable, CaseIterable, Codable {
             return "Classic SD 1.5, quantized for memory efficiency"
         case .flux:
             return "Fast Flux variant, 4 steps for quick generation"
+        }
+    }
+
+    /// Whether this variant is natively supported by the MLX StableDiffusion library.
+    ///
+    /// Currently, only SDXL Turbo is natively supported. Attempting to load
+    /// unsupported variants will result in an error.
+    ///
+    /// ## Supported Variants
+    /// - `.sdxlTurbo`: ✅ Fully supported
+    ///
+    /// ## Unsupported Variants
+    /// - `.sd15`: ❌ Architecture not available in MLX StableDiffusion
+    /// - `.flux`: ❌ Requires different architecture not yet available
+    ///
+    /// For unsupported variants, use `HuggingFaceProvider` for cloud-based inference.
+    public var isNativelySupported: Bool {
+        switch self {
+        case .sdxlTurbo: return true
+        case .sd15: return false
+        case .flux: return false
+        }
+    }
+
+    /// Explanation of why this variant is not supported, if applicable.
+    ///
+    /// Returns `nil` for supported variants, or a detailed explanation for
+    /// unsupported variants including alternative solutions.
+    ///
+    /// ## Usage
+    ///
+    /// ```swift
+    /// let variant = DiffusionVariant.flux
+    /// if !variant.isNativelySupported, let reason = variant.unsupportedReason {
+    ///     print("Cannot use \(variant.displayName): \(reason)")
+    /// }
+    /// ```
+    public var unsupportedReason: String? {
+        switch self {
+        case .sdxlTurbo:
+            return nil
+        case .sd15:
+            return """
+                Stable Diffusion 1.5 is not natively supported by the MLX StableDiffusion library. \
+                Use SDXL Turbo for local generation, or use HuggingFaceProvider for cloud-based SD1.5 inference.
+                """
+        case .flux:
+            return """
+                Flux models require a different architecture not yet available in the MLX StableDiffusion library. \
+                Use HuggingFaceProvider for cloud-based Flux inference.
+                """
         }
     }
 }

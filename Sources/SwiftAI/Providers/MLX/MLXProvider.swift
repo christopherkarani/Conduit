@@ -29,7 +29,7 @@ import Foundation
 /// let provider = MLXProvider()
 /// let response = try await provider.generate(
 ///     "What is Swift?",
-///     model: .llama3_2_1B,
+///     model: .llama3_2_1b,
 ///     config: .default
 /// )
 /// print(response)
@@ -39,7 +39,7 @@ import Foundation
 /// ```swift
 /// let stream = provider.stream(
 ///     "Write a poem",
-///     model: .llama3_2_1B,
+///     model: .llama3_2_1b,
 ///     config: .default
 /// )
 /// for try await text in stream {
@@ -49,7 +49,7 @@ import Foundation
 ///
 /// ### Token Counting
 /// ```swift
-/// let count = try await provider.countTokens(in: "Hello", for: .llama3_2_1B)
+/// let count = try await provider.countTokens(in: "Hello", for: .llama3_2_1b)
 /// print("Tokens: \(count.count)")
 /// ```
 ///
@@ -333,7 +333,7 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
     /// ## Usage
     /// ```swift
     /// let provider = MLXProvider()
-    /// let model = ModelIdentifier.llama3_2_1B
+    /// let model = ModelIdentifier.llama3_2_1b
     ///
     /// // Warm up before first user request
     /// try await provider.warmUp(model: model)
@@ -360,7 +360,7 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
     /// // During app launch
     /// Task {
     ///     let provider = MLXProvider()
-    ///     try? await provider.warmUp(model: .llama3_2_1B)
+    ///     try? await provider.warmUp(model: .llama3_2_1b)
     /// }
     ///
     /// // Later, when user makes first request

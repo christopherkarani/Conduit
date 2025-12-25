@@ -16,21 +16,21 @@ import Foundation
 ///
 /// // Add a model to the cache
 /// let info = CachedModelInfo(
-///     identifier: .llama3_2_1B,
+///     identifier: .llama3_2_1b,
 ///     path: modelDirectory,
 ///     size: .gigabytes(4)
 /// )
 /// try cache.add(info)
 ///
 /// // Check if a model is cached
-/// if cache.isCached(.llama3_2_1B) {
-///     if let path = cache.localPath(for: .llama3_2_1B) {
+/// if cache.isCached(.llama3_2_1b) {
+///     if let path = cache.localPath(for: .llama3_2_1b) {
 ///         // Use the model
 ///     }
 /// }
 ///
 /// // Mark a model as accessed (updates LRU)
-/// cache.markAccessed(.llama3_2_1B)
+/// cache.markAccessed(.llama3_2_1b)
 ///
 /// // Evict old models to fit within size limit
 /// let evicted = try cache.evictToFit(maxSize: .gigabytes(20))
@@ -158,7 +158,7 @@ public actor ModelCache {
     ///
     /// ## Example
     /// ```swift
-    /// if cache.isCached(.llama3_2_1B) {
+    /// if cache.isCached(.llama3_2_1b) {
     ///     print("Model is available locally")
     /// } else {
     ///     print("Model needs to be downloaded")
@@ -178,7 +178,7 @@ public actor ModelCache {
     ///
     /// ## Example
     /// ```swift
-    /// if let info = cache.info(for: .llama3_2_1B) {
+    /// if let info = cache.info(for: .llama3_2_1b) {
     ///     print("Size: \(info.size.formatted)")
     ///     print("Downloaded: \(info.downloadedAt)")
     ///     print("Last used: \(info.lastAccessedAt)")
@@ -198,7 +198,7 @@ public actor ModelCache {
     ///
     /// ## Example
     /// ```swift
-    /// if let path = cache.localPath(for: .llama3_2_1B) {
+    /// if let path = cache.localPath(for: .llama3_2_1b) {
     ///     // Load model from path
     ///     let modelFiles = try FileManager.default.contentsOfDirectory(at: path)
     /// }
@@ -241,7 +241,7 @@ public actor ModelCache {
     /// ## Example
     /// ```swift
     /// let info = CachedModelInfo(
-    ///     identifier: .llama3_2_1B,
+    ///     identifier: .llama3_2_1b,
     ///     path: downloadPath,
     ///     size: .gigabytes(4),
     ///     downloadedAt: Date(),
@@ -268,9 +268,9 @@ public actor ModelCache {
     /// ## Example
     /// ```swift
     /// // When loading a model for inference
-    /// if let info = cache.info(for: .llama3_2_1B) {
+    /// if let info = cache.info(for: .llama3_2_1b) {
     ///     let mlxModel = try MLX.load(from: info.path)
-    ///     cache.markAccessed(.llama3_2_1B) // Update LRU
+    ///     cache.markAccessed(.llama3_2_1b) // Update LRU
     ///     // Use the model...
     /// }
     /// ```
@@ -305,7 +305,7 @@ public actor ModelCache {
     /// ## Example
     /// ```swift
     /// // Remove a specific model
-    /// try cache.remove(.llama3_2_1B)
+    /// try cache.remove(.llama3_2_1b)
     /// print("Model removed and disk space freed")
     /// ```
     public func remove(_ model: ModelIdentifier) throws {

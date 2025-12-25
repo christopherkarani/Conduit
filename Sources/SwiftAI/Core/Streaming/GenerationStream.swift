@@ -10,7 +10,7 @@ import Foundation
 ///
 /// ## Usage
 /// ```swift
-/// let stream = provider.stream(messages: messages, model: .llama3_2_1B, config: .default)
+/// let stream = provider.stream(messages: messages, model: .llama3_2_1b, config: .default)
 ///
 /// // Simple text iteration
 /// for try await text in stream.text {

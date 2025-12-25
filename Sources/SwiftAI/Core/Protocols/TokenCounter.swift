@@ -22,7 +22,7 @@ import Foundation
 ///
 /// ```swift
 /// let tokenCounter = provider.tokenCounter
-/// let count = try await tokenCounter.countTokens(in: longDocument, for: .llama3_2_1B)
+/// let count = try await tokenCounter.countTokens(in: longDocument, for: .llama3_2_1b)
 /// if count.count > 4096 {
 ///     // Truncate or chunk the input
 /// }
@@ -98,7 +98,7 @@ import Foundation
 ///
 /// let totalTokens = try await tokenCounter.countTokens(
 ///     in: messages,
-///     for: .llama3_2_1B
+///     for: .llama3_2_1b
 /// )
 ///
 /// print("Context usage: \(totalTokens.count) / 4096 tokens")
@@ -135,7 +135,7 @@ public protocol TokenCounter: Sendable {
     /// let text = "Hello, world! How are you today?"
     /// let count = try await tokenCounter.countTokens(
     ///     in: text,
-    ///     for: .llama3_2_1B
+    ///     for: .llama3_2_1b
     /// )
     /// print(count.count) // e.g., 9 tokens
     /// ```
@@ -185,7 +185,7 @@ public protocol TokenCounter: Sendable {
     ///
     /// let count = try await tokenCounter.countTokens(
     ///     in: messages,
-    ///     for: .llama3_2_1B
+    ///     for: .llama3_2_1b
     /// )
     ///
     /// print(count.count) // Total tokens including template overhead
@@ -229,7 +229,7 @@ public protocol TokenCounter: Sendable {
     /// let text = "Hello, world!"
     /// let tokenIds = try await tokenCounter.encode(
     ///     text,
-    ///     for: .llama3_2_1B
+    ///     for: .llama3_2_1b
     /// )
     /// print(tokenIds) // [15339, 11, 1917, 0] (example)
     /// ```
@@ -269,7 +269,7 @@ public protocol TokenCounter: Sendable {
     /// // With special tokens
     /// let withSpecial = try await tokenCounter.decode(
     ///     tokens,
-    ///     for: .llama3_2_1B,
+    ///     for: .llama3_2_1b,
     ///     skipSpecialTokens: false
     /// )
     /// print(withSpecial) // "<|begin_of_text|>Hello, world!<|end_of_text|>"
@@ -277,7 +277,7 @@ public protocol TokenCounter: Sendable {
     /// // Without special tokens
     /// let withoutSpecial = try await tokenCounter.decode(
     ///     tokens,
-    ///     for: .llama3_2_1B,
+    ///     for: .llama3_2_1b,
     ///     skipSpecialTokens: true
     /// )
     /// print(withoutSpecial) // "Hello, world!"

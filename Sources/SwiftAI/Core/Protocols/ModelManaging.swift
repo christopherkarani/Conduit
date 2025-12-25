@@ -41,7 +41,7 @@ import Foundation
 /// print("Found \(available.count) models")
 ///
 /// // Check if model is already cached
-/// let model = MLXModelIdentifier.llama3_2_1B
+/// let model = MLXModelIdentifier.llama3_2_1b
 /// if await provider.isCached(model) {
 ///     print("Model ready for inference")
 /// } else {
@@ -177,7 +177,7 @@ public protocol ModelManaging: Sendable {
     /// ## Example
     ///
     /// ```swift
-    /// let model = MLXModelIdentifier.llama3_2_1B
+    /// let model = MLXModelIdentifier.llama3_2_1b
     ///
     /// if await provider.isCached(model) {
     ///     // Model ready - can use immediately
@@ -244,7 +244,7 @@ public protocol ModelManaging: Sendable {
     /// ## Example
     ///
     /// ```swift
-    /// let model = MLXModelIdentifier.llama3_2_1B
+    /// let model = MLXModelIdentifier.llama3_2_1b
     ///
     /// do {
     ///     let localURL = try await provider.download(model) { progress in
@@ -352,7 +352,7 @@ public protocol ModelManaging: Sendable {
     ///
     /// ```swift
     /// // Remove a specific model
-    /// let model = MLXModelIdentifier.llama3_2_1B
+    /// let model = MLXModelIdentifier.llama3_2_1b
     /// try await provider.delete(model)
     /// print("Model deleted")
     ///

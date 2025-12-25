@@ -5,7 +5,7 @@ import Foundation
 import Testing
 @testable import SwiftAI
 
-@Suite("DiffusionModelRegistry Tests")
+@Suite("DiffusionModelRegistry Tests", .serialized)
 struct DiffusionModelRegistryTests {
 
     // MARK: - Available Models Catalog Tests
