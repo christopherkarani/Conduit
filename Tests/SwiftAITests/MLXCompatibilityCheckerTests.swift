@@ -63,10 +63,10 @@ struct MLXCompatibilityCheckerTests {
         switch result {
         case .incompatible(let reasons):
             // Should provide at least one reason
-            #expect(reasons.count > 0)
+            #expect(!reasons.isEmpty)
             // Reasons should be descriptive
             for reason in reasons {
-                #expect(reason.description.count > 0)
+                #expect(!reason.description.isEmpty)
             }
         case .compatible, .unknown:
             // Also acceptable depending on detection capabilities
@@ -77,12 +77,30 @@ struct MLXCompatibilityCheckerTests {
     @Test("Compatibility result types are well-defined")
     func testCompatibilityResultTypes() {
         // Ensure all result types can be created
-        let compatible = MLXCompatibilityChecker.CompatibilityResult.compatible
-        let unknown = MLXCompatibilityChecker.CompatibilityResult.unknown(nil)
-        let incompatible = MLXCompatibilityChecker.CompatibilityResult.incompatible([])
+        let compatible = CompatibilityResult.compatible(confidence: .high)
+        let unknown = CompatibilityResult.unknown(nil)
+        let incompatible = CompatibilityResult.incompatible(reasons: [])
 
-        #expect(compatible != nil)
-        #expect(unknown != nil)
-        #expect(incompatible != nil)
+        // Verify we can switch on results
+        switch compatible {
+        case .compatible(let confidence):
+            #expect(confidence == .high)
+        default:
+            Issue.record("Expected compatible result")
+        }
+
+        switch unknown {
+        case .unknown:
+            #expect(true)
+        default:
+            Issue.record("Expected unknown result")
+        }
+
+        switch incompatible {
+        case .incompatible(let reasons):
+            #expect(reasons.isEmpty)
+        default:
+            Issue.record("Expected incompatible result")
+        }
     }
 }

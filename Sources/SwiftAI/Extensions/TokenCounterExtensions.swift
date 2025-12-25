@@ -24,7 +24,7 @@ extension TokenCounter {
     /// ```swift
     /// let (fits, tokens, available) = try await provider.estimateFits(
     ///     messages: conversation,
-    ///     model: .llama3_2_1B,
+    ///     model: .llama3_2_1b,
     ///     contextSize: .context8K,
     ///     reserveForOutput: 1024
     /// )
@@ -65,7 +65,7 @@ extension TokenCounter {
     /// ```swift
     /// let truncated = try await provider.truncateToFit(
     ///     messages: longConversation,
-    ///     model: .llama3_2_1B,
+    ///     model: .llama3_2_1b,
     ///     contextSize: .context4K
     /// )
     /// ```
@@ -119,7 +119,7 @@ extension TokenCounter {
     /// ```swift
     /// let chunks = try await provider.chunk(
     ///     text: longDocument,
-    ///     model: .llama3_2_1B,
+    ///     model: .llama3_2_1b,
     ///     maxTokensPerChunk: 512,
     ///     overlap: 50
     /// )

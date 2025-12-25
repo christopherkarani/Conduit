@@ -78,28 +78,28 @@ struct StreamingTests {
 
     @Test("TokenLogprob is Hashable")
     func tokenLogprobHashable() {
-        let a = TokenLogprob(token: "hello", logprob: -0.5, tokenId: 123)
-        let b = TokenLogprob(token: "hello", logprob: -0.5, tokenId: 123)
+        let logprob1 = TokenLogprob(token: "hello", logprob: -0.5, tokenId: 123)
+        let logprob2 = TokenLogprob(token: "hello", logprob: -0.5, tokenId: 123)
 
-        #expect(a == b)
-        #expect(a.hashValue == b.hashValue)
+        #expect(logprob1 == logprob2)
+        #expect(logprob1.hashValue == logprob2.hashValue)
 
         var set = Set<TokenLogprob>()
-        set.insert(a)
-        set.insert(b)
+        set.insert(logprob1)
+        set.insert(logprob2)
         #expect(set.count == 1)
     }
 
     @Test("TokenLogprob inequality")
     func tokenLogprobInequality() {
-        let a = TokenLogprob(token: "hello", logprob: -0.5, tokenId: 123)
-        let b = TokenLogprob(token: "world", logprob: -0.5, tokenId: 123)
-        let c = TokenLogprob(token: "hello", logprob: -0.6, tokenId: 123)
-        let d = TokenLogprob(token: "hello", logprob: -0.5, tokenId: 124)
+        let baseLogprob = TokenLogprob(token: "hello", logprob: -0.5, tokenId: 123)
+        let differentToken = TokenLogprob(token: "world", logprob: -0.5, tokenId: 123)
+        let differentLogprob = TokenLogprob(token: "hello", logprob: -0.6, tokenId: 123)
+        let differentTokenId = TokenLogprob(token: "hello", logprob: -0.5, tokenId: 124)
 
-        #expect(a != b)
-        #expect(a != c)
-        #expect(a != d)
+        #expect(baseLogprob != differentToken)
+        #expect(baseLogprob != differentLogprob)
+        #expect(baseLogprob != differentTokenId)
     }
 
     // MARK: - UsageStats Tests
@@ -133,12 +133,12 @@ struct StreamingTests {
 
     @Test("UsageStats is Equatable")
     func usageStatsEquatable() {
-        let a = UsageStats(promptTokens: 100, completionTokens: 50)
-        let b = UsageStats(promptTokens: 100, completionTokens: 50)
-        let c = UsageStats(promptTokens: 100, completionTokens: 51)
+        let stats1 = UsageStats(promptTokens: 100, completionTokens: 50)
+        let stats2 = UsageStats(promptTokens: 100, completionTokens: 50)
+        let stats3 = UsageStats(promptTokens: 100, completionTokens: 51)
 
-        #expect(a == b)
-        #expect(a != c)
+        #expect(stats1 == stats2)
+        #expect(stats1 != stats3)
     }
 
     // MARK: - GenerationChunk Tests

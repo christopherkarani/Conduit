@@ -5,6 +5,7 @@
 
 import Foundation
 import Hub
+import os.log
 
 /// Central manager for model downloads, caching, and lifecycle.
 ///
@@ -16,13 +17,13 @@ import Hub
 ///
 /// ```swift
 /// // Check if model is cached
-/// if await ModelManager.shared.isCached(.llama3_2_1B) {
-///     let path = await ModelManager.shared.localPath(for: .llama3_2_1B)
+/// if await ModelManager.shared.isCached(.llama3_2_1b) {
+///     let path = await ModelManager.shared.localPath(for: .llama3_2_1b)
 ///     // Load and use the model
 /// }
 ///
 /// // Download a model with progress tracking
-/// let url = try await ModelManager.shared.download(.llama3_2_1B) { progress in
+/// let url = try await ModelManager.shared.download(.llama3_2_1b) { progress in
 ///     print("Progress: \(progress.percentComplete)%")
 ///     if let speed = progress.bytesPerSecond {
 ///         print("Speed: \(ByteCount(Int64(speed)).formatted)/s")
@@ -63,13 +64,21 @@ import Hub
 ///             Button("Cancel") { task.cancel() }
 ///         } else {
 ///             Button("Download") {
-///                 downloadTask = await ModelManager.shared.downloadTask(for: .llama3_2_1B)
+///                 downloadTask = await ModelManager.shared.downloadTask(for: .llama3_2_1b)
 ///             }
 ///         }
 ///     }
 /// }
 /// ```
 public actor ModelManager {
+
+    // MARK: - Logger
+
+    /// Logger for model management operations.
+    private static let logger = Logger(
+        subsystem: "com.swiftai.framework",
+        category: "ModelManager"
+    )
 
     // MARK: - Singleton
 
@@ -151,7 +160,7 @@ public actor ModelManager {
     ///
     /// ## Example
     /// ```swift
-    /// if await ModelManager.shared.isCached(.llama3_2_1B) {
+    /// if await ModelManager.shared.isCached(.llama3_2_1b) {
     ///     // Model is ready to use
     /// } else {
     ///     // Need to download first
@@ -174,7 +183,7 @@ public actor ModelManager {
     ///
     /// ## Example
     /// ```swift
-    /// if let path = await ModelManager.shared.localPath(for: .llama3_2_1B) {
+    /// if let path = await ModelManager.shared.localPath(for: .llama3_2_1b) {
     ///     // Load model from path
     ///     let files = try FileManager.default.contentsOfDirectory(at: path)
     /// }
@@ -207,7 +216,7 @@ public actor ModelManager {
     ///
     /// ## Example
     /// ```swift
-    /// let url = try await ModelManager.shared.download(.llama3_2_1B) { progress in
+    /// let url = try await ModelManager.shared.download(.llama3_2_1b) { progress in
     ///     DispatchQueue.main.async {
     ///         self.progressValue = progress.fractionCompleted
     ///     }
@@ -219,7 +228,9 @@ public actor ModelManager {
     ) async throws -> URL {
         // Foundation Models cannot be downloaded
         if case .foundationModels = model {
-            throw AIError.invalidInput("Foundation Models are system-managed and cannot be downloaded. Use ModelIdentifier.mlx() or .huggingFace() instead.")
+            throw AIError.invalidInput(
+                "Foundation Models are system-managed and cannot be downloaded. Use ModelIdentifier.mlx() or .huggingFace() instead."
+            )
         }
 
         let cache = try await ensureCache()
@@ -327,7 +338,7 @@ public actor ModelManager {
     ///
     /// ## Example
     /// ```swift
-    /// let task = await ModelManager.shared.downloadTask(for: .llama3_2_1B)
+    /// let task = await ModelManager.shared.downloadTask(for: .llama3_2_1b)
     ///
     /// // Observe in SwiftUI
     /// ProgressView(value: task.progress.fractionCompleted)
@@ -367,10 +378,10 @@ public actor ModelManager {
     /// ## Example
     /// ```swift
     /// // Start download
-    /// let task = await ModelManager.shared.downloadTask(for: .llama3_2_1B)
+    /// let task = await ModelManager.shared.downloadTask(for: .llama3_2_1b)
     ///
     /// // Cancel later
-    /// await ModelManager.shared.cancelDownload(.llama3_2_1B)
+    /// await ModelManager.shared.cancelDownload(.llama3_2_1b)
     /// ```
     public func cancelDownload(_ model: ModelIdentifier) async {
         // Cancel the download task
@@ -394,7 +405,7 @@ public actor ModelManager {
     ///
     /// ## Example
     /// ```swift
-    /// try await ModelManager.shared.delete(.llama3_2_1B)
+    /// try await ModelManager.shared.delete(.llama3_2_1b)
     /// print("Model deleted, disk space freed")
     /// ```
     public func delete(_ model: ModelIdentifier) async throws {
@@ -471,8 +482,8 @@ public actor ModelManager {
     /// ## Example
     /// ```swift
     /// // When loading a model for inference
-    /// if let path = await ModelManager.shared.localPath(for: .llama3_2_1B) {
-    ///     await ModelManager.shared.markAccessed(.llama3_2_1B)
+    /// if let path = await ModelManager.shared.localPath(for: .llama3_2_1b) {
+    ///     await ModelManager.shared.markAccessed(.llama3_2_1b)
     ///     // Load and use the model
     /// }
     /// ```
@@ -497,6 +508,14 @@ public actor ModelManager {
             providerDir = "huggingface"
         case .foundationModels:
             throw AIError.invalidInput("Foundation Models cannot be downloaded")
+        case .openAI:
+            throw AIError.invalidInput("OpenAI models cannot be downloaded - they are cloud-only")
+        case .openRouter:
+            throw AIError.invalidInput("OpenRouter models cannot be downloaded - they are cloud-only")
+        case .ollama:
+            throw AIError.invalidInput("Ollama models must be managed via Ollama CLI")
+        case .azure:
+            throw AIError.invalidInput("Azure OpenAI models cannot be downloaded - they are cloud-only")
         }
 
         return baseDir
@@ -583,7 +602,7 @@ extension ModelManager {
     ///
     /// ## Example
     /// ```swift
-    /// if let size = await ModelManager.shared.estimateDownloadSize(.llama3_2_1B) {
+    /// if let size = await ModelManager.shared.estimateDownloadSize(.llama3_2_1b) {
     ///     print("Download size: \(ByteCount(size).formatted)")
     ///
     ///     // Check available storage
@@ -623,7 +642,7 @@ extension ModelManager {
     ///
     /// ## Example
     /// ```swift
-    /// let url = try await ModelManager.shared.downloadWithEstimation(.llama3_2_1B) { progress in
+    /// let url = try await ModelManager.shared.downloadWithEstimation(.llama3_2_1b) { progress in
     ///     print("Progress: \(progress.percentComplete)%")
     ///     if let eta = progress.formattedETA {
     ///         print("ETA: \(eta)")
@@ -645,7 +664,7 @@ extension ModelManager {
 
         // Wrap progress callback with size and speed enrichment
         let enrichedProgress: (@Sendable (DownloadProgress) -> Void)? = progress.map { callback in
-            { downloadProgress in
+            { @Sendable (downloadProgress: DownloadProgress) in
                 var enriched = downloadProgress
 
                 // Set total bytes from estimation if not provided
@@ -689,7 +708,7 @@ extension ModelManager {
     /// ## Example
     /// ```swift
     /// do {
-    ///     let url = try await ModelManager.shared.downloadValidated(.llama3_2_1B)
+    ///     let url = try await ModelManager.shared.downloadValidated(.llama3_2_1b)
     ///     print("Downloaded to: \(url)")
     /// } catch AIError.incompatibleModel(let model, let reasons) {
     ///     print("Cannot download \(model.rawValue):")
@@ -723,7 +742,7 @@ extension ModelManager {
 
             case .unknown(let error):
                 // Log warning but allow download attempt
-                print("Warning: Could not validate compatibility for \(model.rawValue): \(error?.localizedDescription ?? "unknown")")
+                Self.logger.warning("Could not validate compatibility for \(model.rawValue): \(error?.localizedDescription ?? "unknown")")
             }
         }
 

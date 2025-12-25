@@ -19,7 +19,7 @@ import Foundation
 /// ## Usage
 /// ```swift
 /// do {
-///     let response = try await provider.generate("Hello", model: .llama3_2_1B)
+///     let response = try await provider.generate("Hello", model: .llama3_2_1b)
 /// } catch let error as AIError {
 ///     print(error.errorDescription ?? "Unknown error")
 ///     if error.isRetryable {
@@ -64,6 +64,17 @@ public enum AIError: Error, Sendable, LocalizedError, CustomStringConvertible {
     ///
     /// API key is invalid, expired, or missing.
     case authenticationFailed(String)
+
+    /// The model variant is not supported by the provider.
+    ///
+    /// This occurs when attempting to use a model variant that the provider
+    /// cannot handle, such as trying to load Flux or SD 1.5 models with
+    /// MLXImageProvider when only SDXL Turbo is natively supported.
+    ///
+    /// - Parameters:
+    ///   - variant: The name of the unsupported variant
+    ///   - reason: Explanation of why it's not supported and alternatives
+    case unsupportedModel(variant: String, reason: String)
 
     // MARK: - Generation Errors
 
@@ -197,6 +208,9 @@ public enum AIError: Error, Sendable, LocalizedError, CustomStringConvertible {
         case .authenticationFailed(let message):
             return "Authentication failed: \(message)"
 
+        case .unsupportedModel(let variant, let reason):
+            return "Unsupported model variant '\(variant)': \(reason)"
+
         case .generationFailed(let error):
             return "Generation failed: \(error.localizedDescription)"
 
@@ -279,6 +293,9 @@ public enum AIError: Error, Sendable, LocalizedError, CustomStringConvertible {
 
         case .authenticationFailed:
             return "Verify your API key is correct and has not expired."
+
+        case .unsupportedModel:
+            return "Use a supported model variant (e.g., .sdxlTurbo) or switch to a cloud provider for this model."
 
         case .generationFailed:
             return "Try again or use a different model. If the problem persists, check your input."
@@ -459,7 +476,8 @@ extension AIError {
     /// The category of this error.
     public var category: ErrorCategory {
         switch self {
-        case .providerUnavailable, .modelNotFound, .modelNotCached, .incompatibleModel, .authenticationFailed, .unsupportedPlatform, .modelNotLoaded:
+        case .providerUnavailable, .modelNotFound, .modelNotCached, .incompatibleModel,
+             .authenticationFailed, .unsupportedPlatform, .modelNotLoaded, .unsupportedModel:
             return .provider
         case .generationFailed, .tokenLimitExceeded, .contentFiltered, .cancelled, .timeout:
             return .generation

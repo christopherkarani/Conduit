@@ -83,13 +83,22 @@ public actor MLXImageProvider: ImageGenerator {
     /// Minimum device RAM required for image generation (6GB).
     private let minimumMemoryRequired: UInt64 = 6 * 1024 * 1024 * 1024
 
+    /// LRU cache for loaded diffusion models.
+    private let modelCache: ModelLRUCache
+
     // MARK: - Initialization
 
     /// Creates a new MLX image provider.
     ///
     /// The provider starts unloaded. Call `loadModel(from:variant:)` before
     /// generating images.
-    public init() {}
+    ///
+    /// - Parameter cacheCapacity: Maximum number of models to keep in cache
+    ///   (default 2). Each cached model consumes 2-8GB of RAM. Ensure your
+    ///   device has sufficient memory before increasing capacity.
+    public init(cacheCapacity: Int = 2) {
+        self.modelCache = ModelLRUCache(capacity: cacheCapacity)
+    }
 
     // MARK: - ImageGenerator Conformance
 
@@ -225,6 +234,16 @@ public actor MLXImageProvider: ImageGenerator {
         do {
             // 10. Generate latents with progress tracking
             let (finalLatent, totalSteps) = try await container.perform { generator in
+                // Ensure cleanup happens on all exit paths (cancellation, error, success)
+                defer {
+                    // Clean up GPU resources if cancelled or errored
+                    if Task.isCancelled || isCancelled {
+                        #if arch(arm64)
+                        MLX.GPU.clearCache()
+                        #endif
+                    }
+                }
+
                 // Ensure model is loaded
                 generator.ensureLoaded()
 
@@ -354,6 +373,12 @@ public actor MLXImageProvider: ImageGenerator {
     /// - Tokenizer configuration
     /// - Diffusion configuration
     ///
+    /// ## Model Caching
+    ///
+    /// Models are automatically cached after loading. If the same model is
+    /// loaded again, it will be retrieved from cache instead of being
+    /// loaded from disk, significantly improving performance.
+    ///
     /// ## Model Sources
     ///
     /// Download MLX-optimized models from HuggingFace Hub:
@@ -381,12 +406,29 @@ public actor MLXImageProvider: ImageGenerator {
     ///   - variant: The diffusion model variant to load.
     ///
     /// - Throws:
+    ///   - `AIError.unsupportedModel` if the variant is not natively supported
     ///   - `AIError.fileError` if model files cannot be read
     ///   - `AIError.insufficientMemory` if device lacks required RAM
     ///   - `AIError.generationFailed` if model loading fails
     public func loadModel(from path: URL, variant: DiffusionVariant) async throws {
-        // Unload existing model first
-        await unloadModel()
+        // Check if variant is natively supported
+        guard variant.isNativelySupported else {
+            throw AIError.unsupportedModel(
+                variant: variant.displayName,
+                reason: variant.unsupportedReason ?? "Not supported"
+            )
+        }
+
+        let modelId = path.lastPathComponent
+
+        // Check if model is already cached
+        if let cachedContainer = await modelCache.get(modelId: modelId, variant: variant) {
+            // Use cached model
+            modelContainer = cachedContainer
+            currentModelId = modelId
+            currentVariant = variant
+            return
+        }
 
         // Check memory requirements
         let physicalMemory = ProcessInfo.processInfo.physicalMemory
@@ -407,6 +449,7 @@ public actor MLXImageProvider: ImageGenerator {
             try validateModelFiles(at: path)
 
             // Map variant to StableDiffusionConfiguration preset
+
             let sdConfig: StableDiffusionConfiguration
             switch variant {
             case .sdxlTurbo:
@@ -427,6 +470,7 @@ public actor MLXImageProvider: ImageGenerator {
                 )
             }
 
+
             // Configure GPU memory limits during model loading (optimization)
             configureMemoryLimits()
 
@@ -441,8 +485,11 @@ public actor MLXImageProvider: ImageGenerator {
                 await container.setConserveMemory(true)
             }
 
+            // Cache the model
+            await modelCache.put(modelId: modelId, variant: variant, container: container)
+
             modelContainer = container
-            currentModelId = path.lastPathComponent
+            currentModelId = modelId
             currentVariant = variant
 
         } catch {
@@ -452,8 +499,9 @@ public actor MLXImageProvider: ImageGenerator {
 
     /// Unloads the current model to free memory.
     ///
-    /// This releases the model from memory and clears the GPU cache.
-    /// Call this when you're done generating images to free resources.
+    /// By default, the model is kept in the cache for faster reloading.
+    /// Set `clearCache` to `true` to completely remove it from cache and
+    /// free all associated memory.
     ///
     /// ## Example
     ///
@@ -462,10 +510,22 @@ public actor MLXImageProvider: ImageGenerator {
     /// let image1 = try await provider.generateImage(prompt: "...")
     /// let image2 = try await provider.generateImage(prompt: "...")
     ///
-    /// // Free memory when done
+    /// // Unload but keep in cache for fast reloading
     /// await provider.unloadModel()
+    ///
+    /// // Unload and remove from cache to free all memory
+    /// await provider.unloadModel(clearCache: true)
     /// ```
-    public func unloadModel() async {
+    ///
+    /// - Parameter clearCache: If `true`, removes the model from cache and
+    ///   clears GPU resources. If `false` (default), keeps the model in cache
+    ///   for faster reloading.
+    public func unloadModel(clearCache: Bool = false) async {
+        // If clearCache is true, remove from cache
+        if clearCache, let modelId = currentModelId, let variant = currentVariant {
+            await modelCache.remove(modelId: modelId, variant: variant)
+        }
+
         modelContainer = nil
         currentModelId = nil
         currentVariant = nil

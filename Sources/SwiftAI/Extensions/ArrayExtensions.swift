@@ -21,7 +21,7 @@ extension Array where Element == Message {
     ///
     /// let response = try await messages.generate(
     ///     with: provider,
-    ///     model: .llama3_2_1B,
+    ///     model: .llama3_2_1b,
     ///     config: .default
     /// )
     /// print(response)
@@ -33,7 +33,7 @@ extension Array where Element == Message {
     ///
     /// let answer = try await messages.generate(
     ///     with: mlxProvider,
-    ///     model: .llama3_2_1B
+    ///     model: .llama3_2_1b
     /// )
     /// messages.append(.assistant(answer))
     /// ```
@@ -72,7 +72,7 @@ extension Array where Element == Message {
     ///
     /// let stream = messages.stream(
     ///     with: provider,
-    ///     model: .llama3_2_1B,
+    ///     model: .llama3_2_1b,
     ///     config: .creative
     /// )
     ///
@@ -88,7 +88,7 @@ extension Array where Element == Message {
     /// @State private var streamedResponse = ""
     ///
     /// Task {
-    ///     let stream = messages.stream(with: provider, model: .llama3_2_1B)
+    ///     let stream = messages.stream(with: provider, model: .llama3_2_1b)
     ///     for try await token in stream {
     ///         streamedResponse += token
     ///     }
@@ -442,7 +442,7 @@ extension Array where Element == String {
     ///
     /// let context = topDocs.map(\.text).joined(separator: "\n\n")
     /// let prompt = "Context:\n\(context)\n\nQuestion: \(userQuery)"
-    /// let answer = try await textProvider.generate(prompt, model: .llama3_2_1B)
+    /// let answer = try await textProvider.generate(prompt, model: .llama3_2_1b)
     /// ```
     ///
     /// ## Use Cases

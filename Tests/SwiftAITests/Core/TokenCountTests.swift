@@ -561,14 +561,18 @@ final class TokenCountContextUsageTests: XCTestCase {
         let userMessage = TokenCount(count: 100, text: "user", tokenizer: "llama")
         let templateOverhead = TokenCount(count: 30, text: "", tokenizer: "llama")
 
-        let totalInputTokens = systemPrompt.count + conversationHistory.count + userMessage.count + templateOverhead.count
+        let totalInputTokens = systemPrompt.count + conversationHistory.count
+            + userMessage.count + templateOverhead.count
         let inputCount = TokenCount(count: totalInputTokens, text: "combined", tokenizer: "llama")
 
         XCTAssertEqual(inputCount.count, 2180, "Total input should be 2180 tokens")
 
         // Reserve space for response
         let maxOutputTokens = 1000
-        XCTAssertFalse(inputCount.wouldExceed(adding: maxOutputTokens, contextSize: .context4K), "Should fit in 4K context")
+        XCTAssertFalse(
+            inputCount.wouldExceed(adding: maxOutputTokens, contextSize: .context4K),
+            "Should fit in 4K context"
+        )
 
         let usedPercentage = Double(inputCount.count + maxOutputTokens) / Double(Int.context4K) * 100
         XCTAssertLessThan(usedPercentage, 80.0, "Should use less than 80% of context including output")

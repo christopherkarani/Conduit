@@ -22,73 +22,125 @@ final class EmbeddingTests: XCTestCase {
     // MARK: - Cosine Similarity Tests
 
     func testCosineSimilarityIdenticalVectors() {
-        let a = EmbeddingResult(vector: [1, 0, 0], text: "a", model: "test")
-        let b = EmbeddingResult(vector: [1, 0, 0], text: "b", model: "test")
-        XCTAssertEqual(a.cosineSimilarity(with: b), 1.0, accuracy: 0.0001, "Identical vectors should have similarity 1.0")
+        let embedding1 = EmbeddingResult(vector: [1, 0, 0], text: "a", model: "test")
+        let embedding2 = EmbeddingResult(vector: [1, 0, 0], text: "b", model: "test")
+        XCTAssertEqual(
+            embedding1.cosineSimilarity(with: embedding2),
+            1.0,
+            accuracy: 0.0001,
+            "Identical vectors should have similarity 1.0"
+        )
     }
 
     func testCosineSimilarityOrthogonalVectors() {
-        let a = EmbeddingResult(vector: [1, 0, 0], text: "a", model: "test")
-        let b = EmbeddingResult(vector: [0, 1, 0], text: "b", model: "test")
-        XCTAssertEqual(a.cosineSimilarity(with: b), 0.0, accuracy: 0.0001, "Orthogonal vectors should have similarity 0.0")
+        let embedding1 = EmbeddingResult(vector: [1, 0, 0], text: "a", model: "test")
+        let embedding2 = EmbeddingResult(vector: [0, 1, 0], text: "b", model: "test")
+        XCTAssertEqual(
+            embedding1.cosineSimilarity(with: embedding2),
+            0.0,
+            accuracy: 0.0001,
+            "Orthogonal vectors should have similarity 0.0"
+        )
     }
 
     func testCosineSimilarityOppositeVectors() {
-        let a = EmbeddingResult(vector: [1, 0, 0], text: "a", model: "test")
-        let b = EmbeddingResult(vector: [-1, 0, 0], text: "b", model: "test")
-        XCTAssertEqual(a.cosineSimilarity(with: b), -1.0, accuracy: 0.0001, "Opposite vectors should have similarity -1.0")
+        let embedding1 = EmbeddingResult(vector: [1, 0, 0], text: "a", model: "test")
+        let embedding2 = EmbeddingResult(vector: [-1, 0, 0], text: "b", model: "test")
+        XCTAssertEqual(
+            embedding1.cosineSimilarity(with: embedding2),
+            -1.0,
+            accuracy: 0.0001,
+            "Opposite vectors should have similarity -1.0"
+        )
     }
 
     func testCosineSimilarityDimensionMismatch() {
-        let a = EmbeddingResult(vector: [1, 0], text: "a", model: "test")
-        let b = EmbeddingResult(vector: [1, 0, 0], text: "b", model: "test")
-        XCTAssertEqual(a.cosineSimilarity(with: b), 0.0, "Dimension mismatch should return 0")
+        let embedding1 = EmbeddingResult(vector: [1, 0], text: "a", model: "test")
+        let embedding2 = EmbeddingResult(vector: [1, 0, 0], text: "b", model: "test")
+        XCTAssertEqual(
+            embedding1.cosineSimilarity(with: embedding2),
+            0.0,
+            "Dimension mismatch should return 0"
+        )
     }
 
     func testCosineSimilarityNonUnitVectors() {
-        let a = EmbeddingResult(vector: [3, 4], text: "a", model: "test")  // magnitude 5
-        let b = EmbeddingResult(vector: [6, 8], text: "b", model: "test")  // magnitude 10, same direction
-        XCTAssertEqual(a.cosineSimilarity(with: b), 1.0, accuracy: 0.0001, "Parallel non-unit vectors should have similarity 1.0")
+        let embedding1 = EmbeddingResult(vector: [3, 4], text: "a", model: "test")  // magnitude 5
+        let embedding2 = EmbeddingResult(vector: [6, 8], text: "b", model: "test")  // magnitude 10, same direction
+        XCTAssertEqual(
+            embedding1.cosineSimilarity(with: embedding2),
+            1.0,
+            accuracy: 0.0001,
+            "Parallel non-unit vectors should have similarity 1.0"
+        )
     }
 
     // MARK: - Euclidean Distance Tests
 
     func testEuclideanDistanceIdenticalVectors() {
-        let a = EmbeddingResult(vector: [1, 2, 3], text: "a", model: "test")
-        let b = EmbeddingResult(vector: [1, 2, 3], text: "b", model: "test")
-        XCTAssertEqual(a.euclideanDistance(to: b), 0.0, accuracy: 0.0001, "Identical vectors should have distance 0")
+        let embedding1 = EmbeddingResult(vector: [1, 2, 3], text: "a", model: "test")
+        let embedding2 = EmbeddingResult(vector: [1, 2, 3], text: "b", model: "test")
+        XCTAssertEqual(
+            embedding1.euclideanDistance(to: embedding2),
+            0.0,
+            accuracy: 0.0001,
+            "Identical vectors should have distance 0"
+        )
     }
 
     func testEuclideanDistanceKnownValue() {
-        let a = EmbeddingResult(vector: [0, 0, 0], text: "a", model: "test")
-        let b = EmbeddingResult(vector: [3, 4, 0], text: "b", model: "test")
-        XCTAssertEqual(a.euclideanDistance(to: b), 5.0, accuracy: 0.0001, "Distance should be 5 (3-4-5 triangle)")
+        let embedding1 = EmbeddingResult(vector: [0, 0, 0], text: "a", model: "test")
+        let embedding2 = EmbeddingResult(vector: [3, 4, 0], text: "b", model: "test")
+        XCTAssertEqual(
+            embedding1.euclideanDistance(to: embedding2),
+            5.0,
+            accuracy: 0.0001,
+            "Distance should be 5 (3-4-5 triangle)"
+        )
     }
 
     func testEuclideanDistanceDimensionMismatch() {
-        let a = EmbeddingResult(vector: [1, 0], text: "a", model: "test")
-        let b = EmbeddingResult(vector: [1, 0, 0], text: "b", model: "test")
-        XCTAssertEqual(a.euclideanDistance(to: b), .infinity, "Dimension mismatch should return infinity")
+        let embedding1 = EmbeddingResult(vector: [1, 0], text: "a", model: "test")
+        let embedding2 = EmbeddingResult(vector: [1, 0, 0], text: "b", model: "test")
+        XCTAssertEqual(
+            embedding1.euclideanDistance(to: embedding2),
+            .infinity,
+            "Dimension mismatch should return infinity"
+        )
     }
 
     // MARK: - Dot Product Tests
 
     func testDotProductOrthogonal() {
-        let a = EmbeddingResult(vector: [1, 0, 0], text: "a", model: "test")
-        let b = EmbeddingResult(vector: [0, 1, 0], text: "b", model: "test")
-        XCTAssertEqual(a.dotProduct(with: b), 0.0, accuracy: 0.0001, "Orthogonal vectors should have dot product 0")
+        let embedding1 = EmbeddingResult(vector: [1, 0, 0], text: "a", model: "test")
+        let embedding2 = EmbeddingResult(vector: [0, 1, 0], text: "b", model: "test")
+        XCTAssertEqual(
+            embedding1.dotProduct(with: embedding2),
+            0.0,
+            accuracy: 0.0001,
+            "Orthogonal vectors should have dot product 0"
+        )
     }
 
     func testDotProductKnownValue() {
-        let a = EmbeddingResult(vector: [1, 2, 3], text: "a", model: "test")
-        let b = EmbeddingResult(vector: [4, 5, 6], text: "b", model: "test")
-        XCTAssertEqual(a.dotProduct(with: b), 32.0, accuracy: 0.0001, "Dot product should be 1*4 + 2*5 + 3*6 = 32")
+        let embedding1 = EmbeddingResult(vector: [1, 2, 3], text: "a", model: "test")
+        let embedding2 = EmbeddingResult(vector: [4, 5, 6], text: "b", model: "test")
+        XCTAssertEqual(
+            embedding1.dotProduct(with: embedding2),
+            32.0,
+            accuracy: 0.0001,
+            "Dot product should be 1*4 + 2*5 + 3*6 = 32"
+        )
     }
 
     func testDotProductDimensionMismatch() {
-        let a = EmbeddingResult(vector: [1, 2], text: "a", model: "test")
-        let b = EmbeddingResult(vector: [1, 2, 3], text: "b", model: "test")
-        XCTAssertEqual(a.dotProduct(with: b), 0.0, "Dimension mismatch should return 0")
+        let embedding1 = EmbeddingResult(vector: [1, 2], text: "a", model: "test")
+        let embedding2 = EmbeddingResult(vector: [1, 2, 3], text: "b", model: "test")
+        XCTAssertEqual(
+            embedding1.dotProduct(with: embedding2),
+            0.0,
+            "Dimension mismatch should return 0"
+        )
     }
 
     // MARK: - BatchEmbeddingResult Tests
@@ -143,12 +195,12 @@ final class EmbeddingTests: XCTestCase {
     // MARK: - Hashable Tests
 
     func testEmbeddingResultHashable() {
-        let a = EmbeddingResult(vector: [1, 2, 3], text: "test", model: "model")
-        let b = EmbeddingResult(vector: [1, 2, 3], text: "test", model: "model")
-        XCTAssertEqual(a, b)
+        let embedding1 = EmbeddingResult(vector: [1, 2, 3], text: "test", model: "model")
+        let embedding2 = EmbeddingResult(vector: [1, 2, 3], text: "test", model: "model")
+        XCTAssertEqual(embedding1, embedding2)
 
         var set = Set<EmbeddingResult>()
-        set.insert(a)
-        XCTAssertTrue(set.contains(b))
+        set.insert(embedding1)
+        XCTAssertTrue(set.contains(embedding2))
     }
 }

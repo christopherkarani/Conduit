@@ -27,7 +27,7 @@ import Foundation
 /// // Use in generation
 /// let response = try await provider.generate(
 ///     messages: messages,
-///     model: .llama3_2_1B,
+///     model: .llama3_2_1b,
 ///     config: customConfig
 /// )
 /// ```
@@ -227,7 +227,7 @@ public struct GenerateConfig: Sendable, Hashable, Codable {
     /// ```swift
     /// let story = try await provider.generate(
     ///     "Write a sci-fi story:",
-    ///     model: .llama3_2_1B,
+    ///     model: .llama3_2_1b,
     ///     config: .creative
     /// )
     /// ```
@@ -250,7 +250,7 @@ public struct GenerateConfig: Sendable, Hashable, Codable {
     /// ```swift
     /// let answer = try await provider.generate(
     ///     "Explain quantum entanglement:",
-    ///     model: .llama3_2_1B,
+    ///     model: .llama3_2_1b,
     ///     config: .precise
     /// )
     /// ```
@@ -273,7 +273,7 @@ public struct GenerateConfig: Sendable, Hashable, Codable {
     /// ```swift
     /// let code = try await provider.generate(
     ///     "Write a Swift function to sort an array:",
-    ///     model: .llama3_2_1B,
+    ///     model: .llama3_2_1b,
     ///     config: .code
     /// )
     /// ```

@@ -59,12 +59,7 @@ public actor DiffusionModelDownloader {
         progressHandler: (@Sendable (Progress) -> Void)? = nil
     ) async throws -> URL {
 
-        // Check if already downloading
-        if let existingTask = activeDownloads[modelId] {
-            return try await existingTask.value
-        }
-
-        // Check if already downloaded
+        // Check if already downloaded first (fast path)
         if let existingPath = await registry.localPath(for: modelId) {
             // Verify the path still exists
             if FileManager.default.fileExists(atPath: existingPath.path) {
@@ -79,7 +74,7 @@ public actor DiffusionModelDownloader {
         let requiredBytes = variant.sizeBytes
         try checkAvailableDiskSpace(requiredBytes: requiredBytes)
 
-        // Create download task with proper cleanup on all exit paths
+        // Create download task
         let task = Task<URL, Error> { [weak self] in
             guard let self = self else {
                 throw AIError.downloadFailed(underlying: SendableError(CancellationError()))
@@ -101,8 +96,17 @@ public actor DiffusionModelDownloader {
                 try Task.checkCancellation()
 
                 // Verify checksum if provided
+                // WARNING: Checksum verification is optional but HIGHLY RECOMMENDED
+                // for production use to prevent loading corrupted or malicious models.
+                // A compromised model could execute arbitrary code or produce incorrect results.
                 if let expectedChecksum = expectedChecksum {
                     try await self.verifyChecksum(at: localURL, expected: expectedChecksum)
+                } else {
+                    // Log warning when checksum is skipped
+                    #if DEBUG
+                    print("⚠️ WARNING: Downloading model '\(modelId)' without checksum verification. " +
+                          "This is insecure and not recommended for production use.")
+                    #endif
                 }
 
                 // Calculate actual size
@@ -128,6 +132,12 @@ public actor DiffusionModelDownloader {
             }
         }
 
+        // Atomically insert task - if another task was inserted concurrently,
+        // cancel ours and use theirs instead
+        if let existingTask = activeDownloads[modelId] {
+            task.cancel()
+            return try await existingTask.value
+        }
         activeDownloads[modelId] = task
 
         do {

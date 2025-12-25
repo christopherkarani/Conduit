@@ -118,7 +118,9 @@ public actor MLXCompatibilityChecker {
     /// ```
     public func checkCompatibility(_ model: ModelIdentifier) async -> CompatibilityResult {
         guard case .mlx(let repoId) = model else {
-            return .incompatible(reasons: [.notMLXOptimized])
+            // Non-MLX models are not checked for MLX compatibility - return unknown
+            // (they're not "incompatible", they're just not MLX models)
+            return .unknown(nil)
         }
 
         return await checkCompatibility(repoId: repoId)

@@ -40,16 +40,6 @@ public struct CacheStats: Sendable {
     public let modelIds: [String]
 }
 
-// MARK: - SendableNSCache wrapper for @unchecked Sendable
-
-/// Wrapper to make NSCache Sendable for actor isolation.
-///
-/// NSCache is not marked as Sendable by default, but it is thread-safe.
-/// This wrapper uses @unchecked Sendable to allow it to be used within actors.
-private final class SendableCache<KeyType: AnyObject & Hashable, ObjectType: AnyObject>: @unchecked Sendable {
-    let cache = NSCache<KeyType, ObjectType>()
-}
-
 // MARK: - MLXModelCache
 
 /// Actor for caching loaded MLX models with NSCache-based lifecycle management.
@@ -94,7 +84,12 @@ public actor MLXModelCache {
     ///
     /// Wraps a ModelContainer along with capabilities, load time,
     /// and size information for cache management.
-    public final class CachedModel: NSObject {
+    ///
+    /// Marked `@unchecked Sendable` because:
+    /// - `ModelContainer` is from MLX (imported via `@preconcurrency`)
+    /// - Access is always through the `MLXModelCache` actor, providing isolation
+    /// - The container is immutable after initialization
+    public final class CachedModel: NSObject, @unchecked Sendable {
         /// The loaded MLX model container
         let container: ModelContainer
 
@@ -120,7 +115,11 @@ public actor MLXModelCache {
 
     #if arch(arm64)
     /// Thread-safe wrapper around NSCache
-    private let cacheWrapper = SendableCache<NSString, CachedModel>()
+    ///
+    /// Using `SendableNSCache` which provides `@unchecked Sendable` conformance
+    /// for safe actor usage. As an immutable `let` property with a Sendable type,
+    /// this can be safely accessed without `nonisolated(unsafe)`.
+    private let cacheWrapper = SendableNSCache<NSString, CachedModel>()
 
     /// Convenience accessor for the underlying cache
     private var cache: NSCache<NSString, CachedModel> { cacheWrapper.cache }

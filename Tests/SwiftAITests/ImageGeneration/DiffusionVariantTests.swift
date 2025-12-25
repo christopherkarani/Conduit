@@ -1,10 +1,11 @@
 // DiffusionVariantTests.swift
 // SwiftAI
 
+import Foundation
 import Testing
 @testable import SwiftAI
 
-@Suite("DiffusionVariant Tests")
+@Suite("DiffusionVariant Tests", .serialized)
 struct DiffusionVariantTests {
 
     // MARK: - Cases Tests
@@ -129,7 +130,7 @@ struct DiffusionVariantTests {
     func modelDescription() {
         #expect(DiffusionVariant.sdxlTurbo.modelDescription.contains("4 steps"))
         #expect(DiffusionVariant.sd15.modelDescription.contains("quantized"))
-        #expect(DiffusionVariant.flux.modelDescription.contains("fast"))
+        #expect(DiffusionVariant.flux.modelDescription.lowercased().contains("fast"))
     }
 
     // MARK: - Codable Tests
@@ -263,5 +264,68 @@ struct DiffusionVariantTests {
         #expect(fastVariants.count == 2)
         #expect(fastVariants.contains(.sdxlTurbo))
         #expect(fastVariants.contains(.flux))
+    }
+
+    // MARK: - Native Support Tests
+
+    @Test("SDXL Turbo is natively supported")
+    func sdxlTurboIsSupported() {
+        #expect(DiffusionVariant.sdxlTurbo.isNativelySupported == true)
+        #expect(DiffusionVariant.sdxlTurbo.unsupportedReason == nil)
+    }
+
+    @Test("SD 1.5 is not natively supported")
+    func sd15IsNotSupported() {
+        #expect(DiffusionVariant.sd15.isNativelySupported == false)
+        #expect(DiffusionVariant.sd15.unsupportedReason != nil)
+        #expect(DiffusionVariant.sd15.unsupportedReason?.contains("not natively supported") == true)
+        #expect(DiffusionVariant.sd15.unsupportedReason?.contains("HuggingFaceProvider") == true)
+    }
+
+    @Test("Flux is not natively supported")
+    func fluxIsNotSupported() {
+        #expect(DiffusionVariant.flux.isNativelySupported == false)
+        #expect(DiffusionVariant.flux.unsupportedReason != nil)
+        #expect(DiffusionVariant.flux.unsupportedReason?.contains("different architecture") == true)
+        #expect(DiffusionVariant.flux.unsupportedReason?.contains("HuggingFaceProvider") == true)
+    }
+
+    @Test("Native support matches expected values", arguments: [
+        (DiffusionVariant.sdxlTurbo, true),
+        (DiffusionVariant.sd15, false),
+        (DiffusionVariant.flux, false)
+    ])
+    func nativeSupportExpectedValues(variant: DiffusionVariant, expectedSupport: Bool) {
+        #expect(variant.isNativelySupported == expectedSupport)
+    }
+
+    @Test("Unsupported reason is nil only for supported variants")
+    func unsupportedReasonLogic() {
+        for variant in DiffusionVariant.allCases {
+            if variant.isNativelySupported {
+                #expect(variant.unsupportedReason == nil)
+            } else {
+                #expect(variant.unsupportedReason != nil)
+                #expect(!variant.unsupportedReason!.isEmpty)
+            }
+        }
+    }
+
+    @Test("Unsupported reasons mention alternatives")
+    func unsupportedReasonsMentionAlternatives() {
+        let unsupportedVariants = DiffusionVariant.allCases.filter { !$0.isNativelySupported }
+
+        for variant in unsupportedVariants {
+            guard let reason = variant.unsupportedReason else {
+                Issue.record("Unsupported variant \(variant) should have a reason")
+                continue
+            }
+
+            // Should mention an alternative provider or model
+            let mentionsAlternative = reason.contains("HuggingFaceProvider") ||
+                                     reason.contains("SDXL Turbo") ||
+                                     reason.contains("cloud")
+            #expect(mentionsAlternative)
+        }
     }
 }
