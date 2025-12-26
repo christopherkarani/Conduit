@@ -19,6 +19,7 @@ let package = Package(
         .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", from: "2.29.0"),
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.4.0"),
         .package(url: "https://github.com/ml-explore/mlx-swift-examples.git", revision: "fc3afc7cdbc4b6120d210c4c58c6b132ce346775"),
+        .package(url: "https://github.com/apple/swift-collections.git", from: "1.1.0"),
     ],
     targets: [
         .target(
@@ -30,6 +31,7 @@ let package = Package(
                 .product(name: "MLXVLM", package: "mlx-swift-lm"),
                 .product(name: "HuggingFace", package: "swift-huggingface"),
                 .product(name: "StableDiffusion", package: "mlx-swift-examples"),
+                .product(name: "OrderedCollections", package: "swift-collections"),
             ],
             swiftSettings: [
                 .enableExperimentalFeature("StrictConcurrency")
