@@ -233,11 +233,14 @@ public actor MLXImageProvider: ImageGenerator {
 
         do {
             // 10. Generate latents with progress tracking
+            // Capture cancellation state before entering Sendable closure
+            let wasCancelled = isCancelled
+
             let (finalLatent, totalSteps) = try await container.perform { generator in
                 // Ensure cleanup happens on all exit paths (cancellation, error, success)
                 defer {
                     // Clean up GPU resources if cancelled or errored
-                    if Task.isCancelled || isCancelled {
+                    if Task.isCancelled || wasCancelled {
                         #if arch(arm64)
                         MLX.GPU.clearCache()
                         #endif
@@ -646,8 +649,9 @@ public actor MLXImageProvider: ImageGenerator {
         guard fileManager.fileExists(atPath: path.path, isDirectory: &isDirectory),
               isDirectory.boolValue else {
             throw AIError.fileError(
-                path: path.path,
-                message: "Model directory does not exist"
+                underlying: SendableError(
+                    localizedDescription: "Model directory does not exist at path: \(path.path)"
+                )
             )
         }
 
@@ -657,8 +661,9 @@ public actor MLXImageProvider: ImageGenerator {
             contents = try fileManager.contentsOfDirectory(atPath: path.path)
         } catch {
             throw AIError.fileError(
-                path: path.path,
-                message: "Cannot read model directory: \(error.localizedDescription)"
+                underlying: SendableError(
+                    localizedDescription: "Cannot read model directory at path \(path.path): \(error.localizedDescription)"
+                )
             )
         }
 
@@ -666,9 +671,10 @@ public actor MLXImageProvider: ImageGenerator {
         let hasSafetensors = contents.contains { $0.hasSuffix(".safetensors") }
         guard hasSafetensors else {
             throw AIError.fileError(
-                path: path.path,
-                message: "Model directory is missing .safetensors weight files. " +
-                "Please ensure the model is fully downloaded."
+                underlying: SendableError(
+                    localizedDescription: "Model directory at path \(path.path) is missing .safetensors weight files. " +
+                    "Please ensure the model is fully downloaded."
+                )
             )
         }
 
@@ -676,9 +682,10 @@ public actor MLXImageProvider: ImageGenerator {
         let hasConfig = contents.contains { $0.hasSuffix(".json") }
         guard hasConfig else {
             throw AIError.fileError(
-                path: path.path,
-                message: "Model directory is missing .json configuration files. " +
-                "Please ensure the model is fully downloaded."
+                underlying: SendableError(
+                    localizedDescription: "Model directory at path \(path.path) is missing .json configuration files. " +
+                    "Please ensure the model is fully downloaded."
+                )
             )
         }
 
@@ -688,9 +695,10 @@ public actor MLXImageProvider: ImageGenerator {
         }
         guard hasTokenizer else {
             throw AIError.fileError(
-                path: path.path,
-                message: "Model directory is missing tokenizer files. " +
-                "Please ensure the model is fully downloaded."
+                underlying: SendableError(
+                    localizedDescription: "Model directory at path \(path.path) is missing tokenizer files. " +
+                    "Please ensure the model is fully downloaded."
+                )
             )
         }
     }
