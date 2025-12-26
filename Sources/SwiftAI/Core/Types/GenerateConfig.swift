@@ -180,6 +180,29 @@ public struct GenerateConfig: Sendable, Hashable, Codable {
     /// ```
     public var serviceTier: ServiceTier?
 
+    // MARK: - Tool Use
+
+    /// Tools available for the model to use during generation.
+    ///
+    /// When tools are provided, the model may choose to call them instead of
+    /// generating text, returning tool call requests in the response.
+    ///
+    /// ## Usage
+    /// ```swift
+    /// let config = GenerateConfig.default
+    ///     .tools([WeatherTool(), SearchTool()])
+    ///     .toolChoice(.auto)
+    /// ```
+    public var availableTools: [ToolDefinition]
+
+    /// Controls how the model chooses which tool to use.
+    ///
+    /// - `.auto`: Model decides whether to use a tool (default)
+    /// - `.required`: Model must use a tool
+    /// - `.none`: Model should not use any tools
+    /// - `.tool(name:)`: Model must use the specified tool
+    public var toolChoice: ToolChoice
+
     // MARK: - Initialization
 
     /// Creates a generation configuration with the specified parameters.
@@ -199,6 +222,8 @@ public struct GenerateConfig: Sendable, Hashable, Codable {
     ///   - topLogprobs: Number of top logprobs per token (default: nil).
     ///   - userId: User ID for per-user usage tracking (default: nil).
     ///   - serviceTier: Service tier for capacity management (default: nil).
+    ///   - tools: Tools available for the model to use (default: []).
+    ///   - toolChoice: How the model should choose tools (default: .auto).
     public init(
         maxTokens: Int? = 1024,
         minTokens: Int? = nil,
@@ -213,7 +238,9 @@ public struct GenerateConfig: Sendable, Hashable, Codable {
         returnLogprobs: Bool = false,
         topLogprobs: Int? = nil,
         userId: String? = nil,
-        serviceTier: ServiceTier? = nil
+        serviceTier: ServiceTier? = nil,
+        tools: [ToolDefinition] = [],
+        toolChoice: ToolChoice = .auto
     ) {
         self.maxTokens = maxTokens
         self.minTokens = minTokens
@@ -229,6 +256,8 @@ public struct GenerateConfig: Sendable, Hashable, Codable {
         self.topLogprobs = topLogprobs
         self.userId = userId
         self.serviceTier = serviceTier
+        self.availableTools = tools
+        self.toolChoice = toolChoice
     }
 
     // MARK: - Static Presets
@@ -519,6 +548,167 @@ extension GenerateConfig {
         copy.serviceTier = tier
         return copy
     }
+
+    /// Returns a copy with the specified tools.
+    ///
+    /// ## Usage
+    /// ```swift
+    /// let config = GenerateConfig.default.tools([
+    ///     ToolDefinition(name: "weather", description: "Get weather", parameters: WeatherTool.parameters)
+    /// ])
+    /// ```
+    ///
+    /// - Parameter definitions: Tool definitions to make available.
+    /// - Returns: A new configuration with the tools.
+    public func tools(_ definitions: [ToolDefinition]) -> GenerateConfig {
+        var copy = self
+        copy.availableTools = definitions
+        return copy
+    }
+
+    /// Returns a copy with tools from AITool instances.
+    ///
+    /// ## Usage
+    /// ```swift
+    /// let config = GenerateConfig.default.tools([WeatherTool(), SearchTool()])
+    /// ```
+    ///
+    /// - Parameter aiTools: AITool instances to make available.
+    /// - Returns: A new configuration with the tools.
+    public func tools(_ aiTools: [any AITool]) -> GenerateConfig {
+        var copy = self
+        copy.availableTools = aiTools.map { tool in
+            ToolDefinition(
+                name: tool.name,
+                description: tool.description,
+                parameters: type(of: tool).parameters
+            )
+        }
+        return copy
+    }
+
+    /// Returns a copy with the specified tool choice.
+    ///
+    /// ## Usage
+    /// ```swift
+    /// let config = GenerateConfig.default
+    ///     .tools([WeatherTool()])
+    ///     .toolChoice(.required)
+    /// ```
+    ///
+    /// - Parameter choice: How the model should choose tools.
+    /// - Returns: A new configuration with the tool choice.
+    public func toolChoice(_ choice: ToolChoice) -> GenerateConfig {
+        var copy = self
+        copy.toolChoice = choice
+        return copy
+    }
+}
+
+// MARK: - ToolDefinition
+
+/// Definition of a tool that can be used by language models.
+///
+/// A `ToolDefinition` describes a tool's interface to the LLM, including
+/// its name, description, and parameter schema. This is used when passing
+/// tools to the generation configuration.
+///
+/// ## Usage
+/// ```swift
+/// let tool = ToolDefinition(
+///     name: "get_weather",
+///     description: "Get current weather for a city",
+///     parameters: WeatherTool.parameters
+/// )
+///
+/// let config = GenerateConfig.default.tools([tool])
+/// ```
+///
+/// ## From AITool
+/// You can also use the fluent API with `AITool` instances directly:
+/// ```swift
+/// let config = GenerateConfig.default.tools([WeatherTool(), SearchTool()])
+/// ```
+public struct ToolDefinition: Sendable, Hashable, Codable {
+
+    /// The unique name of the tool.
+    ///
+    /// This name is used by the LLM to reference the tool and should
+    /// follow naming conventions expected by the provider.
+    public let name: String
+
+    /// A description of what the tool does.
+    ///
+    /// This helps the LLM understand when and how to use the tool.
+    public let description: String
+
+    /// The schema describing the tool's parameters.
+    ///
+    /// Defines the structure and constraints of arguments the tool accepts.
+    public let parameters: Schema
+
+    /// Creates a new tool definition.
+    ///
+    /// - Parameters:
+    ///   - name: The unique name of the tool.
+    ///   - description: A description of what the tool does.
+    ///   - parameters: The schema for the tool's parameters.
+    public init(name: String, description: String, parameters: Schema) {
+        self.name = name
+        self.description = description
+        self.parameters = parameters
+    }
+}
+
+// MARK: - ToolChoice
+
+/// Controls how the model chooses which tool to use.
+///
+/// `ToolChoice` allows you to specify the model's behavior when tools
+/// are available, from fully automatic selection to requiring specific tools.
+///
+/// ## Usage
+/// ```swift
+/// // Let the model decide
+/// let config = GenerateConfig.default
+///     .tools([WeatherTool()])
+///     .toolChoice(.auto)
+///
+/// // Force tool usage
+/// let config = GenerateConfig.default
+///     .tools([WeatherTool()])
+///     .toolChoice(.required)
+///
+/// // Use a specific tool
+/// let config = GenerateConfig.default
+///     .tools([WeatherTool(), SearchTool()])
+///     .toolChoice(.tool(name: "get_weather"))
+/// ```
+public enum ToolChoice: Sendable, Hashable, Codable {
+
+    /// Model decides whether to use a tool.
+    ///
+    /// The model will analyze the conversation and decide if a tool
+    /// call is appropriate. This is the default behavior.
+    case auto
+
+    /// Model must use a tool.
+    ///
+    /// The model is required to call at least one tool. Use this
+    /// when you need guaranteed tool usage.
+    case required
+
+    /// Model should not use any tools.
+    ///
+    /// Disables tool calling even when tools are provided.
+    case none
+
+    /// Model must use the specified tool.
+    ///
+    /// Forces the model to call a specific tool by name.
+    ///
+    /// - Parameter name: The name of the tool to use.
+    case tool(name: String)
 }
 
 // MARK: - ServiceTier
