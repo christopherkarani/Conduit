@@ -73,6 +73,14 @@ internal struct AnthropicMessagesRequest: Codable, Sendable {
     /// Optional. When `true`, returns Server-Sent Events.
     let stream: Bool?
 
+    /// Extended thinking configuration.
+    ///
+    /// When provided, enables extended thinking mode where the model
+    /// reasons longer before responding.
+    ///
+    /// Optional. When `nil`, thinking is disabled (default behavior).
+    let thinking: ThinkingRequest?
+
     // MARK: - Coding Keys
 
     /// Maps Swift property names to API's snake_case fields.
@@ -85,6 +93,46 @@ internal struct AnthropicMessagesRequest: Codable, Sendable {
         case topP = "top_p"
         case topK = "top_k"
         case stream
+        case thinking
+    }
+
+    // MARK: - ThinkingRequest
+
+    /// Extended thinking request configuration.
+    ///
+    /// Sent to the API when extended thinking is enabled. Specifies the
+    /// thinking mode and token budget for the internal reasoning process.
+    ///
+    /// ## Usage
+    /// ```swift
+    /// let thinking = ThinkingRequest(
+    ///     type: "enabled",
+    ///     budget_tokens: 1024
+    /// )
+    /// ```
+    ///
+    /// ## API Format
+    /// ```json
+    /// {
+    ///   "thinking": {
+    ///     "type": "enabled",
+    ///     "budget_tokens": 1024
+    ///   }
+    /// }
+    /// ```
+    struct ThinkingRequest: Codable, Sendable {
+
+        /// Type of thinking (always "enabled" when present).
+        ///
+        /// The API currently only supports the "enabled" type.
+        /// Future versions may support additional thinking modes.
+        let type: String
+
+        /// Token budget for thinking.
+        ///
+        /// Controls how many tokens the model can use for internal
+        /// reasoning before generating the response.
+        let budget_tokens: Int
     }
 
     // MARK: - MessageContent
@@ -288,21 +336,34 @@ internal struct AnthropicMessagesResponse: Codable, Sendable {
 
     /// A single content block in the response.
     ///
-    /// Content blocks can be text, tool use, or other structured data.
+    /// Content blocks can be text, thinking, tool use, or other structured data.
     ///
     /// ## Types
-    /// - `"text"`: Plain text content
+    /// - `"text"`: Plain text content (response to user)
+    /// - `"thinking"`: Extended thinking process (internal reasoning)
     /// - `"tool_use"`: Tool/function call (not implemented here)
+    ///
+    /// ## Extended Thinking
+    ///
+    /// When extended thinking is enabled, the response may contain both
+    /// thinking blocks and text blocks:
+    /// - **Thinking blocks**: Internal reasoning (not shown to user)
+    /// - **Text blocks**: Final response (shown to user)
     struct ContentBlock: Codable, Sendable {
 
         /// The type of content block.
         ///
-        /// Common value: `"text"`
+        /// Common values:
+        /// - `"text"`: Plain text content
+        /// - `"thinking"`: Extended thinking process
         let type: String
 
-        /// The text content (if type is "text").
+        /// The text content (if type is "text" or "thinking").
         ///
-        /// Optional because other block types don't have text.
+        /// For "text" blocks, contains the response to show the user.
+        /// For "thinking" blocks, contains the internal reasoning process.
+        ///
+        /// Optional because other block types (like "tool_use") don't have text.
         let text: String?
     }
 

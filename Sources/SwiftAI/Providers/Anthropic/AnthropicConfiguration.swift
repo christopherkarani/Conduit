@@ -106,6 +106,20 @@ public struct AnthropicConfiguration: Sendable, Hashable, Codable {
     /// Default: `true`
     public var supportsExtendedThinking: Bool
 
+    /// Configuration for extended thinking mode.
+    ///
+    /// When set, enables extended thinking where Claude spends more time
+    /// reasoning before responding. This is an opt-in premium feature.
+    ///
+    /// Set to `nil` to disable extended thinking (default).
+    ///
+    /// ## Usage
+    /// ```swift
+    /// let config = AnthropicConfiguration.standard(apiKey: "sk-ant-...")
+    ///     .extendedThinking(.standard)
+    /// ```
+    public var thinkingConfig: ThinkingConfiguration?
+
     // MARK: - Initialization
 
     /// Creates an Anthropic configuration with the specified settings.
@@ -276,5 +290,133 @@ extension AnthropicConfiguration {
         var copy = self
         copy.supportsExtendedThinking = enabled
         return copy
+    }
+
+    /// Returns a copy with the specified extended thinking configuration.
+    ///
+    /// Extended thinking allows Claude to spend more time reasoning before
+    /// responding. This is an opt-in premium feature available on select models.
+    ///
+    /// ## Usage
+    /// ```swift
+    /// // Use standard thinking (1024 tokens budget)
+    /// let config = AnthropicConfiguration.standard(apiKey: "sk-ant-...")
+    ///     .extendedThinking(.standard)
+    ///
+    /// // Custom thinking budget
+    /// let config = AnthropicConfiguration.standard(apiKey: "sk-ant-...")
+    ///     .extendedThinking(ThinkingConfiguration(enabled: true, budgetTokens: 2048))
+    ///
+    /// // Disable thinking
+    /// let config = AnthropicConfiguration.standard(apiKey: "sk-ant-...")
+    ///     .extendedThinking(nil)
+    /// ```
+    ///
+    /// - Parameter config: The thinking configuration, or `nil` to disable.
+    /// - Returns: A new configuration with updated thinking settings.
+    public func extendedThinking(_ config: ThinkingConfiguration?) -> AnthropicConfiguration {
+        var copy = self
+        copy.thinkingConfig = config
+        return copy
+    }
+}
+
+// MARK: - ThinkingConfiguration
+
+/// Configuration for extended thinking mode.
+///
+/// Extended thinking allows Claude to spend more time reasoning before responding.
+/// This feature is available on select models and is opt-in.
+///
+/// When enabled, Claude will use an internal "thinking" process before generating
+/// the final response. The thinking process consumes tokens from the budget but
+/// is not visible in the final output.
+///
+/// ## Usage
+/// ```swift
+/// // Standard configuration (1024 tokens)
+/// let config = AnthropicConfiguration.standard(apiKey: "sk-ant-...")
+///     .extendedThinking(.standard)
+///
+/// // Custom budget
+/// let thinking = ThinkingConfiguration(enabled: true, budgetTokens: 2048)
+/// let config = AnthropicConfiguration.standard(apiKey: "sk-ant-...")
+///     .extendedThinking(thinking)
+///
+/// let result = try await provider.generate(
+///     messages: messages,
+///     model: .claudeOpus45,
+///     config: .default
+/// )
+/// ```
+///
+/// ## Performance Considerations
+///
+/// - **Latency**: Higher budgets increase response time
+/// - **Cost**: Thinking tokens are billed at the same rate as output tokens
+/// - **Quality**: Larger budgets allow deeper reasoning for complex tasks
+///
+/// ## Protocol Conformances
+/// - `Sendable`: Thread-safe across concurrency boundaries
+/// - `Hashable`: Can be used in sets and as dictionary keys
+/// - `Codable`: Full JSON encoding/decoding support
+public struct ThinkingConfiguration: Sendable, Hashable, Codable {
+
+    // MARK: - Properties
+
+    /// Whether extended thinking is enabled.
+    ///
+    /// When `true`, Claude will perform internal reasoning before responding.
+    /// When `false`, thinking is disabled (default behavior).
+    public let enabled: Bool
+
+    /// Maximum tokens allocated for thinking process.
+    ///
+    /// This budget controls how much the model can "think" before responding.
+    /// Higher budgets allow deeper reasoning but increase latency and cost.
+    ///
+    /// The thinking process is internal and not visible in the final response.
+    /// Only the assistant's response text is returned to the user.
+    ///
+    /// ## Recommended Budgets
+    /// - **Simple tasks**: 512-1024 tokens
+    /// - **Standard tasks**: 1024-2048 tokens
+    /// - **Complex reasoning**: 2048-4096 tokens
+    ///
+    /// Default: 1024
+    public let budgetTokens: Int
+
+    // MARK: - Static Factories
+
+    /// Standard thinking configuration.
+    ///
+    /// Provides a balanced configuration suitable for most use cases.
+    ///
+    /// - **Enabled**: `true`
+    /// - **Budget**: 1024 tokens
+    ///
+    /// ## Usage
+    /// ```swift
+    /// let config = AnthropicConfiguration.standard(apiKey: "sk-ant-...")
+    ///     .extendedThinking(.standard)
+    /// ```
+    public static let standard = ThinkingConfiguration(
+        enabled: true,
+        budgetTokens: 1024
+    )
+
+    // MARK: - Initialization
+
+    /// Creates a thinking configuration.
+    ///
+    /// - Parameters:
+    ///   - enabled: Whether to enable thinking. Default: `true`
+    ///   - budgetTokens: Token budget for thinking. Must be non-negative. Default: 1024
+    ///
+    /// - Note: The budget is validated to ensure it's not negative.
+    ///   Negative values are clamped to 0.
+    public init(enabled: Bool = true, budgetTokens: Int = 1024) {
+        self.enabled = enabled
+        self.budgetTokens = max(0, budgetTokens)
     }
 }

@@ -59,6 +59,12 @@ import Foundation
 // - MLXProvider
 // - HuggingFaceProvider
 
+// MARK: - Anthropic Provider
+// - AnthropicProvider: Anthropic Claude API support
+// - AnthropicModelID: Model identifiers for Claude models
+// - AnthropicConfiguration: Configuration for Anthropic provider
+// - AnthropicAuthentication: API key authentication
+
 // Model Management
 // TODO: @_exported import when implemented
 // - ModelManager

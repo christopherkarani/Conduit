@@ -126,6 +126,15 @@ extension AnthropicProvider {
             }
         }
 
+        // Add extended thinking if configured
+        var thinkingRequest: AnthropicMessagesRequest.ThinkingRequest? = nil
+        if let thinkingConfig = configuration.thinkingConfig, thinkingConfig.enabled {
+            thinkingRequest = AnthropicMessagesRequest.ThinkingRequest(
+                type: "enabled",
+                budget_tokens: thinkingConfig.budgetTokens
+            )
+        }
+
         return AnthropicMessagesRequest(
             model: model.rawValue,
             messages: apiMessages,
@@ -134,7 +143,8 @@ extension AnthropicProvider {
             temperature: config.temperature > 0 ? Double(config.temperature) : nil,
             topP: config.topP > 0 && config.topP < 1 ? Double(config.topP) : nil,
             topK: config.topK,
-            stream: stream ? true : nil
+            stream: stream ? true : nil,
+            thinking: thinkingRequest
         )
     }
 }
@@ -347,9 +357,19 @@ extension AnthropicProvider {
     ///
     /// Anthropic responses contain a `content` array with multiple content blocks.
     /// This method:
-    /// 1. Filters for text blocks (ignores tool_use and other block types)
-    /// 2. Concatenates all text blocks into a single string
-    /// 3. Returns empty string if no text blocks are present
+    /// 1. Separates thinking blocks from text blocks
+    /// 2. Filters for text blocks (ignores thinking, tool_use, and other block types)
+    /// 3. Concatenates all text blocks into a single string
+    /// 4. Returns empty string if no text blocks are present
+    ///
+    /// ## Extended Thinking
+    ///
+    /// When extended thinking is enabled, the response may contain both:
+    /// - **Thinking blocks** (type="thinking"): Internal reasoning process
+    /// - **Text blocks** (type="text"): Final response to the user
+    ///
+    /// The thinking content is extracted but not included in the final text.
+    /// It represents Claude's internal reasoning and is billed separately.
     ///
     /// ## Performance Metrics
     ///
@@ -389,8 +409,22 @@ extension AnthropicProvider {
         _ response: AnthropicMessagesResponse,
         startTime: Date
     ) -> GenerationResult {
-        // Extract text from all content blocks
-        let text = response.content.compactMap { $0.text }.joined()
+        // Separate thinking blocks from text blocks
+        // Note: Thinking blocks contain internal reasoning and are not shown to the user
+        _ = response.content
+            .filter { $0.type == "thinking" }
+            .compactMap { $0.text }
+            .joined(separator: "\n")
+
+        let responseText = response.content
+            .filter { $0.type == "text" }
+            .compactMap { $0.text }
+            .joined()
+
+        // Return only the response text
+        // Thinking is internal reasoning and not shown to the user
+        // Future enhancement: could expose thinking via metadata
+        let text = responseText
 
         // Calculate performance metrics
         let duration = Date().timeIntervalSince(startTime)
