@@ -674,21 +674,26 @@ extension ModelManager {
                     enriched.totalBytes = estimatedSize?.bytes
                 }
 
-                // Add speed sample and calculate
+                // Call callback immediately with basic progress
+                callback(enriched)
+
+                // Asynchronously update speed in background (non-blocking)
                 Task {
-                    await speedCalculator.addSample(bytes: enriched.bytesDownloaded)
+                    await speedCalculator.addSample(bytes: downloadProgress.bytesDownloaded)
                     if let speed = await speedCalculator.averageSpeed() {
-                        enriched.bytesPerSecond = speed
+                        var updated = enriched
+                        updated.bytesPerSecond = speed
 
                         // Calculate ETA
-                        if let total = enriched.totalBytes, speed > 0 {
-                            let remaining = total - enriched.bytesDownloaded
-                            enriched.estimatedTimeRemaining = TimeInterval(remaining) / speed
+                        if let total = updated.totalBytes, speed > 0 {
+                            let remaining = total - updated.bytesDownloaded
+                            updated.estimatedTimeRemaining = TimeInterval(remaining) / speed
                         }
+
+                        // Send updated progress with speed info
+                        callback(updated)
                     }
                 }
-
-                callback(enriched)
             }
         }
 

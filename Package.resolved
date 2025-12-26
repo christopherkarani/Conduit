@@ -1,4 +1,5 @@
 {
+  "originHash" : "abe468a85efdf77808f72d028bdb3799562b0d1f97bcaa3c2f26de6479a95a1b",
   "pins" : [
     {
       "identity" : "eventsource",
@@ -99,6 +100,15 @@
       }
     },
     {
+      "identity" : "swift-syntax",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swiftlang/swift-syntax.git",
+      "state" : {
+        "revision" : "0687f71944021d616d34d922343dcef086855920",
+        "version" : "600.0.1"
+      }
+    },
+    {
       "identity" : "swift-transformers",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/huggingface/swift-transformers",
@@ -108,5 +118,5 @@
       }
     }
   ],
-  "version" : 2
+  "version" : 3
 }

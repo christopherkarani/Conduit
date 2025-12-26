@@ -1,5 +1,6 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 import PackageDescription
+import CompilerPluginSupport
 
 let package = Package(
     name: "SwiftAI",
@@ -20,11 +21,23 @@ let package = Package(
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.4.0"),
         .package(url: "https://github.com/ml-explore/mlx-swift-examples.git", revision: "fc3afc7cdbc4b6120d210c4c58c6b132ce346775"),
         .package(url: "https://github.com/apple/swift-collections.git", from: "1.1.0"),
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
     ],
     targets: [
+        .macro(
+            name: "SwiftAIMacros",
+            dependencies: [
+                .product(name: "SwiftSyntax", package: "swift-syntax"),
+                .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
+                .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
+                .product(name: "SwiftDiagnostics", package: "swift-syntax"),
+            ],
+            path: "Sources/SwiftAIMacros"
+        ),
         .target(
             name: "SwiftAI",
             dependencies: [
+                "SwiftAIMacros",
                 .product(name: "MLX", package: "mlx-swift"),
                 .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
                 .product(name: "MLXLLM", package: "mlx-swift-lm"),
@@ -40,6 +53,14 @@ let package = Package(
         .testTarget(
             name: "SwiftAITests",
             dependencies: ["SwiftAI"]
+        ),
+        .testTarget(
+            name: "SwiftAIMacrosTests",
+            dependencies: [
+                "SwiftAIMacros",
+                .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
+            ],
+            path: "Tests/SwiftAIMacrosTests"
         ),
     ]
 )
