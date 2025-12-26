@@ -1,6 +1,7 @@
 // StructuredContent.swift
 // SwiftAI
 
+import CoreFoundation
 import Foundation
 
 // MARK: - StructuredContentError
@@ -302,10 +303,11 @@ public struct StructuredContent: Sendable, Equatable, Hashable {
             guard value == value.rounded() else {
                 throw StructuredContentError.invalidIntegerValue(value)
             }
-            guard value >= Double(Int.min) && value <= Double(Int.max) else {
+            // Use Int(exactly:) for safe conversion without precision loss or overflow
+            guard let intValue = Int(exactly: value) else {
                 throw StructuredContentError.invalidIntegerValue(value)
             }
-            return Int(value)
+            return intValue
         }
     }
 
@@ -431,11 +433,12 @@ public struct StructuredContent: Sendable, Equatable, Hashable {
             return StructuredContent(kind: .null)
         }
 
-        if let bool = jsonObject as? Bool {
-            return StructuredContent(kind: .bool(bool))
-        }
-
+        // Check NSNumber first, then use CFBooleanGetTypeID() to distinguish booleans from numbers.
+        // JSONSerialization returns NSNumber for both booleans and numbers, so we need this check.
         if let number = jsonObject as? NSNumber {
+            if CFBooleanGetTypeID() == CFGetTypeID(number) {
+                return StructuredContent(kind: .bool(number.boolValue))
+            }
             return StructuredContent(kind: .number(number.doubleValue))
         }
 
@@ -444,12 +447,17 @@ public struct StructuredContent: Sendable, Equatable, Hashable {
         }
 
         if let array = jsonObject as? [Any] {
-            let contents = try array.map { try from(jsonObject: $0) }
+            var contents: [StructuredContent] = []
+            contents.reserveCapacity(array.count)
+            for element in array {
+                contents.append(try from(jsonObject: element))
+            }
             return StructuredContent(kind: .array(contents))
         }
 
         if let dictionary = jsonObject as? [String: Any] {
             var properties: [String: StructuredContent] = [:]
+            properties.reserveCapacity(dictionary.count)
             for (key, value) in dictionary {
                 properties[key] = try from(jsonObject: value)
             }

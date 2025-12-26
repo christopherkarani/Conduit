@@ -203,7 +203,8 @@ extension Constraint where Value == String {
     /// - Parameter length: The minimum number of characters required
     /// - Returns: A string constraint with minimum length
     public static func minLength(_ length: Int) -> Constraint<String> {
-        Constraint(kind: .string(.minLength(length)))
+        precondition(length >= 0, "minLength must be non-negative")
+        return Constraint(kind: .string(.minLength(length)))
     }
 
     /// Sets a maximum length for the string.
@@ -218,7 +219,8 @@ extension Constraint where Value == String {
     /// - Parameter length: The maximum number of characters allowed
     /// - Returns: A string constraint with maximum length
     public static func maxLength(_ length: Int) -> Constraint<String> {
-        Constraint(kind: .string(.maxLength(length)))
+        precondition(length >= 0, "maxLength must be non-negative")
+        return Constraint(kind: .string(.maxLength(length)))
     }
 }
 
@@ -279,7 +281,8 @@ extension Constraint where Value == Int {
     /// - Parameter range: The allowed range (inclusive bounds)
     /// - Returns: An integer constraint with both bounds
     public static func range(_ range: ClosedRange<Int>) -> Constraint<Int> {
-        Constraint(kind: .int(.range(lowerBound: range.lowerBound, upperBound: range.upperBound)))
+        precondition(range.lowerBound <= range.upperBound, "range lowerBound must be less than or equal to upperBound")
+        return Constraint(kind: .int(.range(lowerBound: range.lowerBound, upperBound: range.upperBound)))
     }
 }
 
@@ -340,7 +343,8 @@ extension Constraint where Value == Double {
     /// - Parameter range: The allowed range (inclusive bounds)
     /// - Returns: A number constraint with both bounds
     public static func range(_ range: ClosedRange<Double>) -> Constraint<Double> {
-        Constraint(kind: .double(.range(lowerBound: range.lowerBound, upperBound: range.upperBound)))
+        precondition(range.lowerBound <= range.upperBound, "range lowerBound must be less than or equal to upperBound")
+        return Constraint(kind: .double(.range(lowerBound: range.lowerBound, upperBound: range.upperBound)))
     }
 }
 
@@ -364,7 +368,8 @@ extension Constraint {
     /// - Returns: An array constraint with exact count
     public static func count<Element>(_ count: Int) -> Constraint<[Element]>
     where Value == [Element] {
-        Constraint(kind: .array(.count(lowerBound: count, upperBound: count)))
+        precondition(count >= 0, "count must be non-negative")
+        return Constraint(kind: .array(.count(lowerBound: count, upperBound: count)))
     }
 
     /// Enforces a minimum number of elements in the array.
@@ -380,7 +385,8 @@ extension Constraint {
     /// - Returns: An array constraint with minimum count
     public static func minimumCount<Element>(_ count: Int) -> Constraint<[Element]>
     where Value == [Element] {
-        Constraint(kind: .array(.count(lowerBound: count, upperBound: nil)))
+        precondition(count >= 0, "minimumCount must be non-negative")
+        return Constraint(kind: .array(.count(lowerBound: count, upperBound: nil)))
     }
 
     /// Enforces a maximum number of elements in the array.
@@ -396,7 +402,8 @@ extension Constraint {
     /// - Returns: An array constraint with maximum count
     public static func maximumCount<Element>(_ count: Int) -> Constraint<[Element]>
     where Value == [Element] {
-        Constraint(kind: .array(.count(lowerBound: nil, upperBound: count)))
+        precondition(count >= 0, "maximumCount must be non-negative")
+        return Constraint(kind: .array(.count(lowerBound: nil, upperBound: count)))
     }
 
     /// Applies a constraint to each element in the array.
@@ -430,7 +437,8 @@ extension Constraint where Value == [Never] {
     /// - Warning: This overload is only used for macro expansion.
     ///   Do not call `Constraint<[Never]>.minimumCount(_:)` directly.
     public static func minimumCount(_ count: Int) -> Constraint<Value> {
-        Constraint(kind: .array(.count(lowerBound: count, upperBound: nil)))
+        precondition(count >= 0, "minimumCount must be non-negative")
+        return Constraint(kind: .array(.count(lowerBound: count, upperBound: nil)))
     }
 
     /// Enforces a maximum number of elements in the array.
@@ -438,7 +446,8 @@ extension Constraint where Value == [Never] {
     /// - Warning: This overload is only used for macro expansion.
     ///   Do not call `Constraint<[Never]>.maximumCount(_:)` directly.
     public static func maximumCount(_ count: Int) -> Constraint<Value> {
-        Constraint(kind: .array(.count(lowerBound: nil, upperBound: count)))
+        precondition(count >= 0, "maximumCount must be non-negative")
+        return Constraint(kind: .array(.count(lowerBound: nil, upperBound: count)))
     }
 
     /// Enforces that the number of elements in the array falls within a closed range.
@@ -448,7 +457,9 @@ extension Constraint where Value == [Never] {
     /// - Warning: This overload is only used for macro expansion.
     ///   Do not call `Constraint<[Never]>.count(_:)` directly.
     public static func count(_ range: ClosedRange<Int>) -> Constraint<Value> {
-        Constraint(kind: .array(.count(lowerBound: range.lowerBound, upperBound: range.upperBound)))
+        precondition(range.lowerBound >= 0, "count range lowerBound must be non-negative")
+        precondition(range.lowerBound <= range.upperBound, "count range lowerBound must be less than or equal to upperBound")
+        return Constraint(kind: .array(.count(lowerBound: range.lowerBound, upperBound: range.upperBound)))
     }
 
     /// Enforces that the array has exactly a certain number of elements.
@@ -456,7 +467,8 @@ extension Constraint where Value == [Never] {
     /// - Warning: This overload is only used for macro expansion.
     ///   Do not call `Constraint<[Never]>.count(_:)` directly.
     public static func count(_ count: Int) -> Constraint<Value> {
-        Constraint(kind: .array(.count(lowerBound: count, upperBound: count)))
+        precondition(count >= 0, "count must be non-negative")
+        return Constraint(kind: .array(.count(lowerBound: count, upperBound: count)))
     }
 }
 

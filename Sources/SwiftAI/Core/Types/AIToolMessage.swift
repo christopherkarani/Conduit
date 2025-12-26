@@ -23,7 +23,7 @@ import Foundation
 ///
 /// // Execute the tool
 /// if let tool = tools.first(where: { $0.name == toolCall.toolName }) {
-///     let result = try await tool.call(toolCall.argumentsData)
+///     let result = try await tool.call(try toolCall.argumentsData())
 /// }
 /// ```
 ///
@@ -68,7 +68,7 @@ public struct AIToolCall: Sendable, Equatable, Identifiable, Hashable {
     /// The arguments for the tool call as structured content.
     ///
     /// Contains the parsed JSON arguments from the LLM response.
-    /// Use `argumentsData` to get the raw JSON data for tool execution.
+    /// Use `argumentsData()` to get the raw JSON data for tool execution.
     public let arguments: StructuredContent
 
     // MARK: - Initialization
@@ -98,15 +98,16 @@ public struct AIToolCall: Sendable, Equatable, Identifiable, Hashable {
         self.arguments = try StructuredContent(json: argumentsJSON)
     }
 
-    // MARK: - Computed Properties
+    // MARK: - Methods
 
-    /// The arguments as raw JSON data.
+    /// Returns the arguments serialized as JSON Data.
     ///
-    /// Use this property to pass arguments to `AITool.call(_:)`.
+    /// Use this method to pass arguments to `AITool.call(_:)`.
     ///
-    /// - Returns: UTF-8 encoded JSON data of the arguments, or empty data if serialization fails.
-    public var argumentsData: Data {
-        (try? arguments.toData()) ?? Data()
+    /// - Returns: JSON-encoded Data of the arguments
+    /// - Throws: If serialization fails
+    public func argumentsData() throws -> Data {
+        try arguments.toData()
     }
 
     /// The arguments as a JSON string.
@@ -131,7 +132,7 @@ public struct AIToolCall: Sendable, Equatable, Identifiable, Hashable {
 ///
 /// ```swift
 /// let toolCall = response.toolCalls.first!
-/// let result = try await weatherTool.call(toolCall.argumentsData)
+/// let result = try await weatherTool.call(try toolCall.argumentsData())
 ///
 /// let output = AIToolOutput(
 ///     id: toolCall.id,
@@ -150,7 +151,7 @@ public struct AIToolCall: Sendable, Equatable, Identifiable, Hashable {
 /// ```swift
 /// let output: AIToolOutput
 /// do {
-///     let result = try await tool.call(toolCall.argumentsData)
+///     let result = try await tool.call(try toolCall.argumentsData())
 ///     output = AIToolOutput(
 ///         id: toolCall.id,
 ///         toolName: toolCall.toolName,
