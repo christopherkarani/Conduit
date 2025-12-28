@@ -179,9 +179,14 @@ public actor TextEmbeddingCache {
     ///
     /// - Parameter key: The cache key to look up
     /// - Returns: The cached embedding, or nil if not found
-    public func get(_ key: CacheKey) -> MLXArray? {
+    ///
+    /// - Note: This method is `nonisolated` because `NSCache` is thread-safe.
+    ///   The `@preconcurrency import MLX` suppresses warnings about `MLXArray`
+    ///   not being Sendable - this is acceptable because we only read/write
+    ///   through the thread-safe NSCache.
+    public nonisolated func get(_ key: CacheKey) -> MLXArray? {
         let wrapper = KeyWrapper(key)
-        return cache.object(forKey: wrapper)?.embedding
+        return cacheWrapper.cache.object(forKey: wrapper)?.embedding
     }
 
     /// Caches an embedding.
@@ -199,11 +204,13 @@ public actor TextEmbeddingCache {
     /// - Parameters:
     ///   - embedding: The MLXArray embedding to cache
     ///   - key: The cache key
-    public func put(_ embedding: MLXArray, forKey key: CacheKey) {
+    ///
+    /// - Note: This method is `nonisolated` for the same thread-safety reasons as `get()`.
+    public nonisolated func put(_ embedding: MLXArray, forKey key: CacheKey) {
         let cost = estimateCost(embedding)
         let wrapper = EmbeddingWrapper(embedding: embedding, cost: cost)
         let keyWrapper = KeyWrapper(key)
-        cache.setObject(wrapper, forKey: keyWrapper, cost: cost)
+        cacheWrapper.cache.setObject(wrapper, forKey: keyWrapper, cost: cost)
     }
 
     /// Clears all cached embeddings.
@@ -213,10 +220,12 @@ public actor TextEmbeddingCache {
     /// ## Example
     ///
     /// ```swift
-    /// await cache.clear()
+    /// cache.clear()
     /// ```
-    public func clear() {
-        cache.removeAllObjects()
+    ///
+    /// - Note: This method is `nonisolated` for the same thread-safety reasons as `get()`.
+    public nonisolated func clear() {
+        cacheWrapper.cache.removeAllObjects()
     }
 
     /// Notifies the cache that the model has changed.
@@ -249,7 +258,7 @@ public actor TextEmbeddingCache {
     ///
     /// - Parameter array: The MLXArray to estimate
     /// - Returns: Estimated size in bytes
-    private func estimateCost(_ array: MLXArray) -> Int {
+    private nonisolated func estimateCost(_ array: MLXArray) -> Int {
         // MLXArray shape gives us dimensions
         // For embeddings, typical shape is [batch, sequence_length, embedding_dim]
         // Cost = total_elements * bytes_per_element

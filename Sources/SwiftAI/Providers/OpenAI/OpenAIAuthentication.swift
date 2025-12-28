@@ -236,33 +236,59 @@ extension OpenAIAuthentication: Hashable {
     }
 }
 
+// MARK: - Constant-Time Comparison
+
+private extension String {
+    /// Constant-time comparison to prevent timing attacks on credentials.
+    ///
+    /// Standard string comparison can leak information about how many characters
+    /// match before a mismatch is found. This implementation compares all bytes
+    /// regardless of where differences occur.
+    func constantTimeCompare(to other: String) -> Bool {
+        let lhs = Array(self.utf8)
+        let rhs = Array(other.utf8)
+
+        // Length mismatch - still do constant-time work to avoid length leak
+        guard lhs.count == rhs.count else {
+            // XOR all bytes anyway to maintain constant time
+            var result: UInt8 = 1  // Start with 1 to indicate length mismatch
+            let maxLen = max(lhs.count, rhs.count)
+            for i in 0..<maxLen {
+                let a = i < lhs.count ? lhs[i] : 0
+                let b = i < rhs.count ? rhs[i] : 0
+                result |= a ^ b
+            }
+            return false
+        }
+
+        var result: UInt8 = 0
+        for i in 0..<lhs.count {
+            result |= lhs[i] ^ rhs[i]
+        }
+        return result == 0
+    }
+}
+
 // MARK: - Equatable
 
 extension OpenAIAuthentication: Equatable {
     /// Compares two authentication instances for equality.
     ///
-    /// **Security Note**: This implementation uses standard string comparison
-    /// for API keys and tokens, which may be vulnerable to timing attacks in
-    /// theory. However, this is acceptable because:
-    /// 1. Equatable is required for Hashable conformance
-    /// 2. The comparison is used for configuration matching, not authentication
-    /// 3. Swift's String comparison is optimized and timing variations are minimal
-    /// 4. Actual authentication happens via secure HTTPS connections
-    ///
-    /// If you're comparing authentication in security-critical contexts,
-    /// avoid using `==` directly. Instead, compare resolved values through
-    /// secure channels or use this only for configuration validation.
+    /// **Security**: Uses constant-time comparison for API keys and tokens
+    /// to prevent timing attacks that could leak credential information.
+    /// Non-sensitive fields like header names and environment variable names
+    /// use standard comparison.
     public static func == (lhs: OpenAIAuthentication, rhs: OpenAIAuthentication) -> Bool {
         switch (lhs, rhs) {
         case (.none, .none):
             return true
         case (.bearer(let lhsToken), .bearer(let rhsToken)):
-            // Note: String comparison is not constant-time
-            return lhsToken == rhsToken
+            return lhsToken.constantTimeCompare(to: rhsToken)
         case (.apiKey(let lhsKey, let lhsHeader), .apiKey(let rhsKey, let rhsHeader)):
-            // Note: String comparison is not constant-time
-            return lhsKey == rhsKey && lhsHeader == rhsHeader
+            // Constant-time for the key, regular comparison for header name (not sensitive)
+            return lhsKey.constantTimeCompare(to: rhsKey) && lhsHeader == rhsHeader
         case (.environment(let lhsVariable), .environment(let rhsVariable)):
+            // Environment variable names are not sensitive
             return lhsVariable == rhsVariable
         case (.auto, .auto):
             return true

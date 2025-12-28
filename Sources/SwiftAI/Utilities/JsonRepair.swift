@@ -47,32 +47,65 @@ public enum JsonRepair {
     public static func repair(_ json: String) -> String {
         guard !json.isEmpty else { return "{}" }
 
-        var result = json
+        // Pre-allocate result string with margin for closing brackets
+        var resultBuilder = ""
+        resultBuilder.reserveCapacity(json.count + 100)
+
         var state = ParserState()
 
-        // Analyze the JSON structure
+        // Single pass: analyze AND build simultaneously
         for char in json {
             state.process(char)
+            resultBuilder.append(char)
         }
 
         // If we're in a string, close it
         if state.inString {
-            // Check if we ended with an incomplete escape
             if state.escapeNext {
-                result.removeLast() // Remove the backslash
+                // Check if we're in the middle of a unicode escape (\uXXXX)
+                // Remove the incomplete escape gracefully
+                while let last = resultBuilder.last,
+                      last == "\\" || isPartialUnicodeEscape(resultBuilder) {
+                    resultBuilder.removeLast()
+                    if last == "\\" { break }
+                }
             }
-            result.append("\"")
+            resultBuilder.append("\"")
         }
 
-        // Remove trailing comma if present before closing
-        result = result.trimmingTrailingComma()
+        // Remove trailing whitespace and comma in-place
+        while let last = resultBuilder.last, last.isWhitespace {
+            resultBuilder.removeLast()
+        }
+        if resultBuilder.last == "," {
+            resultBuilder.removeLast()
+        }
 
         // Close any open brackets/braces
         for bracket in state.bracketStack.reversed() {
-            result.append(bracket.closing)
+            resultBuilder.append(bracket.closing)
         }
 
-        return result
+        return resultBuilder
+    }
+
+    /// Checks if the string ends with a partial unicode escape sequence.
+    private static func isPartialUnicodeEscape(_ str: String) -> Bool {
+        guard str.count >= 2 else { return false }
+        let suffix = String(str.suffix(6))
+
+        // Check for patterns like \u, \u1, \u12, \u123 (incomplete \uXXXX)
+        if let backslashIndex = suffix.lastIndex(of: "\\") {
+            let afterBackslash = suffix[suffix.index(after: backslashIndex)...]
+            if afterBackslash.hasPrefix("u") {
+                // Count hex digits after \u
+                let hexPart = afterBackslash.dropFirst()
+                let hexCount = hexPart.prefix(while: { $0.isHexDigit }).count
+                // Incomplete if less than 4 hex digits
+                return hexCount < 4
+            }
+        }
+        return false
     }
 
     /// Attempts to repair and parse incomplete JSON into StructuredContent.
@@ -128,12 +161,26 @@ private extension JsonRepair {
                 case "}":
                     if bracketStack.last == .brace {
                         bracketStack.removeLast()
+                    } else if bracketStack.last == .bracket {
+                        // Mismatch: expected ] but got }
+                        // Pop the bracket - the } will close the outer brace
+                        bracketStack.removeLast()
+                        if bracketStack.last == .brace {
+                            bracketStack.removeLast()
+                        }
                     }
                 case "[":
                     bracketStack.append(.bracket)
                 case "]":
                     if bracketStack.last == .bracket {
                         bracketStack.removeLast()
+                    } else if bracketStack.last == .brace {
+                        // Mismatch: expected } but got ]
+                        // Pop the brace - the ] will close the outer bracket
+                        bracketStack.removeLast()
+                        if bracketStack.last == .bracket {
+                            bracketStack.removeLast()
+                        }
                     }
                 default:
                     break
@@ -156,24 +203,3 @@ private extension JsonRepair {
     }
 }
 
-// MARK: - String Extension
-
-private extension String {
-
-    /// Removes trailing comma and whitespace before a closing bracket.
-    func trimmingTrailingComma() -> String {
-        var result = self
-
-        // Remove trailing whitespace
-        while let last = result.last, last.isWhitespace {
-            result.removeLast()
-        }
-
-        // Remove trailing comma
-        if result.last == "," {
-            result.removeLast()
-        }
-
-        return result
-    }
-}

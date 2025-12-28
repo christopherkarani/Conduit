@@ -141,19 +141,39 @@ public actor AIToolExecutor {
     ///
     /// - Parameter toolCalls: The tool calls to execute.
     /// - Returns: Results for each tool call, in order.
-    /// - Throws: If any tool execution fails.
+    /// - Throws: If any tool execution fails or the task is cancelled.
     public func execute(toolCalls: [AIToolCall]) async throws -> [AIToolOutput] {
-        try await withThrowingTaskGroup(of: (Int, AIToolOutput).self) { group in
+        // Check cancellation at entry
+        try Task.checkCancellation()
+
+        // Handle empty case
+        guard !toolCalls.isEmpty else { return [] }
+
+        return try await withThrowingTaskGroup(of: (Int, AIToolOutput).self) { group in
             for (index, toolCall) in toolCalls.enumerated() {
-                group.addTask {
+                // Check cancellation before spawning new tasks
+                try Task.checkCancellation()
+
+                group.addTask { [self] in
                     let output = try await self.execute(toolCall: toolCall)
                     return (index, output)
                 }
             }
 
             var results: [(Int, AIToolOutput)] = []
+            results.reserveCapacity(toolCalls.count)
+
+            // Collect all results - let the group handle cancellation propagation
             for try await result in group {
                 results.append(result)
+            }
+
+            // Validate all results were collected (guards against partial completion)
+            guard results.count == toolCalls.count else {
+                throw AIToolError.executionFailed(
+                    tool: "batch",
+                    underlying: CancellationError()
+                )
             }
 
             return results.sorted { $0.0 < $1.0 }.map { $0.1 }

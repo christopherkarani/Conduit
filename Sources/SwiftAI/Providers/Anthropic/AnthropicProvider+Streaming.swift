@@ -310,6 +310,7 @@ extension AnthropicProvider {
         guard (200...299).contains(httpResponse.statusCode) else {
             // Issue 12.9: Collect and decode error body for better diagnostics
             var errorData = Data()
+            errorData.reserveCapacity(10_000)  // Pre-allocate for expected error size
             for try await byte in bytes {
                 errorData.append(byte)
                 if errorData.count > 10_000 { break } // Limit collection

@@ -98,6 +98,16 @@ internal struct AnthropicMessagesRequest: Codable, Sendable {
     /// - `"standard_only"`: Standard capacity only, no priority routing
     let serviceTier: String?
 
+    /// Tools available for the model to use.
+    ///
+    /// Optional. When provided, allows the model to call these tools during generation.
+    let tools: [ToolDefinitionRequest]?
+
+    /// Controls how the model chooses tools.
+    ///
+    /// Optional. Specifies whether tool use is automatic, required, or specific.
+    let toolChoice: ToolChoiceRequest?
+
     // MARK: - Coding Keys
 
     /// Maps Swift property names to API's snake_case fields.
@@ -114,6 +124,137 @@ internal struct AnthropicMessagesRequest: Codable, Sendable {
         case stopSequences = "stop_sequences"
         case metadata
         case serviceTier = "service_tier"
+        case tools
+        case toolChoice = "tool_choice"
+    }
+
+    // MARK: - ToolDefinitionRequest
+
+    /// Tool definition for Anthropic's API format.
+    ///
+    /// Represents a tool that Claude can call during generation.
+    struct ToolDefinitionRequest: Codable, Sendable {
+        /// The tool's unique name.
+        let name: String
+
+        /// Human-readable description of what the tool does.
+        let description: String
+
+        /// JSON Schema for the tool's input parameters.
+        let inputSchema: InputSchema
+
+        enum CodingKeys: String, CodingKey {
+            case name
+            case description
+            case inputSchema = "input_schema"
+        }
+
+        /// JSON Schema wrapper for input parameters.
+        struct InputSchema: Codable, Sendable {
+            let type: String
+            let properties: [String: PropertySchema]
+            let required: [String]?
+            let additionalProperties: Bool?
+
+            enum CodingKeys: String, CodingKey {
+                case type
+                case properties
+                case required
+                case additionalProperties
+            }
+        }
+
+        /// Schema for a single property in the input.
+        struct PropertySchema: Codable, Sendable {
+            let type: SchemaType
+            let description: String?
+            let items: ItemSchema?
+            let properties: [String: PropertySchema]?
+            let required: [String]?
+            let additionalProperties: Bool?
+            let enumValues: [String]?
+            let minimum: Int?
+            let maximum: Int?
+            let minLength: Int?
+            let maxLength: Int?
+            let pattern: String?
+            let const: String?
+
+            enum CodingKeys: String, CodingKey {
+                case type
+                case description
+                case items
+                case properties
+                case required
+                case additionalProperties
+                case enumValues = "enum"
+                case minimum
+                case maximum
+                case minLength
+                case maxLength
+                case pattern
+                case const
+            }
+        }
+
+        /// Schema for array items.
+        struct ItemSchema: Codable, Sendable {
+            let type: SchemaType
+            let description: String?
+
+            enum CodingKeys: String, CodingKey {
+                case type
+                case description
+            }
+        }
+
+        /// JSON Schema type - can be a single type or array (for nullable).
+        enum SchemaType: Codable, Sendable {
+            case single(String)
+            case multiple([String])
+
+            init(from decoder: Decoder) throws {
+                let container = try decoder.singleValueContainer()
+                if let string = try? container.decode(String.self) {
+                    self = .single(string)
+                } else if let array = try? container.decode([String].self) {
+                    self = .multiple(array)
+                } else {
+                    throw DecodingError.typeMismatch(
+                        SchemaType.self,
+                        DecodingError.Context(codingPath: decoder.codingPath,
+                                              debugDescription: "Expected String or [String]")
+                    )
+                }
+            }
+
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.singleValueContainer()
+                switch self {
+                case .single(let type):
+                    try container.encode(type)
+                case .multiple(let types):
+                    try container.encode(types)
+                }
+            }
+        }
+    }
+
+    // MARK: - ToolChoiceRequest
+
+    /// Tool choice configuration for Anthropic's API.
+    ///
+    /// Controls how the model decides whether to use tools.
+    struct ToolChoiceRequest: Codable, Sendable {
+        /// The type of tool choice.
+        ///
+        /// - `"auto"`: Model decides whether to use tools
+        /// - `"any"`: Model must use at least one tool
+        /// - `"tool"`: Model must use the specific tool named
+        let type: String
+
+        /// Specific tool name (only for type="tool").
+        let name: String?
     }
 
     // MARK: - ThinkingRequest

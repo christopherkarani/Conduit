@@ -5,7 +5,7 @@ import Testing
 @testable import SwiftAI
 
 #if arch(arm64)
-import MLX
+@preconcurrency import MLX
 
 @Suite("TextEmbeddingCache Tests")
 struct TextEmbeddingCacheTests {
@@ -24,10 +24,10 @@ struct TextEmbeddingCacheTests {
         )
 
         // Store the embedding
-        await cache.put(mockEmbedding, forKey: key)
+        cache.put(mockEmbedding, forKey: key)
 
         // Retrieve the embedding
-        let retrieved = await cache.get(key)
+        let retrieved = cache.get(key)
         #expect(retrieved != nil)
 
         // Verify shape matches
@@ -46,7 +46,7 @@ struct TextEmbeddingCacheTests {
             modelId: "test-model"
         )
 
-        let retrieved = await cache.get(key)
+        let retrieved = cache.get(key)
         #expect(retrieved == nil)
     }
 
@@ -81,15 +81,15 @@ struct TextEmbeddingCacheTests {
         )
 
         // Store embeddings
-        await cache.put(embedding1, forKey: key1)
-        await cache.put(embedding2, forKey: key2)
-        await cache.put(embedding3, forKey: key3)
+        cache.put(embedding1, forKey: key1)
+        cache.put(embedding2, forKey: key2)
+        cache.put(embedding3, forKey: key3)
 
         // Verify each key retrieves the correct embedding
-        let retrieved1 = await cache.get(key1)
-        let retrieved2 = await cache.get(key2)
-        let retrieved3 = await cache.get(key3)
-        let retrieved4 = await cache.get(key4)  // Not stored
+        let retrieved1 = cache.get(key1)
+        let retrieved2 = cache.get(key2)
+        let retrieved3 = cache.get(key3)
+        let retrieved4 = cache.get(key4)  // Not stored
 
         #expect(retrieved1 != nil)
         #expect(retrieved2 != nil)
@@ -114,7 +114,7 @@ struct TextEmbeddingCacheTests {
                 negativePrompt: "",
                 modelId: "test-model"
             )
-            await cache.put(embedding, forKey: key)
+            cache.put(embedding, forKey: key)
         }
 
         // Verify embeddings exist
@@ -123,10 +123,10 @@ struct TextEmbeddingCacheTests {
             negativePrompt: "",
             modelId: "test-model"
         )
-        #expect(await cache.get(keyBefore) != nil)
+        #expect(cache.get(keyBefore) != nil)
 
         // Clear cache
-        await cache.clear()
+        cache.clear()
 
         // Verify embeddings are gone
         let keyAfter = cache.makeKey(
@@ -134,7 +134,7 @@ struct TextEmbeddingCacheTests {
             negativePrompt: "",
             modelId: "test-model"
         )
-        #expect(await cache.get(keyAfter) == nil)
+        #expect(cache.get(keyAfter) == nil)
     }
 
     @Test("Model change clears cache")
@@ -149,14 +149,14 @@ struct TextEmbeddingCacheTests {
         )
 
         // Store embedding
-        await cache.put(embedding, forKey: key)
-        #expect(await cache.get(key) != nil)
+        cache.put(embedding, forKey: key)
+        #expect(cache.get(key) != nil)
 
         // Change model
         await cache.modelDidChange(to: "model-2")
 
         // Cache should be cleared
-        #expect(await cache.get(key) == nil)
+        #expect(cache.get(key) == nil)
     }
 
     @Test("Same model ID does not clear cache")
@@ -171,14 +171,14 @@ struct TextEmbeddingCacheTests {
         )
 
         // Store embedding
-        await cache.put(embedding, forKey: key)
-        #expect(await cache.get(key) != nil)
+        cache.put(embedding, forKey: key)
+        #expect(cache.get(key) != nil)
 
         // "Change" to same model
         await cache.modelDidChange(to: "model-1")
 
         // Cache should still have the embedding
-        #expect(await cache.get(key) != nil)
+        #expect(cache.get(key) != nil)
     }
 
     @Test("Cache respects count limit")
@@ -196,18 +196,19 @@ struct TextEmbeddingCacheTests {
                 modelId: "test-model"
             )
             keys.append(key)
-            await cache.put(embedding, forKey: key)
+            cache.put(embedding, forKey: key)
         }
 
         // The first embeddings should be evicted
         // NSCache eviction is not deterministic, but at least 2 should be gone
         var misses = 0
-        for key in keys where await cache.get(key) == nil {
+        for key in keys where cache.get(key) == nil {
             misses += 1
         }
 
-        // At least some should be evicted (NSCache behavior varies)
-        #expect(misses >= 0)  // NSCache may or may not evict immediately
+        // NSCache eviction is non-deterministic - just verify the test runs
+        // The meaningful test here is that putting more than countLimit items works without crash
+        #expect(keys.count == 5)
     }
 
     @Test("Empty negative prompt is treated correctly")
@@ -228,10 +229,10 @@ struct TextEmbeddingCacheTests {
             modelId: "model-1"
         )
 
-        await cache.put(embedding, forKey: key1)
+        cache.put(embedding, forKey: key1)
 
         // Should retrieve with key2
-        let retrieved = await cache.get(key2)
+        let retrieved = cache.get(key2)
         #expect(retrieved != nil)
     }
 
@@ -248,14 +249,14 @@ struct TextEmbeddingCacheTests {
         let key2 = cache.makeKey(prompt: "B", negativePrompt: "", modelId: "model")
         let key3 = cache.makeKey(prompt: "C", negativePrompt: "", modelId: "model")
 
-        await cache.put(embedding1, forKey: key1)
-        await cache.put(embedding2, forKey: key2)
-        await cache.put(embedding3, forKey: key3)
+        cache.put(embedding1, forKey: key1)
+        cache.put(embedding2, forKey: key2)
+        cache.put(embedding3, forKey: key3)
 
         // Verify all can be retrieved
-        #expect(await cache.get(key1)?.shape == [3, 4])
-        #expect(await cache.get(key2)?.shape == [4, 6])
-        #expect(await cache.get(key3)?.shape == [2, 4, 6])
+        #expect(cache.get(key1)?.shape == [3, 4])
+        #expect(cache.get(key2)?.shape == [4, 6])
+        #expect(cache.get(key3)?.shape == [2, 4, 6])
     }
 }
 

@@ -86,13 +86,100 @@ public struct StreamingResult<T: Generable>: AsyncSequence, Sendable {
         return try T(from: content)
     }
 
-    /// Iterates over partial values, calling the handler for each.
+    /// Iterates over partial values, calling the handler for each, then returns the final result.
     ///
-    /// - Parameter handler: Closure called with each partial value
-    /// - Returns: The final complete result
-    /// - Throws: If streaming fails or the final result cannot be constructed
+    /// This method combines observation and collection in a single operation. The handler
+    /// is called for each partial value as it arrives, and the final complete result is
+    /// returned after the stream completes.
+    ///
+    /// - Note: The method name `reduce` reflects that it reduces the stream to a single
+    ///   final value while allowing observation of intermediate states. This follows
+    ///   Swift conventions where `forEach` returns `Void`.
+    ///
+    /// ## Usage
+    /// ```swift
+    /// let recipe = try await stream.reduce { partial in
+    ///     if let title = partial.title {
+    ///         print("Title so far: \(title)")
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// - Parameter handler: Closure called with each partial value as it arrives
+    /// - Returns: The final complete result after the stream completes
+    /// - Throws: `StreamingError.noContent` if the stream is empty,
+    ///           or other errors if streaming or conversion fails
     @discardableResult
-    public func forEach(_ handler: @Sendable (T.Partial) -> Void) async throws -> T {
+    public func reduce(_ handler: @Sendable (T.Partial) -> Void) async throws -> T {
+        var lastPartial: T.Partial?
+
+        for try await partial in stream {
+            handler(partial)
+            lastPartial = partial
+        }
+
+        guard let final = lastPartial else {
+            throw StreamingError.noContent
+        }
+
+        let content = final.generableContent
+        return try T(from: content)
+    }
+
+    /// Collects all partial values and returns the final result, or nil if empty.
+    ///
+    /// Unlike `collect()`, this method returns `nil` instead of throwing when
+    /// the stream completes without producing any content.
+    ///
+    /// ## Usage
+    /// ```swift
+    /// if let recipe = try await stream.collectOrNil() {
+    ///     print("Got recipe: \(recipe)")
+    /// } else {
+    ///     print("Stream was empty")
+    /// }
+    /// ```
+    ///
+    /// - Returns: The complete result, or `nil` if the stream was empty
+    /// - Throws: If streaming fails or the result cannot be constructed
+    public func collectOrNil() async throws -> T? {
+        var lastPartial: T.Partial?
+
+        for try await partial in stream {
+            lastPartial = partial
+        }
+
+        guard let final = lastPartial else {
+            return nil
+        }
+
+        let content = final.generableContent
+        return try T(from: content)
+    }
+
+    // MARK: - Main Actor Helpers
+
+    /// Iterates over partial values on the main actor for safe UI updates.
+    ///
+    /// This method is designed for SwiftUI and UIKit scenarios where you need
+    /// to update UI elements from streaming results. Each partial value is
+    /// delivered on the main actor, eliminating the need for manual isolation.
+    ///
+    /// ## Usage
+    /// ```swift
+    /// let recipe = try await stream.reduceOnMain { partial in
+    ///     if let title = partial.title {
+    ///         titleLabel.text = title  // Safe - on main actor
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// - Parameter handler: Closure called on the main actor with each partial value
+    /// - Returns: The final complete result after the stream completes
+    /// - Throws: `StreamingError.noContent` if the stream is empty
+    @MainActor
+    @discardableResult
+    public func reduceOnMain(_ handler: @MainActor (T.Partial) -> Void) async throws -> T {
         var lastPartial: T.Partial?
 
         for try await partial in stream {

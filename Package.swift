@@ -16,9 +16,9 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(url: "https://github.com/ml-explore/mlx-swift.git", from: "0.21.0"),
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", from: "2.29.0"),
-        .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.4.0"),
+        .package(url: "https://github.com/ml-explore/mlx-swift.git", from: "0.29.1"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", from: "2.29.2"),
+        .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.5.0"),
         .package(url: "https://github.com/ml-explore/mlx-swift-examples.git", revision: "fc3afc7cdbc4b6120d210c4c58c6b132ce346775"),
         .package(url: "https://github.com/apple/swift-collections.git", from: "1.1.0"),
         .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
@@ -52,7 +52,10 @@ let package = Package(
         ),
         .testTarget(
             name: "SwiftAITests",
-            dependencies: ["SwiftAI"]
+            dependencies: ["SwiftAI"],
+            swiftSettings: [
+                .enableExperimentalFeature("StrictConcurrency")
+            ]
         ),
         .testTarget(
             name: "SwiftAIMacrosTests",

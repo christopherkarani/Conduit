@@ -103,6 +103,58 @@ public struct AnthropicAuthentication: Sendable, Hashable, Codable {
     }
 }
 
+// MARK: - Constant-Time Comparison
+
+private extension String {
+    /// Constant-time comparison to prevent timing attacks on credentials.
+    ///
+    /// Standard string comparison can leak information about how many characters
+    /// match before a mismatch is found. This implementation compares all bytes
+    /// regardless of where differences occur.
+    func constantTimeCompare(to other: String) -> Bool {
+        let lhs = Array(self.utf8)
+        let rhs = Array(other.utf8)
+
+        // Length mismatch - still do constant-time work to avoid length leak
+        guard lhs.count == rhs.count else {
+            // XOR all bytes anyway to maintain constant time
+            var result: UInt8 = 1  // Start with 1 to indicate length mismatch
+            let maxLen = max(lhs.count, rhs.count)
+            for i in 0..<maxLen {
+                let a = i < lhs.count ? lhs[i] : 0
+                let b = i < rhs.count ? rhs[i] : 0
+                result |= a ^ b
+            }
+            return false
+        }
+
+        var result: UInt8 = 0
+        for i in 0..<lhs.count {
+            result |= lhs[i] ^ rhs[i]
+        }
+        return result == 0
+    }
+}
+
+// MARK: - Equatable
+
+extension AnthropicAuthentication.AuthType: Equatable {
+    /// Compares two authentication types for equality.
+    ///
+    /// **Security**: Uses constant-time comparison for API keys to prevent
+    /// timing attacks that could leak credential information.
+    public static func == (lhs: AnthropicAuthentication.AuthType, rhs: AnthropicAuthentication.AuthType) -> Bool {
+        switch (lhs, rhs) {
+        case (.apiKey(let lhsKey), .apiKey(let rhsKey)):
+            return lhsKey.constantTimeCompare(to: rhsKey)
+        case (.auto, .auto):
+            return true
+        default:
+            return false
+        }
+    }
+}
+
 // MARK: - CustomDebugStringConvertible
 
 extension AnthropicAuthentication: CustomDebugStringConvertible {

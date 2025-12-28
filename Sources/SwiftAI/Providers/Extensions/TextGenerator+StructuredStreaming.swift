@@ -55,19 +55,39 @@ extension TextGenerator {
         let structuredStream = AsyncThrowingStream<T.Partial, Error> { continuation in
             Task {
                 var accumulated = ""
+                accumulated.reserveCapacity(4096)
                 var lastParsedPartial: T.Partial?
+                var lastParsedContent: StructuredContent?
+
+                // Maximum buffer size limit (1MB)
+                let maxAccumulatedSize = 1_000_000
 
                 do {
                     for try await chunk in stringStream {
+                        // Check for cancellation to improve responsiveness
+                        try Task.checkCancellation()
+
+                        // Check buffer size limit BEFORE appending to prevent exceeding limit
+                        guard accumulated.count + chunk.count <= maxAccumulatedSize else {
+                            throw StreamingError.parseFailed("Response would exceed maximum size of 1MB")
+                        }
                         accumulated += chunk
+
+                        // Only attempt parse when we see potential JSON structure closures
+                        let shouldAttemptParse = chunk.contains("}") || chunk.contains("]") || chunk.contains("\"")
+                        guard shouldAttemptParse else { continue }
 
                         // Try to parse the accumulated JSON
                         if let content = JsonRepair.tryParse(accumulated) {
                             do {
                                 let partial = try T.Partial(from: content)
-                                // Only yield if different from last
-                                lastParsedPartial = partial
-                                continuation.yield(partial)
+                                // Only yield if meaningfully different from last
+                                let currentContent = partial.generableContent
+                                if lastParsedContent != currentContent {
+                                    lastParsedContent = currentContent
+                                    lastParsedPartial = partial
+                                    continuation.yield(partial)
+                                }
                             } catch {
                                 // Parsing to Partial failed, continue accumulating
                             }
@@ -111,6 +131,14 @@ extension TextGenerator {
         model: ModelID,
         config: GenerateConfig = GenerateConfig()
     ) -> StreamingResult<T> {
+        // Validate messages array is non-empty
+        guard !messages.isEmpty else {
+            let errorStream = AsyncThrowingStream<T.Partial, Error> { continuation in
+                continuation.finish(throwing: StreamingError.parseFailed("Messages array cannot be empty"))
+            }
+            return StreamingResult(errorStream)
+        }
+
         // Build prompt from messages for structured output
         let prompt = messages.map { message in
             switch message.role {

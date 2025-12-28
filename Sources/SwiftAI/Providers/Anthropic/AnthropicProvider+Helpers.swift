@@ -140,6 +140,9 @@ extension AnthropicProvider {
             AnthropicMessagesRequest.Metadata(userId: $0)
         }
 
+        // Convert tools if provided and toolChoice is not .none
+        let (toolDefinitions, toolChoiceRequest) = convertToolsConfig(config)
+
         return AnthropicMessagesRequest(
             model: model.rawValue,
             messages: apiMessages,
@@ -152,7 +155,130 @@ extension AnthropicProvider {
             thinking: thinkingRequest,
             stopSequences: config.stopSequences.isEmpty ? nil : config.stopSequences,
             metadata: metadata,
-            serviceTier: config.serviceTier?.rawValue
+            serviceTier: config.serviceTier?.rawValue,
+            tools: toolDefinitions,
+            toolChoice: toolChoiceRequest
+        )
+    }
+
+    /// Converts SwiftAI tool configuration to Anthropic's API format.
+    ///
+    /// - Parameter config: The generation configuration with tools.
+    /// - Returns: Tuple of tool definitions and tool choice for API request.
+    ///   Returns (nil, nil) if toolChoice is .none or no tools are provided.
+    private func convertToolsConfig(
+        _ config: GenerateConfig
+    ) -> ([AnthropicMessagesRequest.ToolDefinitionRequest]?, AnthropicMessagesRequest.ToolChoiceRequest?) {
+        // If toolChoice is .none, omit tools entirely
+        if case .none = config.toolChoice {
+            return (nil, nil)
+        }
+
+        // If no tools, nothing to convert
+        guard !config.tools.isEmpty else {
+            return (nil, nil)
+        }
+
+        // Convert tool definitions
+        let tools = config.tools.map { tool -> AnthropicMessagesRequest.ToolDefinitionRequest in
+            let schemaDict = tool.parameters.toJSONSchema()
+            let inputSchema = convertToInputSchema(schemaDict)
+
+            return AnthropicMessagesRequest.ToolDefinitionRequest(
+                name: tool.name,
+                description: tool.description,
+                inputSchema: inputSchema
+            )
+        }
+
+        // Convert tool choice
+        let toolChoice: AnthropicMessagesRequest.ToolChoiceRequest
+        switch config.toolChoice {
+        case .auto:
+            toolChoice = AnthropicMessagesRequest.ToolChoiceRequest(type: "auto", name: nil)
+        case .required:
+            toolChoice = AnthropicMessagesRequest.ToolChoiceRequest(type: "any", name: nil)
+        case .tool(let name):
+            toolChoice = AnthropicMessagesRequest.ToolChoiceRequest(type: "tool", name: name)
+        case .none:
+            // Already handled above, but needed for exhaustive switch
+            return (nil, nil)
+        }
+
+        return (tools, toolChoice)
+    }
+
+    /// Converts a JSON Schema dictionary to Anthropic's InputSchema type.
+    private func convertToInputSchema(
+        _ dict: [String: Any]
+    ) -> AnthropicMessagesRequest.ToolDefinitionRequest.InputSchema {
+        let properties = (dict["properties"] as? [String: [String: Any]]) ?? [:]
+        let required = dict["required"] as? [String]
+        let additionalProperties = dict["additionalProperties"] as? Bool
+
+        let convertedProperties = properties.mapValues { propDict -> AnthropicMessagesRequest.ToolDefinitionRequest.PropertySchema in
+            convertToPropertySchema(propDict)
+        }
+
+        return AnthropicMessagesRequest.ToolDefinitionRequest.InputSchema(
+            type: "object",
+            properties: convertedProperties,
+            required: required,
+            additionalProperties: additionalProperties
+        )
+    }
+
+    /// Converts a property dictionary to PropertySchema.
+    private func convertToPropertySchema(
+        _ dict: [String: Any]
+    ) -> AnthropicMessagesRequest.ToolDefinitionRequest.PropertySchema {
+        // Handle type (can be string or array for nullable)
+        let schemaType: AnthropicMessagesRequest.ToolDefinitionRequest.SchemaType
+        if let typeString = dict["type"] as? String {
+            schemaType = .single(typeString)
+        } else if let typeArray = dict["type"] as? [String] {
+            schemaType = .multiple(typeArray)
+        } else {
+            schemaType = .single("string") // Default fallback
+        }
+
+        // Handle items for arrays
+        var items: AnthropicMessagesRequest.ToolDefinitionRequest.ItemSchema? = nil
+        if let itemsDict = dict["items"] as? [String: Any] {
+            let itemType: AnthropicMessagesRequest.ToolDefinitionRequest.SchemaType
+            if let t = itemsDict["type"] as? String {
+                itemType = .single(t)
+            } else if let t = itemsDict["type"] as? [String] {
+                itemType = .multiple(t)
+            } else {
+                itemType = .single("string")
+            }
+            items = AnthropicMessagesRequest.ToolDefinitionRequest.ItemSchema(
+                type: itemType,
+                description: itemsDict["description"] as? String
+            )
+        }
+
+        // Handle nested properties for objects
+        var nestedProperties: [String: AnthropicMessagesRequest.ToolDefinitionRequest.PropertySchema]? = nil
+        if let propsDict = dict["properties"] as? [String: [String: Any]] {
+            nestedProperties = propsDict.mapValues { convertToPropertySchema($0) }
+        }
+
+        return AnthropicMessagesRequest.ToolDefinitionRequest.PropertySchema(
+            type: schemaType,
+            description: dict["description"] as? String,
+            items: items,
+            properties: nestedProperties,
+            required: dict["required"] as? [String],
+            additionalProperties: dict["additionalProperties"] as? Bool,
+            enumValues: dict["enum"] as? [String],
+            minimum: dict["minimum"] as? Int,
+            maximum: dict["maximum"] as? Int,
+            minLength: dict["minLength"] as? Int,
+            maxLength: dict["maxLength"] as? Int,
+            pattern: dict["pattern"] as? String,
+            const: dict["const"] as? String
         )
     }
 }

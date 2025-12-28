@@ -6,9 +6,9 @@ import Testing
 @testable import SwiftAI
 
 #if arch(arm64)
-import MLX
-import MLXLMCommon
-import MLXLLM
+@preconcurrency import MLX
+@preconcurrency import MLXLMCommon
+@preconcurrency import MLXLLM
 
 @Suite("MLXModelCache Tests")
 struct MLXModelCacheTests {

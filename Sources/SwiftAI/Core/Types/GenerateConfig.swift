@@ -193,7 +193,7 @@ public struct GenerateConfig: Sendable, Hashable, Codable {
     ///     .tools([WeatherTool(), SearchTool()])
     ///     .toolChoice(.auto)
     /// ```
-    public var availableTools: [ToolDefinition]
+    public var tools: [ToolDefinition]
 
     /// Controls how the model chooses which tool to use.
     ///
@@ -256,7 +256,7 @@ public struct GenerateConfig: Sendable, Hashable, Codable {
         self.topLogprobs = topLogprobs
         self.userId = userId
         self.serviceTier = serviceTier
-        self.availableTools = tools
+        self.tools = tools
         self.toolChoice = toolChoice
     }
 
@@ -562,7 +562,7 @@ extension GenerateConfig {
     /// - Returns: A new configuration with the tools.
     public func tools(_ definitions: [ToolDefinition]) -> GenerateConfig {
         var copy = self
-        copy.availableTools = definitions
+        copy.tools = definitions
         return copy
     }
 
@@ -577,7 +577,7 @@ extension GenerateConfig {
     /// - Returns: A new configuration with the tools.
     public func tools(_ aiTools: [any AITool]) -> GenerateConfig {
         var copy = self
-        copy.availableTools = aiTools.map { tool in
+        copy.tools = aiTools.map { tool in
             ToolDefinition(
                 name: tool.name,
                 description: tool.description,
