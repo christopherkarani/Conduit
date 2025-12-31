@@ -159,26 +159,28 @@ private extension JsonRepair {
                 case "{":
                     bracketStack.append(.brace)
                 case "}":
+                    guard !bracketStack.isEmpty else { break }
                     if bracketStack.last == .brace {
                         bracketStack.removeLast()
                     } else if bracketStack.last == .bracket {
                         // Mismatch: expected ] but got }
                         // Pop the bracket - the } will close the outer brace
                         bracketStack.removeLast()
-                        if bracketStack.last == .brace {
+                        if !bracketStack.isEmpty && bracketStack.last == .brace {
                             bracketStack.removeLast()
                         }
                     }
                 case "[":
                     bracketStack.append(.bracket)
                 case "]":
+                    guard !bracketStack.isEmpty else { break }
                     if bracketStack.last == .bracket {
                         bracketStack.removeLast()
                     } else if bracketStack.last == .brace {
                         // Mismatch: expected } but got ]
                         // Pop the brace - the ] will close the outer bracket
                         bracketStack.removeLast()
-                        if bracketStack.last == .bracket {
+                        if !bracketStack.isEmpty && bracketStack.last == .bracket {
                             bracketStack.removeLast()
                         }
                     }
