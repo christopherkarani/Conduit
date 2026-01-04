@@ -1,10 +1,12 @@
 // TextEmbeddingCacheTests.swift
 // ConduitTests
+//
+// This file requires the MLX trait to be enabled.
 
 import Testing
 @testable import Conduit
 
-#if arch(arm64)
+#if canImport(MLX)
 @preconcurrency import MLX
 
 @Suite("TextEmbeddingCache Tests")

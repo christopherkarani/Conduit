@@ -1,5 +1,10 @@
 // DiffusionModelDownloader.swift
 // Conduit
+//
+// This file requires the MLX trait to be enabled as it depends on Hub
+// from the MLX ecosystem for downloading models from HuggingFace.
+
+#if canImport(Hub)
 
 import Foundation
 import Hub
@@ -369,3 +374,5 @@ extension DiffusionModelDownloader {
         )
     }
 }
+
+#endif // canImport(Hub)

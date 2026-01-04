@@ -1,5 +1,9 @@
 // DiffusionModelRegistry.swift
 // Conduit
+//
+// This file requires the MLX trait as it depends on DiffusionVariant.
+
+#if canImport(MLX)
 
 import Foundation
 
@@ -403,3 +407,5 @@ public struct DownloadedDiffusionModel: Sendable, Codable, Identifiable {
         self.sizeBytes = sizeBytes
     }
 }
+
+#endif // canImport(MLX)

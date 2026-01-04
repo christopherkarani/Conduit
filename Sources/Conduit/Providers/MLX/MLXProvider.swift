@@ -6,11 +6,11 @@ import Foundation
 // MARK: - Linux Compatibility
 // NOTE: MLX requires Metal GPU and Apple Silicon. Not available on Linux.
 #if canImport(MLX)
+
 @preconcurrency import MLX
 @preconcurrency import MLXLMCommon
 @preconcurrency import MLXLLM
 // Note: Tokenizer protocol is re-exported through MLXLMCommon
-#endif
 
 // MARK: - MLXProvider
 
@@ -608,7 +608,6 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
 
 extension MLXProvider {
 
-    #if arch(arm64)
     /// Performs non-streaming generation using ChatSession.
     ///
     /// Uses the high-level ChatSession API from mlx-swift-lm for
@@ -806,15 +805,6 @@ extension MLXProvider {
 
         return params
     }
-    #endif
 }
 
-// MARK: - Non-arm64 Stubs
-
-#if !arch(arm64)
-extension MLXProvider {
-    /// Stub for non-Apple Silicon - all methods throw unavailable error.
-    ///
-    /// MLX requires Apple Silicon (arm64) architecture.
-}
-#endif
+#endif // canImport(MLX)

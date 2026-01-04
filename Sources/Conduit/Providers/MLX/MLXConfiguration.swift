@@ -3,6 +3,10 @@
 
 import Foundation
 
+// MARK: - Linux Compatibility
+// NOTE: MLX requires Metal GPU and Apple Silicon. Not available on Linux.
+#if canImport(MLX)
+
 /// Configuration options for MLX local inference on Apple Silicon.
 ///
 /// `MLXConfiguration` controls memory management, compute preferences,
@@ -433,3 +437,5 @@ extension MLXConfiguration {
         )
     }
 }
+
+#endif // canImport(MLX)

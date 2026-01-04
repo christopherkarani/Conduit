@@ -3,6 +3,10 @@
 
 import Foundation
 
+// MARK: - Linux Compatibility
+// NOTE: MLX and StableDiffusion require Metal GPU. Not available on Linux.
+#if canImport(MLX)
+
 /// Supported diffusion model variants for local image generation.
 ///
 /// Each variant represents a different model architecture with specific
@@ -12,12 +16,12 @@ import Foundation
 ///
 /// | Variant | Size | Steps | Speed | Quality | MLX Support | Best For |
 /// |---------|------|-------|-------|---------|-------------|----------|
-/// | `.sdxlTurbo` | ~6.5GB | 4 | ⚡ Fast | ⭐⭐⭐⭐ | ✅ Native | General use, fast iteration |
-/// | `.sd15` | ~2GB | 20 | 🐢 Slow | ⭐⭐⭐ | ☁️ Cloud | Memory-constrained devices |
-/// | `.flux` | ~4GB | 4 | ⚡ Fast | ⭐⭐⭐⭐ | ☁️ Cloud | Quality/speed balance |
+/// | `.sdxlTurbo` | ~6.5GB | 4 | Fast | Good | Native | General use, fast iteration |
+/// | `.sd15` | ~2GB | 20 | Slow | Good | Cloud | Memory-constrained devices |
+/// | `.flux` | ~4GB | 4 | Fast | Good | Cloud | Quality/speed balance |
 ///
-/// **Note**: Variants marked ☁️ Cloud require `HuggingFaceProvider` for inference.
-/// Only ✅ Native variants can be loaded with `MLXImageProvider.loadModel()`.
+/// **Note**: Variants marked Cloud require `HuggingFaceProvider` for inference.
+/// Only Native variants can be loaded with `MLXImageProvider.loadModel()`.
 ///
 /// ## Usage
 ///
@@ -27,12 +31,12 @@ import Foundation
 /// ```
 public enum DiffusionVariant: String, Sendable, CaseIterable, Codable {
 
-    /// SDXL Turbo - Fast, high-quality 1024×1024 images.
+    /// SDXL Turbo - Fast, high-quality 1024x1024 images.
     ///
     /// - Size: ~6.5GB
     /// - Steps: 4 (very fast)
     /// - Quality: Excellent
-    /// - Resolution: 1024×1024
+    /// - Resolution: 1024x1024
     case sdxlTurbo = "sdxl-turbo"
 
     /// Stable Diffusion 1.5 (4-bit quantized).
@@ -40,7 +44,7 @@ public enum DiffusionVariant: String, Sendable, CaseIterable, Codable {
     /// - Size: ~2GB
     /// - Steps: 20
     /// - Quality: Good
-    /// - Resolution: 512×512
+    /// - Resolution: 512x512
     case sd15 = "sd-1.5"
 
     /// Flux Schnell (4-bit quantized).
@@ -48,7 +52,7 @@ public enum DiffusionVariant: String, Sendable, CaseIterable, Codable {
     /// - Size: ~4GB
     /// - Steps: 4
     /// - Quality: Very Good
-    /// - Resolution: 1024×1024
+    /// - Resolution: 1024x1024
     case flux = "flux"
 
     /// Human-readable display name.
@@ -125,7 +129,7 @@ public enum DiffusionVariant: String, Sendable, CaseIterable, Codable {
     public var modelDescription: String {
         switch self {
         case .sdxlTurbo:
-            return "Fast, high-quality 1024×1024 images in just 4 steps"
+            return "Fast, high-quality 1024x1024 images in just 4 steps"
         case .sd15:
             return "Classic SD 1.5, quantized for memory efficiency"
         case .flux:
@@ -139,11 +143,11 @@ public enum DiffusionVariant: String, Sendable, CaseIterable, Codable {
     /// unsupported variants will result in an error.
     ///
     /// ## Supported Variants
-    /// - `.sdxlTurbo`: ✅ Fully supported
+    /// - `.sdxlTurbo`: Fully supported
     ///
     /// ## Unsupported Variants
-    /// - `.sd15`: ❌ Architecture not available in MLX StableDiffusion
-    /// - `.flux`: ❌ Requires different architecture not yet available
+    /// - `.sd15`: Architecture not available in MLX StableDiffusion
+    /// - `.flux`: Requires different architecture not yet available
     ///
     /// For unsupported variants, use `HuggingFaceProvider` for cloud-based inference.
     public var isNativelySupported: Bool {
@@ -207,3 +211,5 @@ extension DiffusionVariant {
     @available(*, deprecated, renamed: "sizeGiB")
     public var sizeGB: Double { sizeGiB }
 }
+
+#endif // canImport(MLX)

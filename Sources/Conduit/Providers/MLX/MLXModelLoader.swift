@@ -1,16 +1,16 @@
 // MLXModelLoader.swift
 // Conduit
+//
+// NOTE: This entire file requires MLX trait - Metal GPU and Apple Silicon only.
+
+#if canImport(MLX)
 
 import Foundation
-// MARK: - Linux Compatibility
-// NOTE: MLX requires Metal GPU and Apple Silicon. Not available on Linux.
-#if canImport(MLX)
 @preconcurrency import MLX
 @preconcurrency import MLXLMCommon
 @preconcurrency import MLXLLM
 @preconcurrency import MLXVLM
 // Note: Tokenizer protocol is re-exported through MLXLMCommon
-#endif
 
 /// Internal actor for loading and managing MLX model instances.
 ///
@@ -333,4 +333,6 @@ extension MLXModelLoader {
         throw AIError.providerUnavailable(reason: .deviceNotSupported)
     }
 }
-#endif
+#endif // !arch(arm64)
+
+#endif // canImport(MLX)
