@@ -3,6 +3,10 @@
 
 import Foundation
 
+#if canImport(Observation)
+import Observation
+#endif
+
 // MARK: - WarmupConfig
 
 /// Configuration for model warmup behavior in ChatSession.
@@ -227,7 +231,9 @@ public struct WarmupConfig: Sendable {
 ///
 /// - Note: This class is marked as `@unchecked Sendable` because thread safety
 ///   is enforced manually using `NSLock`. The lock is never held across await points.
+#if canImport(Observation)
 @Observable
+#endif
 public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked Sendable
 where Provider.ModelID == ModelIdentifier {
 
