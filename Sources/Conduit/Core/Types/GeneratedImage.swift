@@ -72,10 +72,10 @@ public struct GeneratedImage: Sendable {
     ///
     /// Returns `nil` if the data cannot be decoded as an image.
     ///
-    /// - Note: On Linux, this property always returns `nil` since SwiftUI Image
-    ///   requires UIKit or AppKit for backing image types. Use `data` directly
-    ///   or `save(to:)` for file output on Linux.
-    #if canImport(SwiftUI)
+    /// - Note: This property is only available on platforms with UIKit or AppKit
+    ///   (iOS, visionOS, macOS). On Linux and other platforms, use `data` directly
+    ///   or `save(to:)` for file output.
+    #if canImport(SwiftUI) && (os(iOS) || os(visionOS) || os(macOS))
     @MainActor
     public var image: Image? {
         #if os(iOS) || os(visionOS)
@@ -84,8 +84,6 @@ public struct GeneratedImage: Sendable {
         #elseif os(macOS)
         guard let nsImage = NSImage(data: data) else { return nil }
         return Image(nsImage: nsImage)
-        #else
-        return nil
         #endif
     }
     #endif

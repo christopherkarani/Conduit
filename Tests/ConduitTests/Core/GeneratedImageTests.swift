@@ -144,16 +144,14 @@ final class GeneratedImageTests: XCTestCase {
 
     // MARK: - SwiftUI Image Tests
 
+    // SwiftUI Image property is only available on platforms with UIKit/AppKit backing
+    #if canImport(SwiftUI) && (os(iOS) || os(visionOS) || os(macOS))
     @MainActor
     func testSwiftUIImageWithValidData() async {
         let data = createTestPNGData()
         let generatedImage = GeneratedImage(data: data)
 
-        #if os(iOS) || os(visionOS) || os(macOS)
         XCTAssertNotNil(generatedImage.image, "Should create SwiftUI Image from valid PNG data")
-        #else
-        XCTAssertNil(generatedImage.image, "SwiftUI Image should be nil on unsupported platforms")
-        #endif
     }
 
     @MainActor
@@ -163,6 +161,7 @@ final class GeneratedImageTests: XCTestCase {
 
         XCTAssertNil(generatedImage.image, "Should return nil SwiftUI Image for invalid data")
     }
+    #endif
 
     // MARK: - File Save Tests
 
