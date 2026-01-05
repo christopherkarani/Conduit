@@ -3,6 +3,9 @@
 //
 // Tests to verify Linux compatibility for Conduit.
 // These tests focus on cross-platform functionality.
+//
+// Note: Tests avoid network calls on Linux CI because FoundationNetworking
+// uses try! internally which crashes on network errors (libcurl error 43).
 
 import Foundation
 import Testing
@@ -13,33 +16,69 @@ import Testing
 @Suite("Linux Compatibility")
 struct LinuxCompatibilityTests {
 
+    // MARK: - Helpers
+
+    /// Returns true if running in CI environment (GitHub Actions sets CI=true)
+    private var isCI: Bool {
+        ProcessInfo.processInfo.environment["CI"] == "true" ||
+        ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == "true"
+    }
+
     // MARK: - Cloud Provider Initialization
 
     @Test("Anthropic provider initializes on all platforms")
     func anthropicProviderInitializes() async throws {
         let provider = AnthropicProvider(apiKey: "test-key")
         // Provider should initialize without errors
-        // isAvailable will be false with invalid key, but initialization should succeed
+        // Verify provider is created - don't call isAvailable as it may trigger network on some configs
+        #expect(type(of: provider) == AnthropicProvider.self)
+
+        // Only check availability when NOT in CI (avoids potential network calls)
+        #if !os(Linux)
         _ = await provider.isAvailable
+        #endif
     }
 
     @Test("OpenAI provider initializes on all platforms")
     func openAIProviderInitializes() async throws {
         let provider = OpenAIProvider(apiKey: "test-key")
+        // Verify provider is created
+        #expect(type(of: provider) == OpenAIProvider.self)
+
+        // Only check availability when NOT in CI on Linux (avoids network calls)
+        #if !os(Linux)
         _ = await provider.isAvailable
+        #endif
     }
 
     @Test("OpenAI provider supports Ollama endpoint")
     func openAIProviderSupportsOllama() async throws {
         // Ollama is the recommended local inference option on Linux
+        // Note: We only test initialization here, NOT isAvailable
+        // because isAvailable triggers a health check HTTP request
+        // which can crash on Linux CI due to FoundationNetworking's try! usage
         let provider = OpenAIProvider(endpoint: .ollama(), apiKey: nil)
-        _ = await provider.isAvailable
+        #expect(type(of: provider) == OpenAIProvider.self)
+
+        // The endpoint should be correctly configured
+        let config = await provider.configuration
+        if case .ollama = config.endpoint {
+            // Expected - test passes
+        } else {
+            Issue.record("Expected Ollama endpoint")
+        }
     }
 
     @Test("HuggingFace provider initializes on all platforms")
     func huggingFaceProviderInitializes() async throws {
         let provider = HuggingFaceProvider()
+        // Verify provider is created
+        #expect(type(of: provider) == HuggingFaceProvider.self)
+
+        // Only check availability when NOT in CI on Linux
+        #if !os(Linux)
         _ = await provider.isAvailable
+        #endif
     }
 
     // MARK: - Core Types
