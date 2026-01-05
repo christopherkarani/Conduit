@@ -6,13 +6,14 @@
 //
 
 import Foundation
+
 // MARK: - Linux Compatibility
 // NOTE: MLX requires Metal GPU and Apple Silicon. Not available on Linux.
 #if canImport(MLX)
+
 @preconcurrency import MLX
 @preconcurrency import MLXLMCommon
 @preconcurrency import MLXLLM
-#endif
 
 // MARK: - CacheStats
 
@@ -81,7 +82,6 @@ public actor MLXModelCache {
 
     // MARK: - CachedModel
 
-    #if arch(arm64)
     /// Cached model container with metadata.
     ///
     /// Wraps a ModelContainer along with capabilities, load time,
@@ -111,11 +111,9 @@ public actor MLXModelCache {
             self.weightsSize = weightsSize
         }
     }
-    #endif
 
     // MARK: - Properties
 
-    #if arch(arm64)
     /// Thread-safe wrapper around NSCache
     ///
     /// Using `SendableNSCache` which provides `@unchecked Sendable` conformance
@@ -125,7 +123,6 @@ public actor MLXModelCache {
 
     /// Convenience accessor for the underlying cache
     private var cache: NSCache<NSString, CachedModel> { cacheWrapper.cache }
-    #endif
 
     /// Tracks cached model IDs (NSCache doesn't provide enumeration)
     private var cachedModelIds: Set<String> = []
@@ -137,7 +134,6 @@ public actor MLXModelCache {
     private var currentModelId: String?
 
     /// Cache eviction delegate
-    #if arch(arm64)
     private let delegate: CacheDelegate
 
     /// NSCache delegate for handling eviction notifications
@@ -150,7 +146,6 @@ public actor MLXModelCache {
             // Actual cleanup happens in get() when we detect the model is gone
         }
     }
-    #endif
 
     // MARK: - Configuration
 
@@ -182,19 +177,16 @@ public actor MLXModelCache {
     ///
     /// - Parameter configuration: Cache size and eviction settings
     private init(configuration: Configuration = .default) {
-        #if arch(arm64)
         self.delegate = CacheDelegate()
         cacheWrapper.cache.delegate = delegate
         cacheWrapper.cache.countLimit = configuration.maxCachedModels
         if let maxSize = configuration.maxCacheSize {
             cacheWrapper.cache.totalCostLimit = Int(maxSize.bytes)
         }
-        #endif
     }
 
     // MARK: - Public Methods
 
-    #if arch(arm64)
     /// Retrieves a cached model by ID.
     ///
     /// Automatically cleans up tracking if the model was evicted by NSCache.
@@ -226,16 +218,13 @@ public actor MLXModelCache {
         cachedModelIds.insert(modelId)
         modelSizes[modelId] = model.weightsSize
     }
-    #endif
 
     /// Removes a model from the cache.
     ///
     /// - Parameter modelId: The model ID to remove
     public func remove(_ modelId: String) {
-        #if arch(arm64)
         let key = modelId as NSString
         cache.removeObject(forKey: key)
-        #endif
         cachedModelIds.remove(modelId)
         modelSizes.removeValue(forKey: modelId)
         if currentModelId == modelId {
@@ -247,9 +236,7 @@ public actor MLXModelCache {
     ///
     /// Clears both the NSCache and all tracking structures.
     public func removeAll() {
-        #if arch(arm64)
         cache.removeAllObjects()
-        #endif
         cachedModelIds.removeAll()
         modelSizes.removeAll()
         currentModelId = nil
@@ -263,7 +250,6 @@ public actor MLXModelCache {
     /// - Parameter modelId: The model ID to check
     /// - Returns: true if the model is currently cached
     public func contains(_ modelId: String) -> Bool {
-        #if arch(arm64)
         // Verify it's actually still in cache (may have been evicted)
         let key = modelId as NSString
         if cache.object(forKey: key) != nil {
@@ -273,9 +259,6 @@ public actor MLXModelCache {
         cachedModelIds.remove(modelId)
         modelSizes.removeValue(forKey: modelId)
         return false
-        #else
-        return false
-        #endif
     }
 
     /// Returns current cache statistics.
@@ -312,3 +295,5 @@ public actor MLXModelCache {
         currentModelId
     }
 }
+
+#endif // canImport(MLX)

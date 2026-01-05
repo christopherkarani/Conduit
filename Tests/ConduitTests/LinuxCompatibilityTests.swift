@@ -173,11 +173,12 @@ struct LinuxCompatibilityTests {
         #expect(networkError.localizedDescription.lowercased().contains("network"))
     }
 
-    // MARK: - Configuration Types
+    // MARK: - Configuration Types (MLX-only)
 
-    @Test("MLXConfiguration works on all platforms")
+    #if canImport(MLX)
+    @Test("MLXConfiguration works on Apple platforms")
     func mlxConfigurationWorks() {
-        // MLXConfiguration is a pure value type, should work everywhere
+        // MLXConfiguration is a pure value type, should work on Apple platforms
         let config = MLXConfiguration.default
         #expect(config.prefillStepSize == 512)
         #expect(config.useMemoryMapping == true)
@@ -186,13 +187,14 @@ struct LinuxCompatibilityTests {
         #expect(memoryEfficient.useQuantizedKVCache == true)
     }
 
-    @Test("DiffusionVariant enum works on all platforms")
+    @Test("DiffusionVariant enum works on Apple platforms")
     func diffusionVariantWorks() {
         let sdxl = DiffusionVariant.sdxlTurbo
         #expect(sdxl.displayName == "SDXL Turbo")
         #expect(sdxl.defaultSteps == 4)
         #expect(sdxl.isNativelySupported == true)
     }
+    #endif
 }
 
 // MARK: - Cross-Platform Utilities

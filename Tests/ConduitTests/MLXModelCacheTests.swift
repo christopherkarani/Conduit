@@ -1,11 +1,13 @@
 // MLXModelCacheTests.swift
 // ConduitTests
+//
+// This file requires the MLX trait to be enabled.
 
 import Foundation
 import Testing
 @testable import Conduit
 
-#if arch(arm64)
+#if canImport(MLX)
 @preconcurrency import MLX
 @preconcurrency import MLXLMCommon
 @preconcurrency import MLXLLM

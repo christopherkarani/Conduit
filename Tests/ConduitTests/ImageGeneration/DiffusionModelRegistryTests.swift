@@ -1,5 +1,9 @@
 // DiffusionModelRegistryTests.swift
 // Conduit
+//
+// This file requires the MLX trait to be enabled.
+
+#if canImport(MLX)
 
 import Foundation
 import Testing
@@ -572,3 +576,5 @@ struct DiffusionModelRegistryTests {
         #expect(count == 10)
     }
 }
+
+#endif // canImport(MLX)

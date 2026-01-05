@@ -1,5 +1,9 @@
 // DiffusionModelDownloaderTests.swift
 // Conduit
+//
+// This file requires the MLX trait (Hub) to be enabled.
+
+#if canImport(Hub)
 
 import Foundation
 import Testing
@@ -768,3 +772,5 @@ struct DiffusionModelDownloaderTests {
         // 4. Return total as Int64
     }
 }
+
+#endif // canImport(Hub)

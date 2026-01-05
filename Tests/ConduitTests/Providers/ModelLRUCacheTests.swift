@@ -1,10 +1,12 @@
 // ModelLRUCacheTests.swift
 // Conduit Tests
+//
+// This file requires the MLX trait to be enabled.
 
 import XCTest
 @testable import Conduit
 
-#if arch(arm64)
+#if canImport(StableDiffusion)
 import StableDiffusion
 
 final class ModelLRUCacheTests: XCTestCase {

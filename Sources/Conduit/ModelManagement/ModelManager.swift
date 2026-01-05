@@ -2,6 +2,9 @@
 // Conduit
 //
 // Central manager for model downloads, caching, and lifecycle.
+// This file requires the MLX trait as it depends on Hub for HuggingFace downloads.
+
+#if canImport(Hub)
 
 import Foundation
 import Hub
@@ -775,3 +778,5 @@ extension ModelManager {
         Array(activeTasks.values)
     }
 }
+
+#endif // canImport(Hub)
