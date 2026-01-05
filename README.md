@@ -11,6 +11,28 @@
 
 Conduit provides a clean, idiomatic Swift interface for LLM inference. Choose your provider explicitly—local inference with MLX on Apple Silicon, cloud inference via HuggingFace, or system-integrated AI with Apple Foundation Models on iOS 26+.
 
+## Why Conduit?
+
+- **One API, Many Providers** — Switch between local (MLX), cloud (Anthropic, OpenAI, HuggingFace), and system (Foundation Models) with minimal code changes
+- **Type-Safe Structured Output** — Generate Swift types directly from LLM responses with the `@Generable` macro
+- **Privacy-First Options** — Run models entirely on-device with MLX or Foundation Models
+- **Swift 6.2 Concurrency** — Built from the ground up with actors, Sendable types, and AsyncSequence
+
+## Table of Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Providers](#providers)
+- [Streaming](#streaming)
+- [Structured Output](#structured-output)
+- [Tool Calling](#tool-calling)
+- [ChatSession](#chatsession)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
+- [Community](#community)
+- [License](#license)
+
 ## Features
 
 | Capability | MLX | HuggingFace | Anthropic | Foundation Models |
@@ -787,6 +809,49 @@ do {
 4. **Protocol-Oriented** — Extensible via protocols with associated types.
 5. **Type-Safe Structured Output** — @Generable macro mirrors Apple's FoundationModels API.
 6. **Tool Integration** — First-class support for LLM tool/function calling.
+
+---
+
+## Documentation
+
+Comprehensive guides are available in the [docs](docs/) folder:
+
+| Guide | Description |
+|-------|-------------|
+| [Getting Started](docs/GettingStarted.md) | Installation, setup, and first generation |
+| [Providers](docs/Providers/README.md) | Detailed guides for each provider |
+| [Structured Output](docs/StructuredOutput.md) | Type-safe responses with `@Generable` |
+| [Tool Calling](docs/ToolCalling.md) | Define and execute LLM-invokable tools |
+| [Streaming](docs/Streaming.md) | Real-time token streaming patterns |
+| [ChatSession](docs/ChatSession.md) | Stateful conversation management |
+| [Model Management](docs/ModelManagement.md) | Download, cache, and manage models |
+| [Error Handling](docs/ErrorHandling.md) | Handle errors gracefully |
+| [Architecture](docs/Architecture.md) | Design principles and internals |
+
+---
+
+## Contributing
+
+We welcome contributions! Here's how to get started:
+
+1. **Fork** the repository
+2. **Create** a feature branch: `git checkout -b feature/amazing-feature`
+3. **Commit** your changes: `git commit -m 'Add amazing feature'`
+4. **Push** to the branch: `git push origin feature/amazing-feature`
+5. **Open** a Pull Request
+
+Please ensure your code:
+- Follows existing code style and conventions
+- Includes tests for new functionality
+- Updates documentation as needed
+- Maintains backward compatibility
+
+---
+
+## Community
+
+- **[GitHub Discussions](https://github.com/christopherkarani/Conduit/discussions)** — Ask questions, share ideas
+- **[GitHub Issues](https://github.com/christopherkarani/Conduit/issues)** — Report bugs, request features
 
 ---
 
