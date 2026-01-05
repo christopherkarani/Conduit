@@ -4,6 +4,11 @@
 // Streaming implementation for AnthropicProvider with Server-Sent Events (SSE) parsing.
 
 import Foundation
+
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
 import Logging
 
 /// Maximum allowed size for accumulated tool call arguments (100KB).

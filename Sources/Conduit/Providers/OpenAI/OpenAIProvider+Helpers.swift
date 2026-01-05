@@ -4,6 +4,11 @@
 // Helper methods for OpenAIProvider.
 
 import Foundation
+
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
 import Logging
 
 /// Logger for OpenAI provider diagnostics.

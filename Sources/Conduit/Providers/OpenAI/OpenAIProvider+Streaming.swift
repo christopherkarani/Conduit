@@ -4,6 +4,11 @@
 // Streaming text generation functionality for OpenAIProvider.
 
 import Foundation
+
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
 import Logging
 
 /// Maximum allowed size for accumulated tool call arguments (100KB).

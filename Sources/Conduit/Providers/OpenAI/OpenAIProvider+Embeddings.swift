@@ -5,6 +5,10 @@
 
 import Foundation
 
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
 // MARK: - EmbeddingGenerator Protocol
 
 extension OpenAIProvider {

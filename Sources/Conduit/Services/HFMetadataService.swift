@@ -8,6 +8,10 @@
 
 import Foundation
 
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
 // MARK: - HFMetadataService
 
 /// Actor-based service for fetching metadata from HuggingFace API.
