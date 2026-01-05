@@ -5,7 +5,7 @@
 [![Swift 6.2](https://img.shields.io/badge/Swift-6.2-F05138.svg?style=flat&logo=swift)](https://swift.org)
 [![Platforms](https://img.shields.io/badge/Platforms-iOS%2017+%20|%20macOS%2014+%20|%20visionOS%201+%20|%20Linux-007AFF.svg?style=flat)](https://developer.apple.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=flat)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-0.6.0-blue.svg?style=flat)](https://github.com/christopherkarani/Conduit/releases)
+[![Version](https://img.shields.io/badge/Version-1.0.0-blue.svg?style=flat)](https://github.com/christopherkarani/Conduit/releases)
 
 ---
 
@@ -56,7 +56,7 @@ Add Conduit to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/christopherkarani/Conduit", from: "2.0.0")
+    .package(url: "https://github.com/christopherkarani/Conduit", from: "1.0.0")
 ]
 ```
 
@@ -68,7 +68,7 @@ To use on-device MLX inference, enable the `MLX` trait:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/christopherkarani/Conduit", from: "2.0.0", traits: ["MLX"])
+    .package(url: "https://github.com/christopherkarani/Conduit", from: "1.0.0", traits: ["MLX"])
 ]
 ```
 
