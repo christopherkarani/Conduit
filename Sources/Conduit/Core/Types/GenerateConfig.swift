@@ -257,11 +257,14 @@ public struct GenerateConfig: Sendable, Hashable, Codable {
     ///   - parallelToolCalls: Whether to allow parallel tool calls (default: nil).
     ///   - responseFormat: Response format for structured output (default: nil).
     ///   - reasoning: Configuration for reasoning mode (default: nil).
+
+    
+    ///   - Note: Dont set temperature and topP for Anthropic models
     public init(
         maxTokens: Int? = 1024,
         minTokens: Int? = nil,
         temperature: Float = 0.7,
-        topP: Float = 0.9,
+        topP: Float = 0, 
         topK: Int? = nil,
         repetitionPenalty: Float = 1.0,
         frequencyPenalty: Float = 0.0,
