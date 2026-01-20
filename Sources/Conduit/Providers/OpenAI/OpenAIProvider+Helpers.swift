@@ -35,7 +35,7 @@ extension OpenAIProvider {
         }
 
         // Build request body
-        let body = buildRequestBody(messages: messages, model: model, config: config, stream: false)
+        let body = buildRequestBody(messages: messages, model: model, config: config, stream: stream)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         // Execute request with retry
@@ -46,12 +46,20 @@ extension OpenAIProvider {
     }
 
     /// Builds the request body for chat completions.
-    internal func buildRequestBody(
+    nonisolated func buildRequestBody(
         messages: [Message],
         model: OpenAIModelID,
         config: GenerateConfig,
         stream: Bool
     ) -> [String: Any] {
+        // Warn about potential model/endpoint mismatch for OpenRouter
+        if case .openRouter = configuration.endpoint,
+           !model.rawValue.contains("/") {
+            logger.warning(
+                "Model '\(model.rawValue)' may not work correctly with OpenRouter. Consider using .openRouter(\"provider/\(model.rawValue)\") format (e.g., .openRouter(\"openai/\(model.rawValue)\"))."
+            )
+        }
+
         var body: [String: Any] = [
             "model": model.rawValue,
             "stream": stream
@@ -61,6 +69,33 @@ extension OpenAIProvider {
         body["messages"] = messages.map { message -> [String: Any] in
             var messageDict: [String: Any] = ["role": message.role.rawValue]
             messageDict["content"] = serializeMessageContent(message.content)
+
+            if message.role == .assistant,
+               let toolCalls = message.metadata?.toolCalls,
+               !toolCalls.isEmpty {
+                messageDict["tool_calls"] = serializeToolCalls(toolCalls)
+
+                if message.content.isEmpty {
+                    messageDict["content"] = NSNull()
+                }
+            }
+
+            // Tool messages must include the tool call ID (OpenAI/OpenRouter spec).
+            // Conduit stores this in MessageMetadata.custom via Message.toolOutput(...).
+            if message.role == .tool {
+                let toolCallId = message.metadata?.custom?["tool_call_id"]
+                if let toolCallId {
+                    messageDict["tool_call_id"] = toolCallId
+                } else {
+                    logger.warning("Tool message is missing tool_call_id in metadata; request may be rejected by OpenAI/OpenRouter")
+                }
+
+                // Optional, but useful for some providers/debugging.
+                if let toolName = message.metadata?.custom?["tool_name"] {
+                    messageDict["name"] = toolName
+                }
+            }
+
             return messageDict
         }
 
@@ -136,6 +171,12 @@ extension OpenAIProvider {
         // Add reasoning configuration if set
         if let reasoning = config.reasoning {
             body["reasoning"] = serializeReasoningConfig(reasoning)
+
+            // OpenRouter often requires an explicit flag to include reasoning output.
+            // If exclude=true, the user explicitly does not want reasoning in responses.
+            if case .openRouter = configuration.endpoint, reasoning.exclude != true {
+                body["include_reasoning"] = true
+            }
         }
 
         // Add OpenRouter routing if applicable
@@ -163,7 +204,7 @@ extension OpenAIProvider {
     // MARK: - Content Serialization
 
     /// Serializes message content to OpenAI/OpenRouter format.
-    private func serializeMessageContent(_ content: Message.Content) -> Any {
+    private nonisolated func serializeMessageContent(_ content: Message.Content) -> Any {
         switch content {
         case .text(let text):
             // Simple text content - return as string for efficiency
@@ -190,7 +231,7 @@ extension OpenAIProvider {
     }
 
     /// Serializes a single content part to OpenAI/OpenRouter format.
-    private func serializeContentPart(_ part: Message.ContentPart) -> [String: Any]? {
+    private nonisolated func serializeContentPart(_ part: Message.ContentPart) -> [String: Any]? {
         switch part {
         case .text(let text):
             return [
@@ -218,122 +259,12 @@ extension OpenAIProvider {
         }
     }
 
-    /// Serializes a Schema to JSON Schema format for tool parameters.
-    private func serializeSchema(_ schema: Schema) -> [String: Any] {
-        var result: [String: Any] = [:]
-
-        switch schema {
-        case .string(let constraints):
-            result["type"] = "string"
-            for constraint in constraints {
-                switch constraint {
-                case .minLength(let value):
-                    result["minLength"] = value
-                case .maxLength(let value):
-                    result["maxLength"] = value
-                case .pattern(let value):
-                    result["pattern"] = value
-                case .constant(let value):
-                    result["const"] = value
-                case .anyOf(let values):
-                    result["enum"] = values
-                }
-            }
-
-        case .integer(let constraints):
-            result["type"] = "integer"
-            for constraint in constraints {
-                switch constraint {
-                case .range(let lowerBound, let upperBound):
-                    if let lower = lowerBound {
-                        result["minimum"] = lower
-                    }
-                    if let upper = upperBound {
-                        result["maximum"] = upper
-                    }
-                }
-            }
-
-        case .number(let constraints):
-            result["type"] = "number"
-            for constraint in constraints {
-                switch constraint {
-                case .range(let lowerBound, let upperBound):
-                    if let lower = lowerBound {
-                        result["minimum"] = lower
-                    }
-                    if let upper = upperBound {
-                        result["maximum"] = upper
-                    }
-                }
-            }
-
-        case .boolean(let constraints):
-            result["type"] = "boolean"
-            // Boolean constraints are typically empty in JSON Schema
-            _ = constraints  // Silence unused warning
-
-        case .array(let items, let constraints):
-            result["type"] = "array"
-            result["items"] = serializeSchema(items)
-            for constraint in constraints {
-                switch constraint {
-                case .count(let lowerBound, let upperBound):
-                    if let lower = lowerBound {
-                        result["minItems"] = lower
-                    }
-                    if let upper = upperBound {
-                        result["maxItems"] = upper
-                    }
-                }
-            }
-
-        case .object(let name, let description, let properties):
-            result["type"] = "object"
-            if !name.isEmpty {
-                result["title"] = name
-            }
-            if let description = description {
-                result["description"] = description
-            }
-            if !properties.isEmpty {
-                var props: [String: Any] = [:]
-                var required: [String] = []
-                for (key, property) in properties {
-                    var propSchema = serializeSchema(property.schema)
-                    if let desc = property.description {
-                        propSchema["description"] = desc
-                    }
-                    props[key] = propSchema
-                    // Assume all properties are required by default
-                    required.append(key)
-                }
-                result["properties"] = props
-                if !required.isEmpty {
-                    result["required"] = required
-                }
-            }
-
-        case .optional(let wrapped):
-            // Optional types become the wrapped type with nullable: true
-            result = serializeSchema(wrapped)
-            result["nullable"] = true
-
-        case .anyOf(let name, let description, let schemas):
-            if !name.isEmpty {
-                result["title"] = name
-            }
-            if let description = description {
-                result["description"] = description
-            }
-            result["anyOf"] = schemas.map { serializeSchema($0) }
-        }
-
-        return result
+    private nonisolated func serializeSchema(_ schema: GenerationSchema) -> [String: Any] {
+        schema.toJSONSchema()
     }
 
     /// Serializes response format configuration.
-    private func serializeResponseFormat(_ format: ResponseFormat) -> [String: Any] {
+    private nonisolated func serializeResponseFormat(_ format: ResponseFormat) -> [String: Any] {
         switch format {
         case .text:
             return ["type": "text"]
@@ -351,8 +282,22 @@ extension OpenAIProvider {
         }
     }
 
+    /// Serializes tool calls for OpenAI/OpenRouter assistant messages.
+    private nonisolated func serializeToolCalls(_ toolCalls: [Transcript.ToolCall]) -> [[String: Any]] {
+        toolCalls.map { call in
+            [
+                "id": call.id,
+                "type": "function",
+                "function": [
+                    "name": call.toolName,
+                    "arguments": call.argumentsString
+                ]
+            ]
+        }
+    }
+
     /// Serializes reasoning configuration.
-    private func serializeReasoningConfig(_ config: ReasoningConfig) -> [String: Any] {
+    private nonisolated func serializeReasoningConfig(_ config: ReasoningConfig) -> [String: Any] {
         var result: [String: Any] = [:]
 
         if let effort = config.effort {
@@ -460,7 +405,7 @@ extension OpenAIProvider {
         // Parse finish reason, mapping OpenAI values to our FinishReason
         // OpenAI uses different names than our enum raw values:
         // - "length" -> .maxTokens
-        // - "tool_calls" -> .toolCall
+        // - "tool_calls" -> .toolCalls
         // - "content_filter" -> .contentFilter
         // - "stop" -> .stop
         let finishReasonStr = firstChoice["finish_reason"] as? String
@@ -471,7 +416,7 @@ extension OpenAIProvider {
         case "length":
             finishReason = .maxTokens
         case "tool_calls":
-            finishReason = .toolCall
+            finishReason = .toolCalls
         case "content_filter":
             finishReason = .contentFilter
         default:
@@ -479,7 +424,7 @@ extension OpenAIProvider {
         }
 
         // Parse tool calls if present
-        var toolCalls: [AIToolCall] = []
+        var toolCalls: [Transcript.ToolCall] = []
         if let openAIToolCalls = message["tool_calls"] as? [[String: Any]] {
             for tc in openAIToolCalls {
                 guard let id = tc["id"] as? String,
@@ -491,7 +436,7 @@ extension OpenAIProvider {
                 }
 
                 do {
-                    let toolCall = try AIToolCall(
+                    let toolCall = try Transcript.ToolCall(
                         id: id,
                         toolName: name,
                         argumentsJSON: argumentsString
@@ -517,24 +462,7 @@ extension OpenAIProvider {
         }
 
         // Parse reasoning details if present
-        var reasoningDetails: [ReasoningDetail] = []
-        if let reasoningData = json["reasoning_details"] as? [[String: Any]] {
-            for (index, rd) in reasoningData.enumerated() {
-                let id = rd["id"] as? String ?? "rd_\(index)"
-                let type = rd["type"] as? String ?? "reasoning.text"
-                let format = rd["format"] as? String ?? "unknown"
-                let content = rd["content"] as? String
-
-                let detail = ReasoningDetail(
-                    id: id,
-                    type: type,
-                    format: format,
-                    index: index,
-                    content: content
-                )
-                reasoningDetails.append(detail)
-            }
-        }
+        let reasoningDetails = parseReasoningDetails(json: json, message: message, choice: firstChoice)
 
         // Calculate token count and performance metrics
         let tokenCount = usage?.completionTokens ?? 0
@@ -549,6 +477,48 @@ extension OpenAIProvider {
             toolCalls: toolCalls,
             reasoningDetails: reasoningDetails
         )
+    }
+
+    private func parseReasoningDetails(
+        json: [String: Any],
+        message: [String: Any],
+        choice: [String: Any]
+    ) -> [ReasoningDetail] {
+        // OpenRouter / OpenAI-compatible variants seen in the wild:
+        // - Top-level: { "reasoning_details": [ ... ] }
+        // - Choice-level: { "choices": [{ "reasoning_details": [ ... ] }] }
+        // - Message-level: { "choices": [{ "message": { "reasoning_details": [ ... ] } }] }
+        // - Message-level shorthand: { "choices": [{ "message": { "reasoning": "..." } }] }
+        let reasoningArray =
+            (message["reasoning_details"] as? [[String: Any]])
+            ?? (choice["reasoning_details"] as? [[String: Any]])
+            ?? (json["reasoning_details"] as? [[String: Any]])
+
+        if let reasoningArray {
+            return reasoningArray.enumerated().map { index, rd in
+                ReasoningDetail(
+                    id: rd["id"] as? String ?? "rd_\(index)",
+                    type: rd["type"] as? String ?? "reasoning.text",
+                    format: rd["format"] as? String ?? "unknown",
+                    index: index,
+                    content: rd["content"] as? String
+                )
+            }
+        }
+
+        if let reasoningText = message["reasoning"] as? String, !reasoningText.isEmpty {
+            return [
+                ReasoningDetail(
+                    id: "rd_0",
+                    type: "reasoning.text",
+                    format: "unknown",
+                    index: 0,
+                    content: reasoningText
+                )
+            ]
+        }
+
+        return []
     }
 
     /// Checks if the Ollama server is healthy.

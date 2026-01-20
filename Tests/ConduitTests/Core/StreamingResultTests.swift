@@ -10,36 +10,23 @@ import Testing
 // MARK: - Test Generable Type
 
 /// A simple Generable type for testing StreamingResult functionality.
-struct TestGenerable: Generable {
+@Generable
+struct TestGenerable {
     let value: String
+}
 
-    static var schema: Schema { .string(constraints: []) }
-
-    init(from content: StructuredContent) throws {
-        self.value = try content.string
+private func makeSnapshot(_ value: String?) -> StreamingResult<TestGenerable>.Snapshot {
+    let rawContent: GeneratedContent
+    if let value {
+        rawContent = GeneratedContent(properties: ["value": value])
+    } else {
+        rawContent = GeneratedContent(kind: .structure(properties: [:], orderedKeys: []))
     }
 
-    init(value: String) {
-        self.value = value
-    }
-
-    var generableContent: StructuredContent { .string(value) }
-
-    struct Partial: GenerableContentConvertible, Sendable {
-        var value: String?
-
-        init(value: String?) {
-            self.value = value
-        }
-
-        init(from content: StructuredContent) throws {
-            self.value = try? content.string
-        }
-
-        var generableContent: StructuredContent {
-            .string(value ?? "")
-        }
-    }
+    return StreamingResult<TestGenerable>.Snapshot(
+        content: try! TestGenerable.PartiallyGenerated(rawContent),
+        rawContent: rawContent
+    )
 }
 
 // MARK: - StreamingResult Tests
@@ -54,17 +41,17 @@ struct StreamingResultTests {
 
         @Test("Can iterate over partial values with for-await-in")
         func iterateOverPartials() async throws {
-            let stream = AsyncThrowingStream<TestGenerable.Partial, Error> { continuation in
-                continuation.yield(TestGenerable.Partial(value: "hello"))
-                continuation.yield(TestGenerable.Partial(value: "world"))
+            let stream = AsyncThrowingStream<StreamingResult<TestGenerable>.Snapshot, Error> { continuation in
+                continuation.yield(makeSnapshot("hello"))
+                continuation.yield(makeSnapshot("world"))
                 continuation.finish()
             }
 
             let result = StreamingResult<TestGenerable>(stream)
             var receivedValues: [String?] = []
 
-            for try await partial in result {
-                receivedValues.append(partial.value)
+            for try await snapshot in result {
+                receivedValues.append(snapshot.content.value)
             }
 
             #expect(receivedValues.count == 2)
@@ -76,9 +63,9 @@ struct StreamingResultTests {
         func partialsReceivedInOrder() async throws {
             let expectedOrder = ["first", "second", "third", "fourth", "fifth"]
 
-            let stream = AsyncThrowingStream<TestGenerable.Partial, Error> { continuation in
+            let stream = AsyncThrowingStream<StreamingResult<TestGenerable>.Snapshot, Error> { continuation in
                 for value in expectedOrder {
-                    continuation.yield(TestGenerable.Partial(value: value))
+                    continuation.yield(makeSnapshot(value))
                 }
                 continuation.finish()
             }
@@ -86,8 +73,8 @@ struct StreamingResultTests {
             let result = StreamingResult<TestGenerable>(stream)
             var receivedOrder: [String] = []
 
-            for try await partial in result {
-                if let value = partial.value {
+            for try await snapshot in result {
+                if let value = snapshot.content.value {
                     receivedOrder.append(value)
                 }
             }
@@ -97,7 +84,7 @@ struct StreamingResultTests {
 
         @Test("Empty stream produces no iterations")
         func emptyStreamNoIterations() async throws {
-            let stream = AsyncThrowingStream<TestGenerable.Partial, Error> { continuation in
+            let stream = AsyncThrowingStream<StreamingResult<TestGenerable>.Snapshot, Error> { continuation in
                 continuation.finish()
             }
 
@@ -115,9 +102,9 @@ struct StreamingResultTests {
         func largeNumberOfPartials() async throws {
             let count = 1000
 
-            let stream = AsyncThrowingStream<TestGenerable.Partial, Error> { continuation in
+            let stream = AsyncThrowingStream<StreamingResult<TestGenerable>.Snapshot, Error> { continuation in
                 for i in 0..<count {
-                    continuation.yield(TestGenerable.Partial(value: "item-\(i)"))
+                    continuation.yield(makeSnapshot("item-\(i)"))
                 }
                 continuation.finish()
             }
@@ -126,9 +113,9 @@ struct StreamingResultTests {
             var receivedCount = 0
             var lastValue: String?
 
-            for try await partial in result {
+            for try await snapshot in result {
                 receivedCount += 1
-                lastValue = partial.value
+                lastValue = snapshot.content.value
             }
 
             #expect(receivedCount == count)
@@ -143,10 +130,10 @@ struct StreamingResultTests {
 
         @Test("Returns final complete result after stream ends")
         func collectReturnsFinalResult() async throws {
-            let stream = AsyncThrowingStream<TestGenerable.Partial, Error> { continuation in
-                continuation.yield(TestGenerable.Partial(value: "partial-1"))
-                continuation.yield(TestGenerable.Partial(value: "partial-2"))
-                continuation.yield(TestGenerable.Partial(value: "final"))
+            let stream = AsyncThrowingStream<StreamingResult<TestGenerable>.Snapshot, Error> { continuation in
+                continuation.yield(makeSnapshot("partial-1"))
+                continuation.yield(makeSnapshot("partial-2"))
+                continuation.yield(makeSnapshot("final"))
                 continuation.finish()
             }
 
@@ -158,7 +145,7 @@ struct StreamingResultTests {
 
         @Test("Throws noContent for empty stream")
         func collectThrowsForEmptyStream() async {
-            let stream = AsyncThrowingStream<TestGenerable.Partial, Error> { continuation in
+            let stream = AsyncThrowingStream<StreamingResult<TestGenerable>.Snapshot, Error> { continuation in
                 continuation.finish()
             }
 
@@ -180,8 +167,8 @@ struct StreamingResultTests {
 
         @Test("Works with single partial")
         func collectWithSinglePartial() async throws {
-            let stream = AsyncThrowingStream<TestGenerable.Partial, Error> { continuation in
-                continuation.yield(TestGenerable.Partial(value: "only-one"))
+            let stream = AsyncThrowingStream<StreamingResult<TestGenerable>.Snapshot, Error> { continuation in
+                continuation.yield(makeSnapshot("only-one"))
                 continuation.finish()
             }
 
@@ -193,9 +180,9 @@ struct StreamingResultTests {
 
         @Test("Works with many partials")
         func collectWithManyPartials() async throws {
-            let stream = AsyncThrowingStream<TestGenerable.Partial, Error> { continuation in
+            let stream = AsyncThrowingStream<StreamingResult<TestGenerable>.Snapshot, Error> { continuation in
                 for i in 1...100 {
-                    continuation.yield(TestGenerable.Partial(value: "value-\(i)"))
+                    continuation.yield(makeSnapshot("value-\(i)"))
                 }
                 continuation.finish()
             }
@@ -214,10 +201,10 @@ struct StreamingResultTests {
 
         @Test("Handler called for each partial")
         func reduceHandlerCalledForEach() async throws {
-            let stream = AsyncThrowingStream<TestGenerable.Partial, Error> { continuation in
-                continuation.yield(TestGenerable.Partial(value: "a"))
-                continuation.yield(TestGenerable.Partial(value: "b"))
-                continuation.yield(TestGenerable.Partial(value: "c"))
+            let stream = AsyncThrowingStream<StreamingResult<TestGenerable>.Snapshot, Error> { continuation in
+                continuation.yield(makeSnapshot("a"))
+                continuation.yield(makeSnapshot("b"))
+                continuation.yield(makeSnapshot("c"))
                 continuation.finish()
             }
 
@@ -227,9 +214,9 @@ struct StreamingResultTests {
             var callCount = 0
             var receivedValues: [String] = []
 
-            for try await partial in result {
+            for try await snapshot in result {
                 callCount += 1
-                if let value = partial.value {
+                if let value = snapshot.content.value {
                     receivedValues.append(value)
                 }
             }
@@ -240,10 +227,10 @@ struct StreamingResultTests {
 
         @Test("Returns final result after all partials")
         func reduceReturnsFinalResult() async throws {
-            let stream = AsyncThrowingStream<TestGenerable.Partial, Error> { continuation in
-                continuation.yield(TestGenerable.Partial(value: "first"))
-                continuation.yield(TestGenerable.Partial(value: "middle"))
-                continuation.yield(TestGenerable.Partial(value: "last"))
+            let stream = AsyncThrowingStream<StreamingResult<TestGenerable>.Snapshot, Error> { continuation in
+                continuation.yield(makeSnapshot("first"))
+                continuation.yield(makeSnapshot("middle"))
+                continuation.yield(makeSnapshot("last"))
                 continuation.finish()
             }
 
@@ -258,15 +245,15 @@ struct StreamingResultTests {
 
         @Test("Works with @Sendable closure")
         func reduceWithSendableClosure() async throws {
-            let stream = AsyncThrowingStream<TestGenerable.Partial, Error> { continuation in
-                continuation.yield(TestGenerable.Partial(value: "test"))
+            let stream = AsyncThrowingStream<StreamingResult<TestGenerable>.Snapshot, Error> { continuation in
+                continuation.yield(makeSnapshot("test"))
                 continuation.finish()
             }
 
             let result = StreamingResult<TestGenerable>(stream)
 
             // The closure is implicitly @Sendable due to the method signature
-            let sendableClosure: @Sendable (TestGenerable.Partial) -> Void = { partial in
+            let sendableClosure: @Sendable (TestGenerable.PartiallyGenerated) -> Void = { partial in
                 _ = partial.value
             }
 
@@ -277,7 +264,7 @@ struct StreamingResultTests {
 
         @Test("Throws noContent for empty stream")
         func reduceThrowsForEmptyStream() async {
-            let stream = AsyncThrowingStream<TestGenerable.Partial, Error> { continuation in
+            let stream = AsyncThrowingStream<StreamingResult<TestGenerable>.Snapshot, Error> { continuation in
                 continuation.finish()
             }
 
@@ -305,7 +292,7 @@ struct StreamingResultTests {
 
         @Test("Returns nil for empty stream (does not throw)")
         func collectOrNilReturnsNilForEmpty() async throws {
-            let stream = AsyncThrowingStream<TestGenerable.Partial, Error> { continuation in
+            let stream = AsyncThrowingStream<StreamingResult<TestGenerable>.Snapshot, Error> { continuation in
                 continuation.finish()
             }
 
@@ -317,9 +304,9 @@ struct StreamingResultTests {
 
         @Test("Returns result for non-empty stream")
         func collectOrNilReturnsResultForNonEmpty() async throws {
-            let stream = AsyncThrowingStream<TestGenerable.Partial, Error> { continuation in
-                continuation.yield(TestGenerable.Partial(value: "first"))
-                continuation.yield(TestGenerable.Partial(value: "second"))
+            let stream = AsyncThrowingStream<StreamingResult<TestGenerable>.Snapshot, Error> { continuation in
+                continuation.yield(makeSnapshot("first"))
+                continuation.yield(makeSnapshot("second"))
                 continuation.finish()
             }
 
@@ -332,8 +319,8 @@ struct StreamingResultTests {
 
         @Test("Handles single value correctly")
         func collectOrNilHandlesSingleValue() async throws {
-            let stream = AsyncThrowingStream<TestGenerable.Partial, Error> { continuation in
-                continuation.yield(TestGenerable.Partial(value: "singleton"))
+            let stream = AsyncThrowingStream<StreamingResult<TestGenerable>.Snapshot, Error> { continuation in
+                continuation.yield(makeSnapshot("singleton"))
                 continuation.finish()
             }
 
@@ -353,8 +340,8 @@ struct StreamingResultTests {
         @Test("Handler runs on main actor")
         @MainActor
         func reduceOnMainRunsOnMainActor() async throws {
-            let stream = AsyncThrowingStream<TestGenerable.Partial, Error> { continuation in
-                continuation.yield(TestGenerable.Partial(value: "test"))
+            let stream = AsyncThrowingStream<StreamingResult<TestGenerable>.Snapshot, Error> { continuation in
+                continuation.yield(makeSnapshot("test"))
                 continuation.finish()
             }
 
@@ -373,9 +360,9 @@ struct StreamingResultTests {
         @Test("Returns final result")
         @MainActor
         func reduceOnMainReturnsFinalResult() async throws {
-            let stream = AsyncThrowingStream<TestGenerable.Partial, Error> { continuation in
-                continuation.yield(TestGenerable.Partial(value: "initial"))
-                continuation.yield(TestGenerable.Partial(value: "final"))
+            let stream = AsyncThrowingStream<StreamingResult<TestGenerable>.Snapshot, Error> { continuation in
+                continuation.yield(makeSnapshot("initial"))
+                continuation.yield(makeSnapshot("final"))
                 continuation.finish()
             }
 
@@ -435,8 +422,8 @@ struct StreamingResultTests {
 
         @Test("StreamingResult is AsyncSequence")
         func isAsyncSequence() async throws {
-            let stream = AsyncThrowingStream<TestGenerable.Partial, Error> { continuation in
-                continuation.yield(TestGenerable.Partial(value: "test"))
+            let stream = AsyncThrowingStream<StreamingResult<TestGenerable>.Snapshot, Error> { continuation in
+                continuation.yield(makeSnapshot("test"))
                 continuation.finish()
             }
 
@@ -446,25 +433,24 @@ struct StreamingResultTests {
             var iterator = result.makeAsyncIterator()
             let first = try await iterator.next()
 
-            #expect(first?.value == "test")
+            #expect(first?.content.value == "test")
 
             let second = try await iterator.next()
             #expect(second == nil)
         }
 
-        @Test("Element type is Partial")
-        func elementTypeIsPartial() async throws {
-            let stream = AsyncThrowingStream<TestGenerable.Partial, Error> { continuation in
-                continuation.yield(TestGenerable.Partial(value: "check"))
+        @Test("Element type is Snapshot")
+        func elementTypeIsSnapshot() async throws {
+            let stream = AsyncThrowingStream<StreamingResult<TestGenerable>.Snapshot, Error> { continuation in
+                continuation.yield(makeSnapshot("check"))
                 continuation.finish()
             }
 
             let result = StreamingResult<TestGenerable>(stream)
 
-            for try await partial in result {
-                // partial should be of type TestGenerable.Partial
-                let _: TestGenerable.Partial = partial
-                #expect(partial.value == "check")
+            for try await snapshot in result {
+                let _: StreamingResult<TestGenerable>.Snapshot = snapshot
+                #expect(snapshot.content.value == "check")
             }
         }
     }
@@ -478,8 +464,8 @@ struct StreamingResultTests {
         func errorsPropagateDuringIteration() async {
             let testError = NSError(domain: "Test", code: 1, userInfo: nil)
 
-            let stream = AsyncThrowingStream<TestGenerable.Partial, Error> { continuation in
-                continuation.yield(TestGenerable.Partial(value: "before-error"))
+            let stream = AsyncThrowingStream<StreamingResult<TestGenerable>.Snapshot, Error> { continuation in
+                continuation.yield(makeSnapshot("before-error"))
                 continuation.finish(throwing: testError)
             }
 
@@ -487,8 +473,8 @@ struct StreamingResultTests {
             var receivedValue = false
 
             do {
-                for try await partial in result {
-                    if partial.value == "before-error" {
+                for try await snapshot in result {
+                    if snapshot.content.value == "before-error" {
                         receivedValue = true
                     }
                 }
@@ -502,8 +488,8 @@ struct StreamingResultTests {
         func errorsFromCollect() async {
             let testError = NSError(domain: "Test", code: 2, userInfo: nil)
 
-            let stream = AsyncThrowingStream<TestGenerable.Partial, Error> { continuation in
-                continuation.yield(TestGenerable.Partial(value: "value"))
+            let stream = AsyncThrowingStream<StreamingResult<TestGenerable>.Snapshot, Error> { continuation in
+                continuation.yield(makeSnapshot("value"))
                 continuation.finish(throwing: testError)
             }
 
@@ -521,8 +507,8 @@ struct StreamingResultTests {
         func errorsFromReduce() async {
             let testError = NSError(domain: "Test", code: 3, userInfo: nil)
 
-            let stream = AsyncThrowingStream<TestGenerable.Partial, Error> { continuation in
-                continuation.yield(TestGenerable.Partial(value: "value"))
+            let stream = AsyncThrowingStream<StreamingResult<TestGenerable>.Snapshot, Error> { continuation in
+                continuation.yield(makeSnapshot("value"))
                 continuation.finish(throwing: testError)
             }
 
@@ -544,8 +530,8 @@ struct StreamingResultTests {
 
         @Test("StreamingResult is Sendable")
         func streamingResultIsSendable() async throws {
-            let stream = AsyncThrowingStream<TestGenerable.Partial, Error> { continuation in
-                continuation.yield(TestGenerable.Partial(value: "sendable-test"))
+            let stream = AsyncThrowingStream<StreamingResult<TestGenerable>.Snapshot, Error> { continuation in
+                continuation.yield(makeSnapshot("sendable-test"))
                 continuation.finish()
             }
 

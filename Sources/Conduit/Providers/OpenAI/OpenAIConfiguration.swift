@@ -453,6 +453,61 @@ extension OpenAIConfiguration {
         return copy
     }
 
+    /// Returns a copy with OpenRouter routing configuration.
+    ///
+    /// This is an alias for `openRouter(_:)` that provides clearer naming
+    /// when chaining with `.openRouter(apiKey:)`.
+    ///
+    /// ```swift
+    /// // Before (confusing):
+    /// let config = OpenAIConfiguration.openRouter(apiKey: "...")
+    ///     .openRouter(OpenRouterRoutingConfig(...))
+    ///
+    /// // After (clearer):
+    /// let config = OpenAIConfiguration.openRouter(apiKey: "...")
+    ///     .routing(.preferAnthropic)
+    /// ```
+    ///
+    /// - Parameter config: The OpenRouter routing configuration.
+    /// - Returns: A new configuration with routing settings.
+    public func routing(_ config: OpenRouterRoutingConfig) -> OpenAIConfiguration {
+        openRouter(config)
+    }
+
+    /// Returns a copy configured to prefer specific providers.
+    ///
+    /// Shorthand for setting provider routing preferences.
+    ///
+    /// ```swift
+    /// let config = OpenAIConfiguration.openRouter(apiKey: "...")
+    ///     .preferring(.anthropic, .openai)
+    /// ```
+    ///
+    /// - Parameter providers: Providers to prefer, in priority order.
+    /// - Returns: A new configuration with provider preferences.
+    public func preferring(_ providers: OpenRouterProvider...) -> OpenAIConfiguration {
+        routing(OpenRouterRoutingConfig(providers: providers, fallbacks: true))
+    }
+
+    /// Returns a copy with latency-based routing enabled.
+    ///
+    /// Routes to the fastest available provider.
+    ///
+    /// ```swift
+    /// let config = OpenAIConfiguration.openRouter(apiKey: "...")
+    ///     .routeByLatency()
+    /// ```
+    ///
+    /// - Returns: A new configuration with latency routing enabled.
+    public func routeByLatency() -> OpenAIConfiguration {
+        var copy = self
+        if copy.openRouterConfig == nil {
+            copy.openRouterConfig = .default
+        }
+        copy.openRouterConfig?.routeByLatency = true
+        return copy
+    }
+
     /// Returns a copy with Ollama configuration.
     ///
     /// - Parameter config: The Ollama configuration.

@@ -353,21 +353,19 @@ extension AnthropicProvider {
         // Tool call accumulation state
         // Maps content block index to (id, name, jsonBuffer)
         var activeToolCalls: [Int: (id: String, name: String, jsonBuffer: String)] = [:]
-        var completedToolCalls: [AIToolCall] = []
+        var completedToolCalls: [Transcript.ToolCall] = []
 
-        for try await line in bytes.lines {
+        var sseParser = ServerSentEventParser()
+
+        sse: for try await line in bytes.lines {
             // Check for task cancellation at the start of each iteration
             try Task.checkCancellation()
 
-            // Skip empty lines
-            guard !line.isEmpty else { continue }
-
-            // SSE format: "data: {json}" or "event: {type}"
-            if line.hasPrefix("data: ") {
-                let jsonString = String(line.dropFirst(6))
+            for event in sseParser.ingestLine(line) {
+                let jsonString = event.data
 
                 // Skip [DONE] marker
-                if jsonString == "[DONE]" { break }
+                if jsonString == "[DONE]" { break sse }
 
                 guard let eventData = jsonString.data(using: .utf8) else { continue }
 
@@ -544,7 +542,7 @@ extension AnthropicProvider {
         startTime: Date,
         totalTokens: inout Int,
         activeToolCalls: inout [Int: (id: String, name: String, jsonBuffer: String)],
-        completedToolCalls: inout [AIToolCall]
+        completedToolCalls: inout [Transcript.ToolCall]
     ) throws -> GenerationChunk? {
         switch event {
         case .contentBlockStart(let start):
@@ -620,7 +618,7 @@ extension AnthropicProvider {
                 // Only create tool call if we have accumulated JSON
                 let jsonBuffer = toolData.jsonBuffer.isEmpty ? "{}" : toolData.jsonBuffer
                 do {
-                    let toolCall = try AIToolCall(
+                    let toolCall = try Transcript.ToolCall(
                         id: toolData.id,
                         toolName: toolData.name,
                         argumentsJSON: jsonBuffer
@@ -633,7 +631,7 @@ extension AnthropicProvider {
                     if repairedJson != jsonBuffer {
                         logger.debug("Attempting JSON repair for '\(toolData.name)'")
                         do {
-                            let toolCall = try AIToolCall(
+                            let toolCall = try Transcript.ToolCall(
                                 id: toolData.id,
                                 toolName: toolData.name,
                                 argumentsJSON: repairedJson

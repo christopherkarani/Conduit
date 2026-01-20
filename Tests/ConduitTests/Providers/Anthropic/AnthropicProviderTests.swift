@@ -355,6 +355,81 @@ struct AnthropicRequestBuildingTests {
         #expect(request.thinking?.type == "enabled")
         #expect(request.thinking?.budget_tokens == 1024)
     }
+
+    @Test("Tool outputs are encoded as tool_result blocks")
+    func toolOutputEncoding() async {
+        let provider = AnthropicProvider(apiKey: "sk-ant-test")
+        let output = Transcript.ToolOutput(
+            id: "toolu_123",
+            toolName: "get_weather",
+            segments: [.text(.init(content: "65 degrees"))]
+        )
+        let messages = [
+            Message.user("What is the weather?"),
+            Message.assistant("Let me check."),
+            Message.toolOutput(output)
+        ]
+
+        let request = await provider.buildRequestBody(
+            messages: messages,
+            model: .claudeSonnet45,
+            config: .default
+        )
+
+        #expect(request.messages.count == 3)
+
+        guard let toolMessage = request.messages.last else {
+            Issue.record("Missing tool message")
+            return
+        }
+
+        #expect(toolMessage.role == "user")
+
+        switch toolMessage.content {
+        case .multipart(let parts):
+            #expect(parts.count == 1)
+            let part = parts[0]
+            #expect(part.type == "tool_result")
+            #expect(part.toolUseId == "toolu_123")
+            #expect(part.content == "65 degrees")
+        case .text:
+            Issue.record("Expected multipart tool_result content")
+        }
+    }
+
+    @Test("Assistant tool calls are encoded as tool_use blocks")
+    func assistantToolCallEncoding() async throws {
+        let provider = AnthropicProvider(apiKey: "sk-ant-test")
+        let arguments = GeneratedContent(properties: ["expression": "2+2"])
+        let toolCall = Transcript.ToolCall(id: "toolu_456", toolName: "calculator", arguments: arguments)
+        let messages = [
+            Message.assistant("Calling a tool.", toolCalls: [toolCall])
+        ]
+
+        let request = await provider.buildRequestBody(
+            messages: messages,
+            model: .claudeSonnet45,
+            config: .default
+        )
+
+        #expect(request.messages.count == 1)
+
+        guard let assistantMessage = request.messages.first else {
+            Issue.record("Missing assistant message")
+            return
+        }
+
+        switch assistantMessage.content {
+        case .multipart(let parts):
+            #expect(parts.count == 2)
+            #expect(parts[0].type == "text")
+            #expect(parts[1].type == "tool_use")
+            #expect(parts[1].id == "toolu_456")
+            #expect(parts[1].name == "calculator")
+        case .text:
+            Issue.record("Expected multipart content with tool_use block")
+        }
+    }
 }
 
 // MARK: - Response Parsing Tests
@@ -514,7 +589,7 @@ struct AnthropicStreamingEventTests {
         let provider = AnthropicProvider(apiKey: "sk-ant-test")
         var tokenCount = 0
         var activeToolCalls: [Int: (id: String, name: String, jsonBuffer: String)] = [:]
-        var completedToolCalls: [AIToolCall] = []
+        var completedToolCalls: [Transcript.ToolCall] = []
 
         // message_start should not yield
         let messageStart = AnthropicStreamEvent.MessageStart(

@@ -89,6 +89,9 @@ public actor MLXImageProvider: ImageGenerator {
     /// LRU cache for loaded diffusion models.
     private let modelCache: ModelLRUCache
 
+    /// Cache for prompt embeddings to avoid re-encoding repeated prompts.
+    private let embeddingCache = TextEmbeddingCache()
+
     // MARK: - Initialization
 
     /// Creates a new MLX image provider.
@@ -433,6 +436,7 @@ public actor MLXImageProvider: ImageGenerator {
             modelContainer = cachedContainer
             currentModelId = modelId
             currentVariant = variant
+            await embeddingCache.modelDidChange(to: modelId)
             return
         }
 
@@ -497,6 +501,7 @@ public actor MLXImageProvider: ImageGenerator {
             modelContainer = container
             currentModelId = modelId
             currentVariant = variant
+            await embeddingCache.modelDidChange(to: modelId)
 
         } catch {
             throw AIError.generationFailed(underlying: SendableError(error))
@@ -535,6 +540,7 @@ public actor MLXImageProvider: ImageGenerator {
         modelContainer = nil
         currentModelId = nil
         currentVariant = nil
+        embeddingCache.clear()
 
         // Clear GPU cache
         #if arch(arm64)

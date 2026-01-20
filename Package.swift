@@ -73,6 +73,7 @@ let package = Package(
         .testTarget(
             name: "ConduitMacrosTests",
             dependencies: [
+                "Conduit",
                 "ConduitMacros",
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
             ],

@@ -1,33 +1,33 @@
 # SwiftAgents Integration
 
-Integrate SwiftAI providers with the SwiftAgents framework for building AI agent applications.
+Integrate Conduit providers with the SwiftAgents framework for building AI agent applications.
 
 ## Overview
 
-SwiftAI can be used as the inference backend for [SwiftAgents](https://github.com/christopherkarani/SwiftAgents) through an adapter pattern. This guide shows how to create an adapter that bridges SwiftAI providers to SwiftAgents' `InferenceProvider` protocol.
+Conduit can be used as the inference backend for [SwiftAgents](https://github.com/christopherkarani/SwiftAgents) through an adapter pattern. This guide shows how to create an adapter that bridges Conduit providers to SwiftAgents' `InferenceProvider` protocol.
 
 ## Creating the Adapter Package
 
-Create a new Swift package that depends on both SwiftAI and SwiftAgents:
+Create a new Swift package that depends on both Conduit and SwiftAgents:
 
 ```swift
 // Package.swift
 import PackageDescription
 
 let package = Package(
-    name: "SwiftAIAgents",
+    name: "ConduitAgents",
     platforms: [.iOS(.v17), .macOS(.v14)],
     products: [
-        .library(name: "SwiftAIAgents", targets: ["SwiftAIAgents"])
+        .library(name: "ConduitAgents", targets: ["ConduitAgents"])
     ],
     dependencies: [
-        .package(url: "https://github.com/your-org/SwiftAI.git", from: "1.0.0"),
+        .package(url: "https://github.com/your-org/Conduit.git", from: "1.0.0"),
         .package(url: "https://github.com/christopherkarani/SwiftAgents.git", from: "1.0.0"),
     ],
     targets: [
         .target(
-            name: "SwiftAIAgents",
-            dependencies: ["SwiftAI", "SwiftAgents"]
+            name: "ConduitAgents",
+            dependencies: ["Conduit", "SwiftAgents"]
         )
     ]
 )
@@ -35,14 +35,14 @@ let package = Package(
 
 ## Inference Provider Adapter
 
-Create an adapter that wraps any SwiftAI `TextGenerator`:
+Create an adapter that wraps any Conduit `TextGenerator`:
 
 ```swift
-import SwiftAI
+import Conduit
 import SwiftAgents
 
-/// Adapts a SwiftAI TextGenerator to SwiftAgents' InferenceProvider.
-public struct SwiftAIInferenceProvider<Provider: TextGenerator>: InferenceProvider {
+/// Adapts a Conduit TextGenerator to SwiftAgents' InferenceProvider.
+public struct ConduitInferenceProvider<Provider: TextGenerator>: InferenceProvider {
 
     private let provider: Provider
     private let modelID: Provider.ModelID
@@ -65,22 +65,22 @@ public struct SwiftAIInferenceProvider<Provider: TextGenerator>: InferenceProvid
     }
 
     public func generate(messages: [SwiftAgents.Message]) async throws -> String {
-        // Convert SwiftAgents messages to SwiftAI messages
-        let swiftAIMessages = messages.map { message in
-            SwiftAI.Message(
+        // Convert SwiftAgents messages to Conduit messages
+        let conduitMessages = messages.map { message in
+            Conduit.Message(
                 role: convertRole(message.role),
                 content: .text(message.content)
             )
         }
         let result = try await provider.generate(
-            messages: swiftAIMessages,
+            messages: conduitMessages,
             model: modelID,
             config: config
         )
         return result.text
     }
 
-    private func convertRole(_ role: SwiftAgents.MessageRole) -> SwiftAI.Message.Role {
+    private func convertRole(_ role: SwiftAgents.MessageRole) -> Conduit.Message.Role {
         switch role {
         case .user: return .user
         case .assistant: return .assistant
@@ -92,52 +92,46 @@ public struct SwiftAIInferenceProvider<Provider: TextGenerator>: InferenceProvid
 
 ## Tool Integration
 
-SwiftAI's `AITool` protocol can be adapted to SwiftAgents' `Tool` protocol:
+Conduit’s `Tool` protocol can be adapted to SwiftAgents’ `Tool` protocol using `GeneratedContent` for
+argument decoding and `PromptRepresentable` output:
 
 ```swift
-import SwiftAI
+import Conduit
 import SwiftAgents
 
-/// Wraps a SwiftAI AITool for use with SwiftAgents.
-public struct SwiftAIToolWrapper<T: AITool>: SwiftAgents.Tool {
+/// Wraps a Conduit Tool for use with SwiftAgents.
+public struct ConduitToolWrapper<T: Tool>: SwiftAgents.Tool {
 
-    private let aiTool: T
+    private let tool: T
 
     public init(_ tool: T) {
-        self.aiTool = tool
+        self.tool = tool
     }
 
-    public var name: String { aiTool.name }
-    public var description: String { aiTool.description }
+    public var name: String { tool.name }
+    public var description: String { tool.description }
 
     public var parameters: SwiftAgents.ToolParameters {
-        // Convert SwiftAI Schema to SwiftAgents parameters
-        convertSchema(T.parameters)
+        SwiftAgents.ToolParameters(jsonSchema: tool.parameters.toJSONSchema())
     }
 
     public func execute(arguments: [String: Any]) async throws -> String {
-        // Convert arguments to JSON data and call the AITool
         let data = try JSONSerialization.data(withJSONObject: arguments)
-        let result = try await aiTool.call(data)
-        return result.text
-    }
-
-    private func convertSchema(_ schema: SwiftAI.Schema) -> SwiftAgents.ToolParameters {
-        // Implementation depends on SwiftAgents' parameter format
-        // This is a simplified example
-        SwiftAgents.ToolParameters(
-            jsonSchema: schema.toJSONSchema()
-        )
+        let json = String(decoding: data, as: UTF8.self)
+        let content = try GeneratedContent(json: json)
+        let parsed = try T.Arguments(content)
+        let output = try await tool.call(arguments: parsed)
+        return output.promptRepresentation.description
     }
 }
 ```
 
 ## Structured Output with Generable
 
-Use SwiftAI's `@Generable` types with SwiftAgents:
+Use Conduit's `@Generable` types with SwiftAgents:
 
 ```swift
-import SwiftAI
+import Conduit
 import SwiftAgents
 
 // Define a Generable type
@@ -154,7 +148,7 @@ struct TaskAnalysis {
 }
 
 // Use with SwiftAgents
-extension SwiftAIInferenceProvider {
+extension ConduitInferenceProvider {
 
     /// Generates a structured response using a Generable type.
     public func generate<T: Generable>(
@@ -162,7 +156,7 @@ extension SwiftAIInferenceProvider {
         returning type: T.Type
     ) async throws -> T {
         // Add schema to prompt
-        let schemaJSON = T.schema.toJSONSchema()
+        let schemaJSON = T.generationSchema.toJSONString()
         let structuredPrompt = """
         \(prompt)
 
@@ -171,8 +165,8 @@ extension SwiftAIInferenceProvider {
         """
 
         let response = try await generate(prompt: structuredPrompt)
-        let content = try StructuredContent(json: response)
-        return try T(from: content)
+        let content = try GeneratedContent(json: response)
+        return try T(content)
     }
 }
 ```
@@ -180,28 +174,28 @@ extension SwiftAIInferenceProvider {
 ## Usage Example
 
 ```swift
-import SwiftAI
+import Conduit
 import SwiftAgents
-import SwiftAIAgents
+import ConduitAgents
 
-// Create SwiftAI provider
+// Create Conduit provider
 let anthropic = AnthropicProvider(apiKey: "your-key")
 
 // Wrap as SwiftAgents InferenceProvider
-let inferenceProvider = SwiftAIInferenceProvider(
+let inferenceProvider = ConduitInferenceProvider(
     provider: anthropic,
     model: .claude4Sonnet,
     config: .default.temperature(0.7)
 )
 
-// Create SwiftAgents agent with SwiftAI backend
+// Create SwiftAgents agent with Conduit backend
 let agent = Agent(
     name: "Assistant",
     instructions: "You are a helpful assistant.",
     inferenceProvider: inferenceProvider,
     tools: [
-        SwiftAIToolWrapper(WeatherTool()),
-        SwiftAIToolWrapper(SearchTool())
+        ConduitToolWrapper(WeatherTool()),
+        ConduitToolWrapper(SearchTool())
     ]
 )
 
@@ -213,8 +207,8 @@ print(response)
 ## Topics
 
 ### Adapters
-- ``SwiftAIInferenceProvider``
-- ``SwiftAIToolWrapper``
+- ``ConduitInferenceProvider``
+- ``ConduitToolWrapper``
 
 ### Configuration
 - ``GenerateConfig``

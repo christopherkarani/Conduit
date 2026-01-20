@@ -15,6 +15,18 @@ import Logging
 /// Prevents memory exhaustion from malicious or malformed responses.
 private let maxToolArgumentsSize = 100_000
 
+/// Maximum allowed size for accumulated reasoning text (100KB).
+/// Prevents memory exhaustion from malicious or malformed responses.
+private let maxReasoningSize = 100_000
+
+private struct ReasoningAccumulator {
+    var id: String
+    var type: String
+    var format: String
+    var index: Int
+    var content: String
+}
+
 /// Logger for OpenAI streaming operations.
 private let logger = ConduitLoggers.streaming
 
@@ -138,6 +150,7 @@ extension OpenAIProvider {
         var chunkIndex = 0
         var buffer = ""
         var byteBuffer = Data()
+        var sseParser = ServerSentEventParser()
 
         // Buffer size limits to prevent DoS
         let maxBufferSize = 50_000 // 50KB reasonable for a single SSE line
@@ -146,7 +159,38 @@ extension OpenAIProvider {
         // Tool call accumulation by index
         // Each entry tracks: id, name, and accumulated arguments buffer
         var toolCallAccumulators: [Int: (id: String, name: String, argumentsBuffer: String)] = [:]
-        var completedToolCalls: [AIToolCall] = []
+        var completedToolCalls: [Transcript.ToolCall] = []
+
+        // Reasoning accumulation
+        var reasoningBuffer = ""
+        var reasoningDetailBuffers: [String: ReasoningAccumulator] = [:]
+
+        func buildReasoningDetails() -> [ReasoningDetail] {
+            var details = reasoningDetailBuffers.values
+                .sorted(by: { $0.index < $1.index })
+                .map { acc in
+                    ReasoningDetail(
+                        id: acc.id,
+                        type: acc.type,
+                        format: acc.format,
+                        index: acc.index,
+                        content: acc.content.isEmpty ? nil : acc.content
+                    )
+                }
+
+            if !reasoningBuffer.isEmpty {
+                let nextIndex = (details.map(\.index).max() ?? -1) + 1
+                details.append(ReasoningDetail(
+                    id: "rd_text",
+                    type: "reasoning.text",
+                    format: "unknown",
+                    index: nextIndex,
+                    content: reasoningBuffer
+                ))
+            }
+
+            return details
+        }
 
         for try await byte in bytes {
             try Task.checkCancellation()
@@ -183,8 +227,8 @@ extension OpenAIProvider {
                 let line = String(buffer[..<lineEnd])
                 buffer = String(buffer[buffer.index(after: lineEnd)...])
 
-                if line.hasPrefix("data: ") {
-                    let jsonStr = String(line.dropFirst(6))
+                for event in sseParser.ingestLine(line) {
+                    let jsonStr = event.data
 
                     if jsonStr == "[DONE]" {
                         continuation.finish()
@@ -200,6 +244,63 @@ extension OpenAIProvider {
                         let content = delta["content"] as? String
                         let finishReasonStr = firstChoice["finish_reason"] as? String
                         let finishReason = finishReasonStr.flatMap { FinishReason(rawValue: $0) }
+
+                        var hasReasoningUpdate = false
+                        var reasoningDetailsForChunk: [ReasoningDetail]? = nil
+
+                        if let reasoningDelta = delta["reasoning"] as? String, !reasoningDelta.isEmpty {
+                            let newSize = reasoningBuffer.count + reasoningDelta.count
+                            if newSize > maxReasoningSize {
+                                logger.warning("Reasoning text exceeded \(maxReasoningSize) bytes, truncating")
+                                let remaining = max(0, maxReasoningSize - reasoningBuffer.count)
+                                reasoningBuffer += String(reasoningDelta.prefix(remaining))
+                            } else {
+                                reasoningBuffer += reasoningDelta
+                            }
+                            hasReasoningUpdate = true
+                        }
+
+                        if let reasoningDetailsDelta = delta["reasoning_details"] as? [[String: Any]] {
+                            for (fallbackIndex, rd) in reasoningDetailsDelta.enumerated() {
+                                let id = rd["id"] as? String ?? "rd_\(fallbackIndex)"
+                                let type = rd["type"] as? String ?? "reasoning.text"
+                                let format = rd["format"] as? String ?? "unknown"
+                                let index = rd["index"] as? Int ?? fallbackIndex
+                                let fragment = rd["content"] as? String ?? ""
+
+                                var acc = reasoningDetailBuffers[id] ?? ReasoningAccumulator(
+                                    id: id,
+                                    type: type,
+                                    format: format,
+                                    index: index,
+                                    content: ""
+                                )
+                                acc.type = type
+                                acc.format = format
+                                acc.index = index
+
+                                if !fragment.isEmpty {
+                                    let newSize = acc.content.count + fragment.count
+                                    if newSize > maxReasoningSize {
+                                        logger.warning("Reasoning detail '\(id)' exceeded \(maxReasoningSize) bytes, truncating")
+                                        let remaining = max(0, maxReasoningSize - acc.content.count)
+                                        acc.content += String(fragment.prefix(remaining))
+                                    } else {
+                                        acc.content += fragment
+                                    }
+                                }
+
+                                reasoningDetailBuffers[id] = acc
+                                hasReasoningUpdate = true
+                            }
+                        }
+
+                        if hasReasoningUpdate {
+                            let details = buildReasoningDetails()
+                            if !details.isEmpty {
+                                reasoningDetailsForChunk = details
+                            }
+                        }
 
                         // Process tool calls if present in delta
                         var partialToolCall: PartialToolCall?
@@ -262,10 +363,12 @@ extension OpenAIProvider {
                         let isToolCallsComplete = finishReason == .toolCalls || finishReason == .toolCall
 
                         if isToolCallsComplete && !toolCallAccumulators.isEmpty {
+                            let completedReasoningDetails = buildReasoningDetails()
+
                             // Finalize all accumulated tool calls
                             for (index, acc) in toolCallAccumulators.sorted(by: { $0.key < $1.key }) {
                                 do {
-                                    let toolCall = try AIToolCall(
+                                    let toolCall = try Transcript.ToolCall(
                                         id: acc.id,
                                         toolName: acc.name,
                                         argumentsJSON: acc.argumentsBuffer
@@ -278,7 +381,7 @@ extension OpenAIProvider {
                                     if repairedJson != acc.argumentsBuffer {
                                         logger.debug("Attempting JSON repair for '\(acc.name)'")
                                         do {
-                                            let toolCall = try AIToolCall(
+                                            let toolCall = try Transcript.ToolCall(
                                                 id: acc.id,
                                                 toolName: acc.name,
                                                 argumentsJSON: repairedJson
@@ -307,17 +410,27 @@ extension OpenAIProvider {
                                 tokenCount: content?.isEmpty == false ? 1 : 0,
                                 isComplete: true,
                                 finishReason: finishReason,
-                                completedToolCalls: completedToolCalls.isEmpty ? nil : completedToolCalls
+                                completedToolCalls: completedToolCalls.isEmpty ? nil : completedToolCalls,
+                                reasoningDetails: completedReasoningDetails.isEmpty ? nil : completedReasoningDetails
                             )
                             continuation.yield(chunk)
                             chunkIndex += 1
                         } else if let content = content, !content.isEmpty {
+                            let finalReasoningDetails: [ReasoningDetail]? = {
+                                if finishReason != nil {
+                                    let details = buildReasoningDetails()
+                                    return details.isEmpty ? nil : details
+                                }
+                                return reasoningDetailsForChunk
+                            }()
+
                             // Yield content chunk (may also include partial tool call)
                             let chunk = GenerationChunk(
                                 text: content,
                                 isComplete: finishReason != nil,
                                 finishReason: finishReason,
-                                partialToolCall: partialToolCall
+                                partialToolCall: partialToolCall,
+                                reasoningDetails: finalReasoningDetails
                             )
                             continuation.yield(chunk)
                             chunkIndex += 1
@@ -327,13 +440,30 @@ extension OpenAIProvider {
                                 text: "",
                                 tokenCount: 0,
                                 isComplete: false,
-                                partialToolCall: partialToolCall
+                                partialToolCall: partialToolCall,
+                                reasoningDetails: reasoningDetailsForChunk
+                            )
+                            continuation.yield(chunk)
+                            chunkIndex += 1
+                        } else if let reasoningDetailsForChunk {
+                            let chunk = GenerationChunk(
+                                text: "",
+                                tokenCount: 0,
+                                isComplete: false,
+                                reasoningDetails: reasoningDetailsForChunk
                             )
                             continuation.yield(chunk)
                             chunkIndex += 1
                         } else if let finishReason = finishReason {
+                            let completedReasoningDetails = buildReasoningDetails()
                             // Yield completion chunk
-                            let chunk = GenerationChunk.completion(finishReason: finishReason)
+                            let chunk = GenerationChunk(
+                                text: "",
+                                tokenCount: 0,
+                                isComplete: true,
+                                finishReason: finishReason,
+                                reasoningDetails: completedReasoningDetails.isEmpty ? nil : completedReasoningDetails
+                            )
                             continuation.yield(chunk)
                         }
                     }

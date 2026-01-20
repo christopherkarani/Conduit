@@ -9,6 +9,11 @@ import Foundation
 import FoundationNetworking
 #endif
 
+import Logging
+
+/// Logger for Anthropic provider diagnostics.
+private let logger = ConduitLoggers.anthropic
+
 // MARK: - Request Building
 
 extension AnthropicProvider {
@@ -27,8 +32,8 @@ extension AnthropicProvider {
     ///   messages are ignored.
     /// - **User/Assistant messages**: Converted to API format and included in
     ///   the `messages` array.
-    /// - **Tool messages**: Currently filtered out (tool support is planned for
-    ///   a future phase).
+    /// - **Tool messages**: Converted to `tool_result` blocks and included in
+    ///   the `messages` array with role `"user"`.
     ///
     /// ## Usage
     /// ```swift
@@ -78,7 +83,38 @@ extension AnthropicProvider {
         // Filter out system messages, convert to API format
         let apiMessages = messages.compactMap { msg -> AnthropicMessagesRequest.MessageContent? in
             switch msg.role {
-            case .user, .assistant:
+            case .assistant:
+                if let toolCalls = msg.metadata?.toolCalls, !toolCalls.isEmpty {
+                    var apiParts: [AnthropicMessagesRequest.MessageContent.ContentPart] = []
+
+                    let text = msg.content.textValue
+                    if !text.isEmpty {
+                        apiParts.append(AnthropicMessagesRequest.MessageContent.ContentPart(
+                            type: "text",
+                            text: text,
+                            source: nil
+                        ))
+                    }
+
+                    for call in toolCalls {
+                        apiParts.append(AnthropicMessagesRequest.MessageContent.ContentPart(
+                            type: "tool_use",
+                            text: nil,
+                            source: nil,
+                            id: call.id,
+                            name: call.toolName,
+                            input: call.arguments
+                        ))
+                    }
+
+                    return AnthropicMessagesRequest.MessageContent(
+                        role: msg.role.rawValue,
+                        content: .multipart(apiParts)
+                    )
+                }
+                fallthrough
+
+            case .user:
                 // Check if message has multimodal content (images)
                 switch msg.content {
                 case .text(let text):
@@ -128,9 +164,30 @@ extension AnthropicProvider {
                     )
                 }
 
-            case .system, .tool:
+            case .tool:
+                let toolUseId = msg.metadata?.custom?["tool_call_id"] ?? msg.metadata?.custom?["tool_use_id"]
+                guard let toolUseId, !toolUseId.isEmpty else {
+                    logger.warning("Skipping tool message without tool_call_id", metadata: [
+                        "messageId": .string(msg.id.uuidString)
+                    ])
+                    return nil
+                }
+
+                let toolResultPart = AnthropicMessagesRequest.MessageContent.ContentPart(
+                    type: "tool_result",
+                    text: nil,
+                    source: nil,
+                    toolUseId: toolUseId,
+                    content: msg.content.textValue
+                )
+
+                return AnthropicMessagesRequest.MessageContent(
+                    role: "user",
+                    content: .multipart([toolResultPart])
+                )
+
+            case .system:
                 // System messages go in separate field
-                // Tool messages not yet supported
                 return nil
             }
         }
@@ -217,7 +274,7 @@ extension AnthropicProvider {
         return (tools, toolChoice)
     }
 
-    /// Converts a JSON Schema dictionary to Anthropic's InputSchema type.
+    /// Converts a JSON schema dictionary to Anthropic's InputSchema type.
     private func convertToInputSchema(
         _ dict: [String: Any]
     ) -> AnthropicMessagesRequest.ToolDefinitionRequest.InputSchema {
@@ -591,7 +648,7 @@ extension AnthropicProvider {
     /// This method:
     /// 1. Separates thinking blocks from text blocks
     /// 2. Extracts text blocks and concatenates them into a single string
-    /// 3. Extracts tool_use blocks into `AIToolCall` objects
+    /// 3. Extracts tool_use blocks into `Transcript.ToolCall` objects
     /// 4. Returns empty string if no text blocks are present
     ///
     /// ## Extended Thinking
@@ -623,11 +680,11 @@ extension AnthropicProvider {
     /// ## Tool Calls
     ///
     /// When the model requests tool invocations (type="tool_use"), these are
-    /// extracted into `AIToolCall` objects and included in the result's `toolCalls`
+    /// extracted into `Transcript.ToolCall` objects and included in the result's `toolCalls`
     /// array. Each tool call contains:
     /// - `id`: Unique identifier for the call (required for multi-turn)
     /// - `toolName`: Name of the tool to invoke
-    /// - `arguments`: Parsed arguments as `StructuredContent`
+    /// - `arguments`: Parsed arguments as `GeneratedContent`
     ///
     /// ## Finish Reason Mapping
     ///
@@ -668,7 +725,7 @@ extension AnthropicProvider {
         // Note: Thinking blocks (type="thinking") contain internal reasoning
         // and are filtered out, as they are not part of the user-facing response
         var textContent = ""
-        var toolCalls: [AIToolCall] = []
+        var toolCalls: [Transcript.ToolCall] = []
 
         for block in response.content {
             switch block.type {
@@ -678,11 +735,11 @@ extension AnthropicProvider {
                 }
             case "tool_use":
                 if let id = block.id, let name = block.name {
-                    // Convert input dict to StructuredContent
                     let inputDict = block.input ?? [:]
-                    let anyDict = inputDict.mapValues { $0.anyValue }
-                    let arguments = try StructuredContent.from(dictionary: anyDict)
-                    let toolCall = try AIToolCall(
+                    let jsonData = try JSONEncoder().encode(inputDict)
+                    let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
+                    let arguments = try GeneratedContent(json: jsonString)
+                    let toolCall = try Transcript.ToolCall(
                         id: id,
                         toolName: name,
                         arguments: arguments

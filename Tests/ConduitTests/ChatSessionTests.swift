@@ -183,6 +183,102 @@ enum MockError: Error {
     case simulatedFailure
 }
 
+struct CustomModelID: ModelIdentifying {
+    let rawValue: String
+    let provider: ProviderType
+
+    var displayName: String { rawValue }
+    var description: String { rawValue }
+
+    init(rawValue: String, provider: ProviderType = .openAI) {
+        self.rawValue = rawValue
+        self.provider = provider
+    }
+}
+
+actor CustomModelTextProvider: AIProvider, @preconcurrency TextGenerator {
+    typealias Response = GenerationResult
+    typealias StreamChunk = GenerationChunk
+    typealias ModelID = CustomModelID
+
+    var isAvailable: Bool { true }
+
+    var availabilityStatus: ProviderAvailability {
+        .available
+    }
+
+    func generate(
+        messages: [Message],
+        model: ModelID,
+        config: GenerateConfig
+    ) async throws -> GenerationResult {
+        .text("Custom")
+    }
+
+    func stream(
+        messages: [Message],
+        model: ModelID,
+        config: GenerateConfig
+    ) -> AsyncThrowingStream<StreamChunk, Error> {
+        AsyncThrowingStream { continuation in
+            continuation.yield(
+                GenerationChunk(
+                    text: "Custom",
+                    tokenCount: 0,
+                    isComplete: true,
+                    finishReason: .stop
+                )
+            )
+            continuation.finish()
+        }
+    }
+
+    func cancelGeneration() async {
+    }
+
+    nonisolated func generate(
+        _ prompt: String,
+        model: ModelID,
+        config: GenerateConfig
+    ) async throws -> String {
+        _ = prompt
+        return "Custom"
+    }
+
+    nonisolated func stream(
+        _ prompt: String,
+        model: ModelID,
+        config: GenerateConfig
+    ) -> AsyncThrowingStream<String, Error> {
+        _ = prompt
+
+        return AsyncThrowingStream { continuation in
+            continuation.yield("Custom")
+            continuation.finish()
+        }
+    }
+
+    nonisolated func streamWithMetadata(
+        messages: [Message],
+        model: ModelID,
+        config: GenerateConfig
+    ) -> AsyncThrowingStream<GenerationChunk, Error> {
+        AsyncThrowingStream { continuation in
+            Task {
+                let stream = await self.stream(messages: messages, model: model, config: config)
+                do {
+                    for try await chunk in stream {
+                        continuation.yield(chunk)
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+        }
+    }
+}
+
 // MARK: - ChatSession Tests
 
 @Suite("ChatSession Tests")
@@ -205,6 +301,17 @@ struct ChatSessionTests {
         let session = try await ChatSession(provider: provider, model: .llama3_2_1b, config: config)
 
         #expect(session.config.temperature == config.temperature)
+    }
+
+    @Test("ChatSession supports custom ModelID")
+    func supportsCustomModelID() async throws {
+        let provider = CustomModelTextProvider()
+        let model = CustomModelID(rawValue: "custom-model")
+        let session = try await ChatSession(provider: provider, model: model)
+
+        #expect(session.messages.isEmpty)
+        #expect(session.isGenerating == false)
+        #expect(session.lastError == nil)
     }
 
     // MARK: - System Prompt Tests

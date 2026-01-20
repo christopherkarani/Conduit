@@ -52,12 +52,11 @@ extension TextGenerator {
         let stringStream = stream(prompt, model: model, config: config)
 
         // Transform to structured streaming
-        let structuredStream = AsyncThrowingStream<T.Partial, Error> { continuation in
-            Task {
+        let structuredStream = AsyncThrowingStream<StreamingResult<T>.Snapshot, Error> { continuation in
+            let task = Task {
                 var accumulated = ""
                 accumulated.reserveCapacity(4096)
-                var lastParsedPartial: T.Partial?
-                var lastParsedContent: StructuredContent?
+                var lastParsedContent: GeneratedContent?
 
                 // Maximum buffer size limit (1MB)
                 let maxAccumulatedSize = 1_000_000
@@ -78,15 +77,13 @@ extension TextGenerator {
                         guard shouldAttemptParse else { continue }
 
                         // Try to parse the accumulated JSON
-                        if let content = JsonRepair.tryParse(accumulated) {
+                        if let content = try? GeneratedContent(json: accumulated) {
                             do {
-                                let partial = try T.Partial(from: content)
+                                let partial = try T.PartiallyGenerated(content)
                                 // Only yield if meaningfully different from last
-                                let currentContent = partial.generableContent
-                                if lastParsedContent != currentContent {
-                                    lastParsedContent = currentContent
-                                    lastParsedPartial = partial
-                                    continuation.yield(partial)
+                                if lastParsedContent != content {
+                                    lastParsedContent = content
+                                    continuation.yield(.init(content: partial, rawContent: content))
                                 }
                             } catch {
                                 // Parsing to Partial failed, continue accumulating
@@ -95,11 +92,11 @@ extension TextGenerator {
                     }
 
                     // Final parse attempt with complete content
-                    if let content = JsonRepair.tryParse(accumulated) {
+                    if let content = try? GeneratedContent(json: accumulated) {
                         do {
-                            let partial = try T.Partial(from: content)
-                            if lastParsedPartial == nil {
-                                continuation.yield(partial)
+                            let partial = try T.PartiallyGenerated(content)
+                            if lastParsedContent == nil {
+                                continuation.yield(.init(content: partial, rawContent: content))
                             }
                         } catch {
                             continuation.finish(throwing: StreamingError.conversionFailed(error))
@@ -111,6 +108,10 @@ extension TextGenerator {
                 } catch {
                     continuation.finish(throwing: error)
                 }
+            }
+
+            continuation.onTermination = { @Sendable _ in
+                task.cancel()
             }
         }
 
@@ -133,7 +134,7 @@ extension TextGenerator {
     ) -> StreamingResult<T> {
         // Validate messages array is non-empty
         guard !messages.isEmpty else {
-            let errorStream = AsyncThrowingStream<T.Partial, Error> { continuation in
+            let errorStream = AsyncThrowingStream<StreamingResult<T>.Snapshot, Error> { continuation in
                 continuation.finish(throwing: StreamingError.parseFailed("Messages array cannot be empty"))
             }
             return StreamingResult(errorStream)
@@ -154,7 +155,7 @@ extension TextGenerator {
         }.joined(separator: "\n")
 
         // Add schema instruction
-        let schemaJSON = T.schema.description
+        let schemaJSON = T.generationSchema.toJSONString()
         let structuredPrompt = """
         \(prompt)
 

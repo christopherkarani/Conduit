@@ -7,8 +7,7 @@
 // - Anthropic: Claude API for advanced reasoning and tool use
 // - OpenAI: GPT models and DALL-E image generation
 //
-// Note: Apple Foundation Models (iOS 26+) is intentionally not wrapped.
-// SwiftAgents provides adapters for FM when unified orchestration is needed.
+// Note: Apple Foundation Models (iOS 26+) are supported via FoundationModelsProvider.
 //
 // Copyright 2025. MIT License.
 

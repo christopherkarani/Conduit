@@ -11,6 +11,12 @@ import Foundation
 import Testing
 @testable import Conduit
 
+@Generable
+private struct SchemaCompatibilityType {
+    let name: String
+    let age: Int?
+}
+
 // MARK: - Linux Compatibility Tests
 
 @Suite("Linux Compatibility")
@@ -169,36 +175,14 @@ struct LinuxCompatibilityTests {
     }
     #endif
 
-    // MARK: - Schema and Structured Output
+    // MARK: - GenerationSchema and Structured Output
 
-    @Test("Schema generation works on all platforms")
-    func schemaGenerationWorks() {
-        let schema = Schema.object(
-            name: "TestType",
-            description: "A test type",
-            properties: [
-                "name": Schema.Property(
-                    schema: .string(constraints: []),
-                    description: "Name",
-                    isRequired: true
-                ),
-                "age": Schema.Property(
-                    schema: .integer(constraints: []),
-                    description: "Age",
-                    isRequired: false
-                )
-            ]
-        )
-
-        #expect(schema.typeName == "TestType")
-        // Schema is an enum - verify it's an object type
-        if case .object(let name, _, let props) = schema {
-            #expect(name == "TestType")
-            #expect(props["name"] != nil)
-            #expect(props["age"] != nil)
-        } else {
-            Issue.record("Expected object schema")
-        }
+    @Test("GenerationSchema generation works on all platforms")
+    func schemaGenerationWorks() throws {
+        let schema = SchemaCompatibilityType.generationSchema
+        let encoded = try JSONEncoder().encode(schema)
+        let decoded = try JSONDecoder().decode(GenerationSchema.self, from: encoded)
+        #expect(decoded.debugDescription.contains("object"))
     }
 
     // MARK: - Error Types

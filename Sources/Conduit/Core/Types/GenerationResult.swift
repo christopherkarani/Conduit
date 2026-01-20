@@ -15,7 +15,7 @@ import Foundation
 /// print("Generated \(result.tokenCount) tokens in \(result.generationTime)s")
 /// print("Speed: \(result.tokensPerSecond) tok/s")
 /// ```
-public struct GenerationResult: Sendable, Hashable {
+public struct GenerationResult: Sendable, Equatable {
     /// The generated text.
     public let text: String
 
@@ -48,7 +48,7 @@ public struct GenerationResult: Sendable, Hashable {
     /// When `finishReason == .toolCall`, this array contains the tools
     /// the model wants to invoke. Execute each tool and provide results
     /// via `Message.toolOutput()` in the next request.
-    public let toolCalls: [AIToolCall]
+    public let toolCalls: [Transcript.ToolCall]
 
     /// Reasoning details from extended thinking models.
     ///
@@ -103,7 +103,7 @@ public struct GenerationResult: Sendable, Hashable {
         logprobs: [TokenLogprob]? = nil,
         usage: UsageStats? = nil,
         rateLimitInfo: RateLimitInfo? = nil,
-        toolCalls: [AIToolCall] = [],
+        toolCalls: [Transcript.ToolCall] = [],
         reasoningDetails: [ReasoningDetail] = []
     ) {
         self.text = text
@@ -139,21 +139,9 @@ public struct GenerationResult: Sendable, Hashable {
     }
 }
 
-// MARK: - Hashable Conformance
+// MARK: - Equatable Conformance
 
 extension GenerationResult {
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(text)
-        hasher.combine(tokenCount)
-        hasher.combine(generationTime)
-        hasher.combine(tokensPerSecond)
-        hasher.combine(finishReason)
-        hasher.combine(usage)
-        hasher.combine(rateLimitInfo)
-        hasher.combine(toolCalls)
-        hasher.combine(reasoningDetails)
-    }
-
     public static func == (lhs: GenerationResult, rhs: GenerationResult) -> Bool {
         lhs.text == rhs.text &&
         lhs.tokenCount == rhs.tokenCount &&
@@ -164,5 +152,26 @@ extension GenerationResult {
         lhs.rateLimitInfo == rhs.rateLimitInfo &&
         lhs.toolCalls == rhs.toolCalls &&
         lhs.reasoningDetails == rhs.reasoningDetails
+    }
+}
+
+// MARK: - Message Bridge
+
+extension GenerationResult {
+    /// Creates an assistant message carrying this result's text and tool calls.
+    ///
+    /// This preserves tool call metadata for providers that require tool_use
+    /// blocks in conversation history (e.g. Anthropic).
+    public func assistantMessage() -> Message {
+        Message(
+            role: .assistant,
+            content: .text(text),
+            metadata: MessageMetadata(
+                tokenCount: tokenCount,
+                generationTime: generationTime,
+                tokensPerSecond: tokensPerSecond,
+                toolCalls: toolCalls.isEmpty ? nil : toolCalls
+            )
+        )
     }
 }

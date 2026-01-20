@@ -140,7 +140,7 @@ internal struct AnthropicMessagesRequest: Codable, Sendable {
         /// Human-readable description of what the tool does.
         let description: String
 
-        /// JSON Schema for the tool's input parameters.
+        /// JSON schema for the tool's input parameters.
         let inputSchema: InputSchema
 
         enum CodingKeys: String, CodingKey {
@@ -149,7 +149,7 @@ internal struct AnthropicMessagesRequest: Codable, Sendable {
             case inputSchema = "input_schema"
         }
 
-        /// JSON Schema wrapper for input parameters.
+        /// JSON schema wrapper for input parameters.
         struct InputSchema: Codable, Sendable {
             let type: String
             let properties: [String: PropertySchema]
@@ -164,7 +164,7 @@ internal struct AnthropicMessagesRequest: Codable, Sendable {
             }
         }
 
-        /// Schema for a single property in the input.
+        /// schema for a single property in the input.
         struct PropertySchema: Codable, Sendable {
             let type: SchemaType
             let description: String?
@@ -197,7 +197,7 @@ internal struct AnthropicMessagesRequest: Codable, Sendable {
             }
         }
 
-        /// Schema for array items.
+        /// schema for array items.
         struct ItemSchema: Codable, Sendable {
             let type: SchemaType
             let description: String?
@@ -208,7 +208,7 @@ internal struct AnthropicMessagesRequest: Codable, Sendable {
             }
         }
 
-        /// JSON Schema type - can be a single type or array (for nullable).
+        /// JSON schema type - can be a single type or array (for nullable).
         enum SchemaType: Codable, Sendable {
             case single(String)
             case multiple([String])
@@ -347,18 +347,18 @@ internal struct AnthropicMessagesRequest: Codable, Sendable {
         /// Must be either `"user"` or `"assistant"`.
         let role: String
 
-        /// The content of the message (text or multimodal).
+        /// The content of the message (text or multipart).
         ///
-        /// Supports both simple text strings and multimodal content with images.
+        /// Supports simple text strings and multipart content (text, images, tool results).
         let content: ContentType
 
         // MARK: - ContentType
 
-        /// Content type - text or multipart (for vision).
+        /// Content type - text or multipart (vision/tool results).
         ///
         /// Anthropic's API supports two formats:
         /// - Simple string: `"content": "Hello"`
-        /// - Array of parts: `"content": [{"type":"text","text":"Hello"},{"type":"image",...}]`
+        /// - Array of parts: `"content": [{"type":"text","text":"Hello"},{"type":"image",...},{"type":"tool_result",...}]`
         enum ContentType: Codable, Sendable {
             /// Simple text content.
             case text(String)
@@ -415,9 +415,9 @@ internal struct AnthropicMessagesRequest: Codable, Sendable {
 
         /// Content part for multimodal messages.
         ///
-        /// Represents a single piece of content (text or image) in a multimodal message.
+        /// Represents a single piece of content (text, image, or tool result) in a multimodal message.
         struct ContentPart: Codable, Sendable {
-            /// The type of content ("text" or "image").
+            /// The type of content ("text", "image", or "tool_result").
             let type: String
 
             /// The text content (for text parts).
@@ -425,6 +425,60 @@ internal struct AnthropicMessagesRequest: Codable, Sendable {
 
             /// The image source (for image parts).
             let source: ImageSource?
+
+            /// The tool use ID (for tool_use parts).
+            let id: String?
+
+            /// The tool name (for tool_use parts).
+            let name: String?
+
+            /// The tool input payload (for tool_use parts).
+            let input: GeneratedContent?
+
+            /// The tool use ID (for tool_result parts).
+            let toolUseId: String?
+
+            /// The tool result content (for tool_result parts).
+            let content: String?
+
+            /// Whether the tool result represents an error (for tool_result parts).
+            let isError: Bool?
+
+            // MARK: - Coding Keys
+
+            enum CodingKeys: String, CodingKey {
+                case type
+                case text
+                case source
+                case id
+                case name
+                case input
+                case toolUseId = "tool_use_id"
+                case content
+                case isError = "is_error"
+            }
+
+            init(
+                type: String,
+                text: String?,
+                source: ImageSource?,
+                id: String? = nil,
+                name: String? = nil,
+                input: GeneratedContent? = nil,
+                toolUseId: String? = nil,
+                content: String? = nil,
+                isError: Bool? = nil
+            ) {
+                self.type = type
+                self.text = text
+                self.source = source
+                self.id = id
+                self.name = name
+                self.input = input
+                self.toolUseId = toolUseId
+                self.content = content
+                self.isError = isError
+            }
 
             /// Image source with base64 data.
             ///

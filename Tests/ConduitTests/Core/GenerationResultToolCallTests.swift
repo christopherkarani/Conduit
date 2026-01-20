@@ -32,7 +32,7 @@ struct GenerationResultToolCallTests {
 
         @Test("hasToolCalls returns true when tools present")
         func hasToolCallsReturnsTrueWhenPresent() throws {
-            let toolCall = try AIToolCall(
+            let toolCall = try Transcript.ToolCall(
                 id: "call_123",
                 toolName: "get_weather",
                 argumentsJSON: #"{"city": "San Francisco"}"#
@@ -53,7 +53,7 @@ struct GenerationResultToolCallTests {
 
         @Test("toolCalls contains correct data")
         func toolCallsContainsCorrectData() throws {
-            let toolCall = try AIToolCall(
+            let toolCall = try Transcript.ToolCall(
                 id: "call_abc123",
                 toolName: "search_database",
                 argumentsJSON: #"{"query": "test", "limit": 10}"#
@@ -74,12 +74,12 @@ struct GenerationResultToolCallTests {
 
         @Test("Multiple tool calls supported")
         func multipleToolCallsSupported() throws {
-            let toolCall1 = try AIToolCall(
+            let toolCall1 = try Transcript.ToolCall(
                 id: "call_1",
                 toolName: "get_weather",
                 argumentsJSON: #"{"city": "SF"}"#
             )
-            let toolCall2 = try AIToolCall(
+            let toolCall2 = try Transcript.ToolCall(
                 id: "call_2",
                 toolName: "get_time",
                 argumentsJSON: #"{"timezone": "PST"}"#
@@ -100,14 +100,14 @@ struct GenerationResultToolCallTests {
         }
     }
 
-    // MARK: - Hashable/Equatable Tests
+    // MARK: - Equatable Tests
 
-    @Suite("Hashable and Equatable")
-    struct HashableEquatableTests {
+    @Suite("Equatable")
+    struct EquatableTests {
 
         @Test("Results with same toolCalls are equal")
         func resultsWithSameToolCallsAreEqual() throws {
-            let toolCall = try AIToolCall(
+            let toolCall = try Transcript.ToolCall(
                 id: "call_123",
                 toolName: "test_tool",
                 argumentsJSON: #"{}"#
@@ -136,12 +136,12 @@ struct GenerationResultToolCallTests {
 
         @Test("Results with different toolCalls are not equal")
         func resultsWithDifferentToolCallsAreNotEqual() throws {
-            let toolCall1 = try AIToolCall(
+            let toolCall1 = try Transcript.ToolCall(
                 id: "call_1",
                 toolName: "tool_a",
                 argumentsJSON: #"{}"#
             )
-            let toolCall2 = try AIToolCall(
+            let toolCall2 = try Transcript.ToolCall(
                 id: "call_2",
                 toolName: "tool_b",
                 argumentsJSON: #"{}"#
@@ -168,35 +168,6 @@ struct GenerationResultToolCallTests {
             #expect(result1 != result2)
         }
 
-        @Test("Hash includes toolCalls")
-        func hashIncludesToolCalls() throws {
-            let toolCall = try AIToolCall(
-                id: "call_123",
-                toolName: "test_tool",
-                argumentsJSON: #"{}"#
-            )
-
-            let resultWithTools = GenerationResult(
-                text: "Test",
-                tokenCount: 1,
-                generationTime: 0.1,
-                tokensPerSecond: 10.0,
-                finishReason: .toolCall,
-                toolCalls: [toolCall]
-            )
-
-            let resultWithoutTools = GenerationResult(
-                text: "Test",
-                tokenCount: 1,
-                generationTime: 0.1,
-                tokensPerSecond: 10.0,
-                finishReason: .stop,
-                toolCalls: []
-            )
-
-            // Different hash values indicate toolCalls are included in hash
-            #expect(resultWithTools.hashValue != resultWithoutTools.hashValue)
-        }
     }
 
     // MARK: - Factory Method Tests
@@ -219,7 +190,7 @@ struct GenerationResultToolCallTests {
 
         @Test("toolCall finish reason with tool calls")
         func toolCallFinishReasonWithToolCalls() throws {
-            let toolCall = try AIToolCall(
+            let toolCall = try Transcript.ToolCall(
                 id: "call_123",
                 toolName: "test_tool",
                 argumentsJSON: #"{}"#

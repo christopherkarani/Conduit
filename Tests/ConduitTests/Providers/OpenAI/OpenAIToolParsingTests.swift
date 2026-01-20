@@ -58,7 +58,7 @@ struct OpenAIToolParsingTests {
             #expect(result.toolCalls.count == 1)
             #expect(result.toolCalls[0].id == "call_abc123")
             #expect(result.toolCalls[0].toolName == "get_weather")
-            #expect(result.finishReason == .toolCall)
+            #expect(result.finishReason == .toolCalls)
         }
 
         @Test("Parse response with multiple tool calls")
@@ -226,7 +226,7 @@ struct OpenAIToolParsingTests {
             let data = json.data(using: .utf8)!
             let result = try await provider.parseGenerationResponse(data: data)
 
-            #expect(result.finishReason == .toolCall)
+            #expect(result.finishReason == .toolCalls)
         }
 
         @Test("finish_reason stop maps to FinishReason.stop")

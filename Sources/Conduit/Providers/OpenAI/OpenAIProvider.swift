@@ -84,7 +84,7 @@ public actor OpenAIProvider: AIProvider, TextGenerator, EmbeddingGenerator, Toke
     // MARK: - Properties
 
     /// The configuration for this provider.
-    public let configuration: OpenAIConfiguration
+    public nonisolated let configuration: OpenAIConfiguration
 
     /// The URLSession used for HTTP requests.
     internal let session: URLSession
@@ -299,5 +299,86 @@ public actor OpenAIProvider: AIProvider, TextGenerator, EmbeddingGenerator, Toke
         get async {
             configuration.endpoint.defaultCapabilities
         }
+    }
+}
+
+// MARK: - OpenRouter Convenience Initializers
+
+extension OpenAIProvider {
+
+    /// Creates an OpenRouter provider with minimal configuration.
+    ///
+    /// This is the simplest way to get started with OpenRouter.
+    ///
+    /// ```swift
+    /// let provider = OpenAIProvider(openRouterKey: "sk-or-...")
+    /// let response = try await provider.generate(
+    ///     "Hello",
+    ///     model: .openRouter("anthropic/claude-3-opus"),
+    ///     config: .default
+    /// )
+    /// ```
+    ///
+    /// - Parameter apiKey: Your OpenRouter API key.
+    public init(openRouterKey apiKey: String) {
+        self.init(configuration: .openRouter(apiKey: apiKey))
+    }
+
+    /// Creates an OpenRouter provider optimized for Claude models.
+    ///
+    /// Configures routing to prefer Anthropic with fallbacks enabled.
+    ///
+    /// ```swift
+    /// let provider = OpenAIProvider.forClaude(apiKey: "sk-or-...")
+    /// let response = try await provider.generate(
+    ///     "Hello",
+    ///     model: .claudeOpus,
+    ///     config: .default
+    /// )
+    /// ```
+    ///
+    /// - Parameter apiKey: Your OpenRouter API key.
+    /// - Returns: A provider configured to prefer Claude models.
+    public static func forClaude(apiKey: String) -> OpenAIProvider {
+        OpenAIProvider(configuration: .openRouter(apiKey: apiKey)
+            .routing(.preferAnthropic))
+    }
+
+    /// Creates an OpenRouter provider optimized for fastest response.
+    ///
+    /// Configures latency-based routing with fallbacks enabled.
+    ///
+    /// ```swift
+    /// let provider = OpenAIProvider.fastest(apiKey: "sk-or-...")
+    /// ```
+    ///
+    /// - Parameter apiKey: Your OpenRouter API key.
+    /// - Returns: A provider configured for minimum latency.
+    public static func fastest(apiKey: String) -> OpenAIProvider {
+        OpenAIProvider(configuration: .openRouter(apiKey: apiKey)
+            .routing(.fastestProvider))
+    }
+
+    /// Creates an OpenRouter provider with custom routing preferences.
+    ///
+    /// ```swift
+    /// let provider = OpenAIProvider.forOpenRouter(
+    ///     apiKey: "sk-or-...",
+    ///     preferring: [.anthropic, .openai]
+    /// )
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - apiKey: Your OpenRouter API key.
+    ///   - preferring: Providers to prefer, in priority order.
+    ///   - fallbacks: Whether to enable fallbacks. Default: `true`
+    /// - Returns: A configured OpenRouter provider.
+    public static func forOpenRouter(
+        apiKey: String,
+        preferring providers: [OpenRouterProvider] = [],
+        fallbacks: Bool = true
+    ) -> OpenAIProvider {
+        let routing = OpenRouterRoutingConfig(providers: providers.isEmpty ? nil : providers, fallbacks: fallbacks)
+        return OpenAIProvider(configuration: .openRouter(apiKey: apiKey).routing(routing))
     }
 }
