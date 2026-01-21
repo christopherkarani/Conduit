@@ -56,7 +56,7 @@ public struct URLSessionAsyncBytes: AsyncSequence, Sendable {
 
     /// An async sequence of lines from the byte stream.
     ///
-    /// Lines are delimited by `\n` or `\r\n`. The delimiter is not included
+    /// Lines are delimited by `\n`, `\r`, or `\r\n`. The delimiter is not included
     /// in the returned strings.
     public var lines: AsyncLineSequence {
         AsyncLineSequence(bytes: self)
@@ -91,14 +91,16 @@ public struct AsyncLineSequence: AsyncSequence, Sendable {
 
             while true {
                 // Check if we have a complete line in the buffer
-                if let newlineIndex = buffer.firstIndex(of: UInt8(ascii: "\n")) {
-                    var lineEnd = newlineIndex
-                    // Handle \r\n
-                    if lineEnd > 0 && buffer[lineEnd - 1] == UInt8(ascii: "\r") {
-                        lineEnd -= 1
+                if let newlineIndex = buffer.firstIndex(where: { $0 == UInt8(ascii: "\n") || $0 == UInt8(ascii: "\r") }) {
+                    let delimiter = buffer[newlineIndex]
+                    let lineBytes = Array(buffer[..<newlineIndex])
+                    var removeCount = newlineIndex + 1
+                    if delimiter == UInt8(ascii: "\r"),
+                       removeCount < buffer.count,
+                       buffer[removeCount] == UInt8(ascii: "\n") {
+                        removeCount += 1
                     }
-                    let lineBytes = Array(buffer[..<lineEnd])
-                    buffer.removeFirst(newlineIndex + 1)
+                    buffer.removeFirst(removeCount)
                     return String(decoding: lineBytes, as: UTF8.self)
                 }
 
@@ -336,14 +338,16 @@ public struct AsyncLineSequence: AsyncSequence, Sendable {
 
             while true {
                 // Check if we have a complete line in the buffer
-                if let newlineIndex = buffer.firstIndex(of: UInt8(ascii: "\n")) {
-                    var lineEnd = newlineIndex
-                    // Handle \r\n
-                    if lineEnd > 0 && buffer[lineEnd - 1] == UInt8(ascii: "\r") {
-                        lineEnd -= 1
+                if let newlineIndex = buffer.firstIndex(where: { $0 == UInt8(ascii: "\n") || $0 == UInt8(ascii: "\r") }) {
+                    let delimiter = buffer[newlineIndex]
+                    let lineBytes = Array(buffer[..<newlineIndex])
+                    var removeCount = newlineIndex + 1
+                    if delimiter == UInt8(ascii: "\r"),
+                       removeCount < buffer.count,
+                       buffer[removeCount] == UInt8(ascii: "\n") {
+                        removeCount += 1
                     }
-                    let lineBytes = Array(buffer[..<lineEnd])
-                    buffer.removeFirst(newlineIndex + 1)
+                    buffer.removeFirst(removeCount)
                     return String(decoding: lineBytes, as: UTF8.self)
                 }
 

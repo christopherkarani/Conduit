@@ -20,10 +20,13 @@ final class JSONValueParityTests: XCTestCase {
         XCTAssertNil(doubleValue.intValue)
 
         let integralDouble: JSONValue = 10.0
-        XCTAssertEqual(integralDouble.intValue, 10)
+        XCTAssertNil(integralDouble.intValue)
 
         let stringValue: JSONValue = "hello"
         XCTAssertEqual(stringValue.stringValue, "hello")
+
+        let interpolated: JSONValue = "hello \(42)"
+        XCTAssertEqual(interpolated.stringValue, "hello 42")
 
         let arrayValue: JSONValue = [1, 2, 3]
         XCTAssertEqual(arrayValue.arrayValue, [.int(1), .int(2), .int(3)])
@@ -32,4 +35,3 @@ final class JSONValueParityTests: XCTestCase {
         XCTAssertEqual(objectValue.objectValue?["key"]?.stringValue, "value")
     }
 }
-

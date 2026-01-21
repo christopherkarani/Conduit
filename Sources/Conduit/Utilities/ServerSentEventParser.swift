@@ -7,15 +7,22 @@
 import Foundation
 
 /// A parsed Server-Sent Event.
+///
+/// Mirrors the semantics of common `EventSource` implementations:
+/// - `event == nil` implies the default type `"message"`
+/// - `id` is only set when an `id:` field is present for that event
 internal struct ServerSentEvent: Sendable, Equatable {
-    /// The last event ID (may persist across events per SSE spec).
+    /// The event ID (if provided by the server for this event).
     var id: String?
 
-    /// The event type. If absent, the default is `"message"`.
-    var event: String
+    /// The event type name (if provided via `event:`; `nil` implies `"message"`).
+    var event: String?
 
     /// The event data payload (may contain newlines if multiple `data:` lines were present).
     var data: String
+
+    /// Optional reconnection retry interval (ms) if provided by a `retry:` field.
+    var retry: Int?
 }
 
 /// Incremental parser for Server-Sent Events (SSE).
@@ -23,9 +30,17 @@ internal struct ServerSentEvent: Sendable, Equatable {
 /// Feed the parser newline-delimited lines (without the trailing `\n`). A blank line
 /// terminates the current event and causes it to be emitted.
 internal struct ServerSentEventParser: Sendable {
+    // Current event state
+    private var currentEventId: String?
     private var currentEventType: String?
-    private var dataLines: [String] = []
-    private var lastEventId: String?
+    private var currentData: String = ""
+    private var currentRetry: Int?
+
+    // Persistent state (not currently surfaced, but maintained for parity)
+    private var lastEventId: String = ""
+    private var reconnectionTime: Int = 3000
+
+    private var seenFields: Set<String> = []
 
     init() {}
 
@@ -35,7 +50,9 @@ internal struct ServerSentEventParser: Sendable {
 
         // Empty line dispatches the event.
         if normalizedLine.isEmpty {
-            return dispatchIfNeeded()
+            let events = dispatchIfNeeded()
+            seenFields.removeAll(keepingCapacity: true)
+            return events
         }
 
         // Comments begin with ":" and are ignored.
@@ -47,17 +64,26 @@ internal struct ServerSentEventParser: Sendable {
 
         switch field {
         case "event":
-            currentEventType = value.isEmpty ? nil : value
+            currentEventType = value
+            seenFields.insert("event")
         case "data":
-            dataLines.append(value)
+            if !currentData.isEmpty {
+                currentData.append("\n")
+            }
+            currentData.append(value)
+            seenFields.insert("data")
         case "id":
-            // The SSE spec ignores IDs containing null characters.
             if !value.contains("\u{0000}") {
+                currentEventId = value
                 lastEventId = value
             }
+            seenFields.insert("id")
         case "retry":
-            // Ignored: reconnection timing is handled by the networking layer.
-            break
+            if let milliseconds = Int(value), milliseconds > 0 {
+                reconnectionTime = milliseconds
+                currentRetry = milliseconds
+            }
+            seenFields.insert("retry")
         default:
             // Ignore unknown fields.
             break
@@ -68,17 +94,30 @@ internal struct ServerSentEventParser: Sendable {
 
     /// Call at end-of-stream to flush any pending event.
     mutating func finish() -> [ServerSentEvent] {
-        dispatchIfNeeded()
+        // Match upstream `EventSource.Parser.finish()` semantics: only dispatch if we have
+        // non-empty `data`, or an explicit `id:` / `event:` for this event.
+        guard !currentData.isEmpty || currentEventId != nil || currentEventType != nil else {
+            return []
+        }
+
+        let events = dispatchIfNeeded()
+        seenFields.removeAll(keepingCapacity: true)
+        return events
     }
 
     // MARK: - Internals
 
     private func normalizeLine(_ line: String) -> String {
         // `URLSession.AsyncBytes.lines` can strip `\n` but may leave `\r` from CRLF.
-        if line.hasSuffix("\r") {
-            return String(line.dropLast())
+        var normalized = line
+        if normalized.hasSuffix("\r") {
+            normalized = String(normalized.dropLast())
         }
-        return line
+        // Some implementations allow an optional UTF-8 BOM at the start of a line.
+        if normalized.hasPrefix("\u{FEFF}") {
+            normalized = String(normalized.dropFirst())
+        }
+        return normalized
     }
 
     private func parseFieldValue(_ line: String) -> (field: String, value: String) {
@@ -100,17 +139,27 @@ internal struct ServerSentEventParser: Sendable {
     }
 
     private mutating func dispatchIfNeeded() -> [ServerSentEvent] {
+        let isDataField = currentData.isEmpty && seenFields.contains("data")
+        let isRetryOnly =
+            currentData.isEmpty && currentEventId == nil && currentEventType == nil
+            && !isDataField
+
         defer {
             // Per spec, `event` and `data` buffers reset after dispatch.
             currentEventType = nil
-            dataLines.removeAll(keepingCapacity: true)
+            currentData = ""
+            currentEventId = nil
+            currentRetry = nil
         }
 
-        guard !dataLines.isEmpty else { return [] }
+        guard !isRetryOnly else { return [] }
 
-        let data = dataLines.joined(separator: "\n")
-        let event = currentEventType ?? "message"
-        return [ServerSentEvent(id: lastEventId, event: event, data: data)]
+        let event = ServerSentEvent(
+            id: currentEventId,
+            event: currentEventType,
+            data: currentData,
+            retry: currentRetry
+        )
+        return [event]
     }
 }
-

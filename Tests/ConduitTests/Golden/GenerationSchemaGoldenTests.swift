@@ -58,6 +58,23 @@ final class GenerationSchemaGoldenTests: XCTestCase {
         XCTAssertEqual(try canonicalJSONString(actual), try canonicalJSONString(expected))
     }
 
+    func testOmitAdditionalPropertiesOmitsKey() throws {
+        let schema = Book.generationSchema.withResolvedRoot() ?? Book.generationSchema
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        encoder.userInfo[GenerationSchema.omitAdditionalPropertiesKey] = true
+
+        let data = try encoder.encode(schema)
+        let object = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        XCTAssertNil(object["additionalProperties"])
+
+        let defs = try XCTUnwrap(object["$defs"] as? [String: Any])
+        let book = try XCTUnwrap(defs["ConduitTests.GenerationSchemaGoldenTests.Book"] as? [String: Any])
+        XCTAssertNil(book["additionalProperties"])
+    }
+
     private func canonicalJSONString(_ json: String) throws -> String {
         let object = try JSONSerialization.jsonObject(with: Data(json.utf8), options: [.fragmentsAllowed])
         let canonical = canonicalizeJSON(object)

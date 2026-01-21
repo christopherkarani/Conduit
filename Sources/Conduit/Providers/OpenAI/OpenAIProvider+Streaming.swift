@@ -146,15 +146,9 @@ extension OpenAIProvider {
             throw AIError.serverError(statusCode: httpResponse.statusCode, message: message)
         }
 
-        // Parse SSE stream with proper UTF-8 handling
+        // Parse SSE stream
         var chunkIndex = 0
-        var buffer = ""
-        var byteBuffer = Data()
         var sseParser = ServerSentEventParser()
-
-        // Buffer size limits to prevent DoS
-        let maxBufferSize = 50_000 // 50KB reasonable for a single SSE line
-        let maxByteBufferSize = 4 // UTF-8 sequences are max 4 bytes
 
         // Tool call accumulation by index
         // Each entry tracks: id, name, and accumulated arguments buffer
@@ -192,282 +186,263 @@ extension OpenAIProvider {
             return details
         }
 
-        for try await byte in bytes {
+        func processEventData(_ jsonStr: String) -> Bool {
+            if jsonStr == "[DONE]" {
+                continuation.finish()
+                return true
+            }
+
+            guard let jsonData = jsonStr.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+                  let choices = json["choices"] as? [[String: Any]],
+                  let firstChoice = choices.first,
+                  let delta = firstChoice["delta"] as? [String: Any]
+            else {
+                return false
+            }
+
+            let content = delta["content"] as? String
+            let finishReasonStr = firstChoice["finish_reason"] as? String
+            let finishReason = finishReasonStr.flatMap { FinishReason(rawValue: $0) }
+
+            var hasReasoningUpdate = false
+            var reasoningDetailsForChunk: [ReasoningDetail]? = nil
+
+            if let reasoningDelta = delta["reasoning"] as? String, !reasoningDelta.isEmpty {
+                let newSize = reasoningBuffer.count + reasoningDelta.count
+                if newSize > maxReasoningSize {
+                    logger.warning("Reasoning text exceeded \(maxReasoningSize) bytes, truncating")
+                    let remaining = max(0, maxReasoningSize - reasoningBuffer.count)
+                    reasoningBuffer += String(reasoningDelta.prefix(remaining))
+                } else {
+                    reasoningBuffer += reasoningDelta
+                }
+                hasReasoningUpdate = true
+            }
+
+            if let reasoningDetailsDelta = delta["reasoning_details"] as? [[String: Any]] {
+                for (fallbackIndex, rd) in reasoningDetailsDelta.enumerated() {
+                    let id = rd["id"] as? String ?? "rd_\(fallbackIndex)"
+                    let type = rd["type"] as? String ?? "reasoning.text"
+                    let format = rd["format"] as? String ?? "unknown"
+                    let index = rd["index"] as? Int ?? fallbackIndex
+                    let fragment = rd["content"] as? String ?? ""
+
+                    var acc = reasoningDetailBuffers[id] ?? ReasoningAccumulator(
+                        id: id,
+                        type: type,
+                        format: format,
+                        index: index,
+                        content: ""
+                    )
+                    acc.type = type
+                    acc.format = format
+                    acc.index = index
+
+                    if !fragment.isEmpty {
+                        let newSize = acc.content.count + fragment.count
+                        if newSize > maxReasoningSize {
+                            logger.warning("Reasoning detail '\(id)' exceeded \(maxReasoningSize) bytes, truncating")
+                            let remaining = max(0, maxReasoningSize - acc.content.count)
+                            acc.content += String(fragment.prefix(remaining))
+                        } else {
+                            acc.content += fragment
+                        }
+                    }
+
+                    reasoningDetailBuffers[id] = acc
+                    hasReasoningUpdate = true
+                }
+            }
+
+            if hasReasoningUpdate {
+                let details = buildReasoningDetails()
+                if !details.isEmpty {
+                    reasoningDetailsForChunk = details
+                }
+            }
+
+            // Process tool calls if present in delta
+            var partialToolCall: PartialToolCall?
+            if let toolCalls = delta["tool_calls"] as? [[String: Any]] {
+                for tc in toolCalls {
+                    guard let index = tc["index"] as? Int else { continue }
+
+                    // Validate index is within reasonable bounds (0...100)
+                    guard (0...100).contains(index) else {
+                        let toolName = (tc["function"] as? [String: Any])?["name"] as? String ?? "unknown"
+                        logger.warning(
+                            "Skipping tool call '\(toolName)' with invalid index \(index) (must be 0...100)"
+                        )
+                        continue
+                    }
+
+                    // First chunk for this tool call has id, type, and function name
+                    if let id = tc["id"] as? String,
+                       let function = tc["function"] as? [String: Any],
+                       let name = function["name"] as? String {
+                        // Initialize accumulator with initial arguments (if any)
+                        let args = function["arguments"] as? String ?? ""
+                        toolCallAccumulators[index] = (id: id, name: name, argumentsBuffer: args)
+                    } else if let function = tc["function"] as? [String: Any],
+                              let argsFragment = function["arguments"] as? String {
+                        // Append to existing accumulator with buffer size check
+                        if var acc = toolCallAccumulators[index] {
+                            // Pre-allocate capacity on first append to avoid O(n²) string concatenation
+                            if acc.argumentsBuffer.isEmpty {
+                                acc.argumentsBuffer.reserveCapacity(min(4096, maxToolArgumentsSize))
+                            }
+
+                            let newSize = acc.argumentsBuffer.count + argsFragment.count
+                            if newSize > maxToolArgumentsSize {
+                                logger.warning(
+                                    "Tool call '\(acc.name)' arguments exceeded \(maxToolArgumentsSize) bytes, truncating"
+                                )
+                                let remaining = max(0, maxToolArgumentsSize - acc.argumentsBuffer.count)
+                                acc.argumentsBuffer += String(argsFragment.prefix(remaining))
+                            } else {
+                                acc.argumentsBuffer += argsFragment
+                            }
+                            toolCallAccumulators[index] = acc
+                        }
+                    }
+
+                    // Create partial tool call for streaming updates
+                    if let acc = toolCallAccumulators[index] {
+                        partialToolCall = PartialToolCall(
+                            id: acc.id,
+                            toolName: acc.name,
+                            index: index,
+                            argumentsFragment: acc.argumentsBuffer
+                        )
+                    }
+                }
+            }
+
+            // Check if we should finalize tool calls
+            let isToolCallsComplete = finishReason == .toolCalls || finishReason == .toolCall
+
+            if isToolCallsComplete && !toolCallAccumulators.isEmpty {
+                let completedReasoningDetails = buildReasoningDetails()
+
+                // Finalize all accumulated tool calls
+                for (index, acc) in toolCallAccumulators.sorted(by: { $0.key < $1.key }) {
+                    do {
+                        let toolCall = try Transcript.ToolCall(
+                            id: acc.id,
+                            toolName: acc.name,
+                            argumentsJSON: acc.argumentsBuffer
+                        )
+                        completedToolCalls.append(toolCall)
+                        logger.debug("Parsed tool call '\(acc.name)' at index \(index)")
+                    } catch {
+                        // Try to repair incomplete JSON before giving up
+                        let repairedJson = JsonRepair.repair(acc.argumentsBuffer)
+                        if repairedJson != acc.argumentsBuffer {
+                            logger.debug("Attempting JSON repair for '\(acc.name)'")
+                            do {
+                                let toolCall = try Transcript.ToolCall(
+                                    id: acc.id,
+                                    toolName: acc.name,
+                                    argumentsJSON: repairedJson
+                                )
+                                completedToolCalls.append(toolCall)
+                                logger.info("Recovered tool call '\(acc.name)' via JSON repair")
+                            } catch {
+                                logger.warning(
+                                    "Failed to parse tool call '\(acc.name)' even after repair: \(error.localizedDescription)"
+                                )
+                                logger.debug("Original JSON: \(acc.argumentsBuffer.prefix(500))")
+                                logger.debug("Repaired JSON: \(repairedJson.prefix(500))")
+                            }
+                        } else {
+                            logger.warning(
+                                "Failed to parse tool call '\(acc.name)': \(error.localizedDescription)"
+                            )
+                            logger.debug("Malformed JSON buffer: \(acc.argumentsBuffer.prefix(500))")
+                        }
+                    }
+                }
+
+                // Yield final chunk with completed tool calls
+                let chunk = GenerationChunk(
+                    text: content ?? "",
+                    tokenCount: content?.isEmpty == false ? 1 : 0,
+                    isComplete: true,
+                    finishReason: finishReason,
+                    completedToolCalls: completedToolCalls.isEmpty ? nil : completedToolCalls,
+                    reasoningDetails: completedReasoningDetails.isEmpty ? nil : completedReasoningDetails
+                )
+                continuation.yield(chunk)
+                chunkIndex += 1
+            } else if let content = content, !content.isEmpty {
+                let finalReasoningDetails: [ReasoningDetail]? = {
+                    if finishReason != nil {
+                        let details = buildReasoningDetails()
+                        return details.isEmpty ? nil : details
+                    }
+                    return reasoningDetailsForChunk
+                }()
+
+                // Yield content chunk (may also include partial tool call)
+                let chunk = GenerationChunk(
+                    text: content,
+                    isComplete: finishReason != nil,
+                    finishReason: finishReason,
+                    partialToolCall: partialToolCall,
+                    reasoningDetails: finalReasoningDetails
+                )
+                continuation.yield(chunk)
+                chunkIndex += 1
+            } else if partialToolCall != nil {
+                // Yield chunk with only partial tool call update
+                let chunk = GenerationChunk(
+                    text: "",
+                    tokenCount: 0,
+                    isComplete: false,
+                    partialToolCall: partialToolCall,
+                    reasoningDetails: reasoningDetailsForChunk
+                )
+                continuation.yield(chunk)
+                chunkIndex += 1
+            } else if let reasoningDetailsForChunk {
+                let chunk = GenerationChunk(
+                    text: "",
+                    tokenCount: 0,
+                    isComplete: false,
+                    reasoningDetails: reasoningDetailsForChunk
+                )
+                continuation.yield(chunk)
+                chunkIndex += 1
+            } else if let finishReason = finishReason {
+                let completedReasoningDetails = buildReasoningDetails()
+                // Yield completion chunk
+                let chunk = GenerationChunk(
+                    text: "",
+                    tokenCount: 0,
+                    isComplete: true,
+                    finishReason: finishReason,
+                    reasoningDetails: completedReasoningDetails.isEmpty ? nil : completedReasoningDetails
+                )
+                continuation.yield(chunk)
+            }
+
+            return false
+        }
+
+        for try await line in bytes.lines {
             try Task.checkCancellation()
 
-            // Accumulate bytes for UTF-8 decoding
-            byteBuffer.append(byte)
-
-            // Try to decode accumulated bytes as UTF-8
-            if let decodedString = String(data: byteBuffer, encoding: .utf8) {
-                // Successfully decoded - append to buffer and clear byte buffer
-                buffer.append(decodedString)
-                byteBuffer.removeAll(keepingCapacity: true)
-
-                // Enforce buffer size limit to prevent DoS
-                guard buffer.count < maxBufferSize else {
-                    throw AIError.generationFailed(underlying: SendableError(NSError(
-                        domain: "OpenAIProvider",
-                        code: -1,
-                        userInfo: [NSLocalizedDescriptionKey: "Stream buffer overflow - line exceeds \(maxBufferSize) characters"]
-                    )))
+            for event in sseParser.ingestLine(line) {
+                if processEventData(event.data) {
+                    return
                 }
-            } else if byteBuffer.count > maxByteBufferSize {
-                // We have more than 4 bytes and still can't decode - invalid UTF-8
-                throw AIError.generationFailed(underlying: SendableError(NSError(
-                    domain: "OpenAIProvider",
-                    code: -1,
-                    userInfo: [NSLocalizedDescriptionKey: "Invalid UTF-8 sequence in streaming response"]
-                )))
             }
-            // Otherwise, continue accumulating bytes (incomplete multi-byte sequence)
+        }
 
-            // Process complete lines
-            while let lineEnd = buffer.firstIndex(of: "\n") {
-                let line = String(buffer[..<lineEnd])
-                buffer = String(buffer[buffer.index(after: lineEnd)...])
-
-                for event in sseParser.ingestLine(line) {
-                    let jsonStr = event.data
-
-                    if jsonStr == "[DONE]" {
-                        continuation.finish()
-                        return
-                    }
-
-                    if let jsonData = jsonStr.data(using: .utf8),
-                       let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-                       let choices = json["choices"] as? [[String: Any]],
-                       let firstChoice = choices.first,
-                       let delta = firstChoice["delta"] as? [String: Any] {
-
-                        let content = delta["content"] as? String
-                        let finishReasonStr = firstChoice["finish_reason"] as? String
-                        let finishReason = finishReasonStr.flatMap { FinishReason(rawValue: $0) }
-
-                        var hasReasoningUpdate = false
-                        var reasoningDetailsForChunk: [ReasoningDetail]? = nil
-
-                        if let reasoningDelta = delta["reasoning"] as? String, !reasoningDelta.isEmpty {
-                            let newSize = reasoningBuffer.count + reasoningDelta.count
-                            if newSize > maxReasoningSize {
-                                logger.warning("Reasoning text exceeded \(maxReasoningSize) bytes, truncating")
-                                let remaining = max(0, maxReasoningSize - reasoningBuffer.count)
-                                reasoningBuffer += String(reasoningDelta.prefix(remaining))
-                            } else {
-                                reasoningBuffer += reasoningDelta
-                            }
-                            hasReasoningUpdate = true
-                        }
-
-                        if let reasoningDetailsDelta = delta["reasoning_details"] as? [[String: Any]] {
-                            for (fallbackIndex, rd) in reasoningDetailsDelta.enumerated() {
-                                let id = rd["id"] as? String ?? "rd_\(fallbackIndex)"
-                                let type = rd["type"] as? String ?? "reasoning.text"
-                                let format = rd["format"] as? String ?? "unknown"
-                                let index = rd["index"] as? Int ?? fallbackIndex
-                                let fragment = rd["content"] as? String ?? ""
-
-                                var acc = reasoningDetailBuffers[id] ?? ReasoningAccumulator(
-                                    id: id,
-                                    type: type,
-                                    format: format,
-                                    index: index,
-                                    content: ""
-                                )
-                                acc.type = type
-                                acc.format = format
-                                acc.index = index
-
-                                if !fragment.isEmpty {
-                                    let newSize = acc.content.count + fragment.count
-                                    if newSize > maxReasoningSize {
-                                        logger.warning("Reasoning detail '\(id)' exceeded \(maxReasoningSize) bytes, truncating")
-                                        let remaining = max(0, maxReasoningSize - acc.content.count)
-                                        acc.content += String(fragment.prefix(remaining))
-                                    } else {
-                                        acc.content += fragment
-                                    }
-                                }
-
-                                reasoningDetailBuffers[id] = acc
-                                hasReasoningUpdate = true
-                            }
-                        }
-
-                        if hasReasoningUpdate {
-                            let details = buildReasoningDetails()
-                            if !details.isEmpty {
-                                reasoningDetailsForChunk = details
-                            }
-                        }
-
-                        // Process tool calls if present in delta
-                        var partialToolCall: PartialToolCall?
-                        if let toolCalls = delta["tool_calls"] as? [[String: Any]] {
-                            for tc in toolCalls {
-                                guard let index = tc["index"] as? Int else { continue }
-
-                                // Validate index is within reasonable bounds (0...100)
-                                guard (0...100).contains(index) else {
-                                    let toolName = (tc["function"] as? [String: Any])?["name"] as? String ?? "unknown"
-                                    logger.warning(
-                                        "Skipping tool call '\(toolName)' with invalid index \(index) (must be 0...100)"
-                                    )
-                                    continue
-                                }
-
-                                // First chunk for this tool call has id, type, and function name
-                                if let id = tc["id"] as? String,
-                                   let function = tc["function"] as? [String: Any],
-                                   let name = function["name"] as? String {
-                                    // Initialize accumulator with initial arguments (if any)
-                                    let args = function["arguments"] as? String ?? ""
-                                    toolCallAccumulators[index] = (id: id, name: name, argumentsBuffer: args)
-                                } else if let function = tc["function"] as? [String: Any],
-                                          let argsFragment = function["arguments"] as? String {
-                                    // Append to existing accumulator with buffer size check
-                                    if var acc = toolCallAccumulators[index] {
-                                        // Pre-allocate capacity on first append to avoid O(n²) string concatenation
-                                        if acc.argumentsBuffer.isEmpty {
-                                            acc.argumentsBuffer.reserveCapacity(min(4096, maxToolArgumentsSize))
-                                        }
-
-                                        let newSize = acc.argumentsBuffer.count + argsFragment.count
-                                        if newSize > maxToolArgumentsSize {
-                                            logger.warning(
-                                                "Tool call '\(acc.name)' arguments exceeded \(maxToolArgumentsSize) bytes, truncating"
-                                            )
-                                            let remaining = max(0, maxToolArgumentsSize - acc.argumentsBuffer.count)
-                                            acc.argumentsBuffer += String(argsFragment.prefix(remaining))
-                                        } else {
-                                            acc.argumentsBuffer += argsFragment
-                                        }
-                                        toolCallAccumulators[index] = acc
-                                    }
-                                }
-
-                                // Create partial tool call for streaming updates
-                                if let acc = toolCallAccumulators[index] {
-                                    partialToolCall = PartialToolCall(
-                                        id: acc.id,
-                                        toolName: acc.name,
-                                        index: index,
-                                        argumentsFragment: acc.argumentsBuffer
-                                    )
-                                }
-                            }
-                        }
-
-                        // Check if we should finalize tool calls
-                        let isToolCallsComplete = finishReason == .toolCalls || finishReason == .toolCall
-
-                        if isToolCallsComplete && !toolCallAccumulators.isEmpty {
-                            let completedReasoningDetails = buildReasoningDetails()
-
-                            // Finalize all accumulated tool calls
-                            for (index, acc) in toolCallAccumulators.sorted(by: { $0.key < $1.key }) {
-                                do {
-                                    let toolCall = try Transcript.ToolCall(
-                                        id: acc.id,
-                                        toolName: acc.name,
-                                        argumentsJSON: acc.argumentsBuffer
-                                    )
-                                    completedToolCalls.append(toolCall)
-                                    logger.debug("Parsed tool call '\(acc.name)' at index \(index)")
-                                } catch {
-                                    // Try to repair incomplete JSON before giving up
-                                    let repairedJson = JsonRepair.repair(acc.argumentsBuffer)
-                                    if repairedJson != acc.argumentsBuffer {
-                                        logger.debug("Attempting JSON repair for '\(acc.name)'")
-                                        do {
-                                            let toolCall = try Transcript.ToolCall(
-                                                id: acc.id,
-                                                toolName: acc.name,
-                                                argumentsJSON: repairedJson
-                                            )
-                                            completedToolCalls.append(toolCall)
-                                            logger.info("Recovered tool call '\(acc.name)' via JSON repair")
-                                        } catch {
-                                            logger.warning(
-                                                "Failed to parse tool call '\(acc.name)' even after repair: \(error.localizedDescription)"
-                                            )
-                                            logger.debug("Original JSON: \(acc.argumentsBuffer.prefix(500))")
-                                            logger.debug("Repaired JSON: \(repairedJson.prefix(500))")
-                                        }
-                                    } else {
-                                        logger.warning(
-                                            "Failed to parse tool call '\(acc.name)': \(error.localizedDescription)"
-                                        )
-                                        logger.debug("Malformed JSON buffer: \(acc.argumentsBuffer.prefix(500))")
-                                    }
-                                }
-                            }
-
-                            // Yield final chunk with completed tool calls
-                            let chunk = GenerationChunk(
-                                text: content ?? "",
-                                tokenCount: content?.isEmpty == false ? 1 : 0,
-                                isComplete: true,
-                                finishReason: finishReason,
-                                completedToolCalls: completedToolCalls.isEmpty ? nil : completedToolCalls,
-                                reasoningDetails: completedReasoningDetails.isEmpty ? nil : completedReasoningDetails
-                            )
-                            continuation.yield(chunk)
-                            chunkIndex += 1
-                        } else if let content = content, !content.isEmpty {
-                            let finalReasoningDetails: [ReasoningDetail]? = {
-                                if finishReason != nil {
-                                    let details = buildReasoningDetails()
-                                    return details.isEmpty ? nil : details
-                                }
-                                return reasoningDetailsForChunk
-                            }()
-
-                            // Yield content chunk (may also include partial tool call)
-                            let chunk = GenerationChunk(
-                                text: content,
-                                isComplete: finishReason != nil,
-                                finishReason: finishReason,
-                                partialToolCall: partialToolCall,
-                                reasoningDetails: finalReasoningDetails
-                            )
-                            continuation.yield(chunk)
-                            chunkIndex += 1
-                        } else if partialToolCall != nil {
-                            // Yield chunk with only partial tool call update
-                            let chunk = GenerationChunk(
-                                text: "",
-                                tokenCount: 0,
-                                isComplete: false,
-                                partialToolCall: partialToolCall,
-                                reasoningDetails: reasoningDetailsForChunk
-                            )
-                            continuation.yield(chunk)
-                            chunkIndex += 1
-                        } else if let reasoningDetailsForChunk {
-                            let chunk = GenerationChunk(
-                                text: "",
-                                tokenCount: 0,
-                                isComplete: false,
-                                reasoningDetails: reasoningDetailsForChunk
-                            )
-                            continuation.yield(chunk)
-                            chunkIndex += 1
-                        } else if let finishReason = finishReason {
-                            let completedReasoningDetails = buildReasoningDetails()
-                            // Yield completion chunk
-                            let chunk = GenerationChunk(
-                                text: "",
-                                tokenCount: 0,
-                                isComplete: true,
-                                finishReason: finishReason,
-                                reasoningDetails: completedReasoningDetails.isEmpty ? nil : completedReasoningDetails
-                            )
-                            continuation.yield(chunk)
-                        }
-                    }
-                }
+        for event in sseParser.finish() {
+            if processEventData(event.data) {
+                return
             }
         }
 
