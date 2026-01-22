@@ -40,9 +40,8 @@ import Foundation
 ///
 /// ## Protocol Conformances
 /// - `Sendable`: Thread-safe across concurrency boundaries
-/// - `Hashable`: Can be used in sets and as dictionary keys
 /// - `Codable`: Full JSON encoding/decoding support
-public struct GenerateConfig: Sendable, Hashable, Codable {
+public struct GenerateConfig: Sendable, Codable {
 
     // MARK: - Token Limits
 
@@ -193,7 +192,7 @@ public struct GenerateConfig: Sendable, Hashable, Codable {
     ///     .tools([WeatherTool(), SearchTool()])
     ///     .toolChoice(.auto)
     /// ```
-    public var tools: [ToolDefinition]
+    public var tools: [Transcript.ToolDefinition]
 
     /// Controls how the model chooses which tool to use.
     ///
@@ -257,14 +256,13 @@ public struct GenerateConfig: Sendable, Hashable, Codable {
     ///   - parallelToolCalls: Whether to allow parallel tool calls (default: nil).
     ///   - responseFormat: Response format for structured output (default: nil).
     ///   - reasoning: Configuration for reasoning mode (default: nil).
-
-    
-    ///   - Note: Dont set temperature and topP for Anthropic models
+    ///
+    /// - Note: Dont set temperature and topP for Anthropic models
     public init(
         maxTokens: Int? = 1024,
         minTokens: Int? = nil,
         temperature: Float = 0.7,
-        topP: Float = 0, 
+        topP: Float = 0.9,
         topK: Int? = nil,
         repetitionPenalty: Float = 1.0,
         frequencyPenalty: Float = 0.0,
@@ -275,7 +273,7 @@ public struct GenerateConfig: Sendable, Hashable, Codable {
         topLogprobs: Int? = nil,
         userId: String? = nil,
         serviceTier: ServiceTier? = nil,
-        tools: [ToolDefinition] = [],
+        tools: [Transcript.ToolDefinition] = [],
         toolChoice: ToolChoice = .auto,
         parallelToolCalls: Bool? = nil,
         responseFormat: ResponseFormat? = nil,
@@ -596,35 +594,31 @@ extension GenerateConfig {
     /// ## Usage
     /// ```swift
     /// let config = GenerateConfig.default.tools([
-    ///     ToolDefinition(name: "weather", description: "Get weather", parameters: WeatherTool.parameters)
+    ///     Transcript.ToolDefinition(name: "weather", description: "Get weather", parameters: WeatherTool.parameters)
     /// ])
     /// ```
     ///
     /// - Parameter definitions: Tool definitions to make available.
     /// - Returns: A new configuration with the tools.
-    public func tools(_ definitions: [ToolDefinition]) -> GenerateConfig {
+    public func tools(_ definitions: [Transcript.ToolDefinition]) -> GenerateConfig {
         var copy = self
         copy.tools = definitions
         return copy
     }
 
-    /// Returns a copy with tools from AITool instances.
+    /// Returns a copy with tools from Tool instances.
     ///
     /// ## Usage
     /// ```swift
     /// let config = GenerateConfig.default.tools([WeatherTool(), SearchTool()])
     /// ```
     ///
-    /// - Parameter aiTools: AITool instances to make available.
+    /// - Parameter tools: Tool instances to make available.
     /// - Returns: A new configuration with the tools.
-    public func tools(_ aiTools: [any AITool]) -> GenerateConfig {
+    public func tools(_ tools: [any Tool]) -> GenerateConfig {
         var copy = self
-        copy.tools = aiTools.map { tool in
-            ToolDefinition(
-                name: tool.name,
-                description: tool.description,
-                parameters: type(of: tool).parameters
-            )
+        copy.tools = tools.map { tool in
+            Transcript.ToolDefinition(tool: tool)
         }
         return copy
     }
@@ -706,61 +700,6 @@ extension GenerateConfig {
         var copy = self
         copy.reasoning = ReasoningConfig(effort: effort)
         return copy
-    }
-}
-
-// MARK: - ToolDefinition
-
-/// Definition of a tool that can be used by language models.
-///
-/// A `ToolDefinition` describes a tool's interface to the LLM, including
-/// its name, description, and parameter schema. This is used when passing
-/// tools to the generation configuration.
-///
-/// ## Usage
-/// ```swift
-/// let tool = ToolDefinition(
-///     name: "get_weather",
-///     description: "Get current weather for a city",
-///     parameters: WeatherTool.parameters
-/// )
-///
-/// let config = GenerateConfig.default.tools([tool])
-/// ```
-///
-/// ## From AITool
-/// You can also use the fluent API with `AITool` instances directly:
-/// ```swift
-/// let config = GenerateConfig.default.tools([WeatherTool(), SearchTool()])
-/// ```
-public struct ToolDefinition: Sendable, Hashable, Codable {
-
-    /// The unique name of the tool.
-    ///
-    /// This name is used by the LLM to reference the tool and should
-    /// follow naming conventions expected by the provider.
-    public let name: String
-
-    /// A description of what the tool does.
-    ///
-    /// This helps the LLM understand when and how to use the tool.
-    public let description: String
-
-    /// The schema describing the tool's parameters.
-    ///
-    /// Defines the structure and constraints of arguments the tool accepts.
-    public let parameters: Schema
-
-    /// Creates a new tool definition.
-    ///
-    /// - Parameters:
-    ///   - name: The unique name of the tool.
-    ///   - description: A description of what the tool does.
-    ///   - parameters: The schema for the tool's parameters.
-    public init(name: String, description: String, parameters: Schema) {
-        self.name = name
-        self.description = description
-        self.parameters = parameters
     }
 }
 
@@ -859,18 +798,14 @@ public enum ServiceTier: String, Sendable, Hashable, Codable {
 /// let config = GenerateConfig.default.responseFormat(.jsonObject)
 ///
 /// // JSON schema mode (strict validation)
-/// let schema = Schema.object(
-///     name: "User",
-///     description: nil,
-///     properties: ["name": .init(schema: .string(constraints: []), description: nil)]
-/// )
+/// let schema = User.generationSchema
 /// let config = GenerateConfig.default.responseFormat(.jsonSchema(name: "User", schema: schema))
 /// ```
 ///
 /// ## Provider Support
 /// - **OpenAI/OpenRouter**: Full support for all modes
 /// - **Anthropic**: Use `@Generable` macro instead
-public enum ResponseFormat: Sendable, Hashable, Codable {
+public enum ResponseFormat: Sendable, Codable {
 
     /// Plain text output (default).
     ///
@@ -890,8 +825,8 @@ public enum ResponseFormat: Sendable, Hashable, Codable {
     ///
     /// - Parameters:
     ///   - name: A name for the schema (required by some providers).
-    ///   - schema: The JSON Schema defining the expected structure.
-    case jsonSchema(name: String, schema: Schema)
+    ///   - schema: The JSON schema defining the expected structure.
+    case jsonSchema(name: String, schema: GenerationSchema)
 
     // MARK: - Codable
 
@@ -931,7 +866,7 @@ public enum ResponseFormat: Sendable, Hashable, Codable {
             self = .jsonObject
         case .jsonSchema:
             let name = try container.decode(String.self, forKey: .name)
-            let schema = try container.decode(Schema.self, forKey: .schema)
+            let schema = try container.decode(GenerationSchema.self, forKey: .schema)
             self = .jsonSchema(name: name, schema: schema)
         }
     }

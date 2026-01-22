@@ -139,7 +139,7 @@ public struct PartialToolCall: Sendable, Hashable {
 ///     }
 /// }
 /// ```
-public struct GenerationChunk: Sendable, Hashable {
+public struct GenerationChunk: Sendable, Equatable {
     /// The generated text in this chunk.
     public let text: String
 
@@ -182,12 +182,22 @@ public struct GenerationChunk: Sendable, Hashable {
     /// Completed tool calls in this chunk.
     ///
     /// Set in the final chunk when streaming tool calls are complete.
-    /// Contains fully assembled AIToolCall objects ready for execution.
-    public let completedToolCalls: [AIToolCall]?
+    /// Contains fully assembled tool calls ready for execution.
+    public let completedToolCalls: [Transcript.ToolCall]?
+
+    /// Reasoning details streamed alongside the response (if provided).
+    ///
+    /// Populated when providers emit reasoning blocks in streaming mode.
+    public let reasoningDetails: [ReasoningDetail]?
 
     /// Whether this chunk contains tool call updates.
     public var hasToolCallUpdates: Bool {
         partialToolCall != nil || (completedToolCalls?.isEmpty == false)
+    }
+
+    /// Whether this chunk contains reasoning details.
+    public var hasReasoningDetails: Bool {
+        reasoningDetails?.isEmpty == false
     }
 
     /// Creates a generation chunk.
@@ -217,7 +227,8 @@ public struct GenerationChunk: Sendable, Hashable {
         timestamp: Date = Date(),
         usage: UsageStats? = nil,
         partialToolCall: PartialToolCall? = nil,
-        completedToolCalls: [AIToolCall]? = nil
+        completedToolCalls: [Transcript.ToolCall]? = nil,
+        reasoningDetails: [ReasoningDetail]? = nil
     ) {
         self.text = text
         self.tokenCount = tokenCount
@@ -231,6 +242,7 @@ public struct GenerationChunk: Sendable, Hashable {
         self.usage = usage
         self.partialToolCall = partialToolCall
         self.completedToolCalls = completedToolCalls
+        self.reasoningDetails = reasoningDetails
     }
 
     // MARK: - Factory Methods
@@ -249,24 +261,9 @@ public struct GenerationChunk: Sendable, Hashable {
     }
 }
 
-// MARK: - Hashable Conformance
+// MARK: - Equatable Conformance
 
 extension GenerationChunk {
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(text)
-        hasher.combine(tokenCount)
-        hasher.combine(tokenId)
-        hasher.combine(logprob)
-        hasher.combine(topLogprobs)
-        hasher.combine(tokensPerSecond)
-        hasher.combine(isComplete)
-        hasher.combine(finishReason)
-        hasher.combine(timestamp)
-        hasher.combine(usage)
-        hasher.combine(partialToolCall)
-        hasher.combine(completedToolCalls)
-    }
-
     public static func == (lhs: GenerationChunk, rhs: GenerationChunk) -> Bool {
         lhs.text == rhs.text &&
         lhs.tokenCount == rhs.tokenCount &&
@@ -279,6 +276,7 @@ extension GenerationChunk {
         lhs.timestamp == rhs.timestamp &&
         lhs.usage == rhs.usage &&
         lhs.partialToolCall == rhs.partialToolCall &&
-        lhs.completedToolCalls == rhs.completedToolCalls
+        lhs.completedToolCalls == rhs.completedToolCalls &&
+        lhs.reasoningDetails == rhs.reasoningDetails
     }
 }

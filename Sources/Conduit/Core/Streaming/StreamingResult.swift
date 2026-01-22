@@ -23,12 +23,10 @@ import Foundation
 ///
 /// let stream = provider.stream("Generate a recipe", returning: Recipe.self)
 ///
-/// for try await partial in stream {
+/// for try await snapshot in stream {
+///     let partial = snapshot.content
 ///     if let title = partial.title {
 ///         titleLabel.text = title
-///     }
-///     if let ingredients = partial.ingredients {
-///         updateIngredientsList(ingredients)
 ///     }
 /// }
 /// ```
@@ -41,21 +39,35 @@ import Foundation
 /// let recipe = try await stream.collect()
 /// ```
 public struct StreamingResult<T: Generable>: AsyncSequence, Sendable {
-    public typealias Element = T.Partial
 
-    private let stream: AsyncThrowingStream<T.Partial, Error>
+    /// A snapshot of the current streaming state.
+    public struct Snapshot: Sendable {
+        /// The partially generated content.
+        public var content: T.PartiallyGenerated
+        /// The raw GeneratedContent backing the snapshot.
+        public var rawContent: GeneratedContent
+
+        public init(content: T.PartiallyGenerated, rawContent: GeneratedContent) {
+            self.content = content
+            self.rawContent = rawContent
+        }
+    }
+
+    public typealias Element = Snapshot
+
+    private let stream: AsyncThrowingStream<Snapshot, Error>
 
     /// Creates a streaming result from an async throwing stream.
-    public init(_ stream: AsyncThrowingStream<T.Partial, Error>) {
+    public init(_ stream: AsyncThrowingStream<Snapshot, Error>) {
         self.stream = stream
     }
 
     // MARK: - AsyncSequence
 
     public struct AsyncIterator: AsyncIteratorProtocol {
-        var iterator: AsyncThrowingStream<T.Partial, Error>.AsyncIterator
+        var iterator: AsyncThrowingStream<Snapshot, Error>.AsyncIterator
 
-        public mutating func next() async throws -> T.Partial? {
+        public mutating func next() async throws -> Snapshot? {
             try await iterator.next()
         }
     }
@@ -66,24 +78,29 @@ public struct StreamingResult<T: Generable>: AsyncSequence, Sendable {
 
     // MARK: - Convenience Methods
 
+    private func makeFinalResult(from snapshot: Snapshot) throws -> T {
+        if let concrete = snapshot.content as? T {
+            return concrete
+        }
+        return try T(snapshot.rawContent)
+    }
+
     /// Collects all partial values and returns the final complete result.
     ///
     /// - Returns: The complete Generable value
     /// - Throws: If streaming fails or the final result cannot be constructed
     public func collect() async throws -> T {
-        var lastPartial: T.Partial?
+        var last: Snapshot?
 
-        for try await partial in stream {
-            lastPartial = partial
+        for try await snapshot in stream {
+            last = snapshot
         }
 
-        guard let final = lastPartial else {
+        guard let final = last else {
             throw StreamingError.noContent
         }
 
-        // Convert final partial to complete type
-        let content = final.generableContent
-        return try T(from: content)
+        return try makeFinalResult(from: final)
     }
 
     /// Iterates over partial values, calling the handler for each, then returns the final result.
@@ -110,20 +127,19 @@ public struct StreamingResult<T: Generable>: AsyncSequence, Sendable {
     /// - Throws: `StreamingError.noContent` if the stream is empty,
     ///           or other errors if streaming or conversion fails
     @discardableResult
-    public func reduce(_ handler: @Sendable (T.Partial) -> Void) async throws -> T {
-        var lastPartial: T.Partial?
+    public func reduce(_ handler: @Sendable (T.PartiallyGenerated) -> Void) async throws -> T {
+        var last: Snapshot?
 
-        for try await partial in stream {
-            handler(partial)
-            lastPartial = partial
+        for try await snapshot in stream {
+            handler(snapshot.content)
+            last = snapshot
         }
 
-        guard let final = lastPartial else {
+        guard let final = last else {
             throw StreamingError.noContent
         }
 
-        let content = final.generableContent
-        return try T(from: content)
+        return try makeFinalResult(from: final)
     }
 
     /// Collects all partial values and returns the final result, or nil if empty.
@@ -143,18 +159,17 @@ public struct StreamingResult<T: Generable>: AsyncSequence, Sendable {
     /// - Returns: The complete result, or `nil` if the stream was empty
     /// - Throws: If streaming fails or the result cannot be constructed
     public func collectOrNil() async throws -> T? {
-        var lastPartial: T.Partial?
+        var last: Snapshot?
 
-        for try await partial in stream {
-            lastPartial = partial
+        for try await snapshot in stream {
+            last = snapshot
         }
 
-        guard let final = lastPartial else {
+        guard let final = last else {
             return nil
         }
 
-        let content = final.generableContent
-        return try T(from: content)
+        return try makeFinalResult(from: final)
     }
 
     // MARK: - Main Actor Helpers
@@ -179,20 +194,19 @@ public struct StreamingResult<T: Generable>: AsyncSequence, Sendable {
     /// - Throws: `StreamingError.noContent` if the stream is empty
     @MainActor
     @discardableResult
-    public func reduceOnMain(_ handler: @MainActor (T.Partial) -> Void) async throws -> T {
-        var lastPartial: T.Partial?
+    public func reduceOnMain(_ handler: @MainActor (T.PartiallyGenerated) -> Void) async throws -> T {
+        var last: Snapshot?
 
-        for try await partial in stream {
-            handler(partial)
-            lastPartial = partial
+        for try await snapshot in stream {
+            handler(snapshot.content)
+            last = snapshot
         }
 
-        guard let final = lastPartial else {
+        guard let final = last else {
             throw StreamingError.noContent
         }
 
-        let content = final.generableContent
-        return try T(from: content)
+        return try makeFinalResult(from: final)
     }
 }
 
@@ -213,10 +227,10 @@ public enum StreamingError: Error, Sendable, LocalizedError {
         switch self {
         case .noContent:
             return "Stream completed without producing content"
-        case .parseFailed(let json):
-            return "Failed to parse streamed JSON: \(json.prefix(100))..."
+        case .parseFailed(let reason):
+            return "Failed to parse streamed JSON: \(reason)"
         case .conversionFailed(let error):
-            return "Failed to convert partial to target type: \(error.localizedDescription)"
+            return "Failed to convert streamed content to target type: \(error.localizedDescription)"
         }
     }
 }

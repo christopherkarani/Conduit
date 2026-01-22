@@ -2,13 +2,17 @@
 // Conduit
 //
 // Central manager for model downloads, caching, and lifecycle.
-// This file requires the MLX trait as it depends on Hub for HuggingFace downloads.
+// Download support is provided by either `Hub` (swift-transformers) or
+// `HuggingFace` (swift-huggingface, via the HuggingFaceHub trait).
 
-#if canImport(Hub)
+#if canImport(Hub) || canImport(HuggingFace)
 
 import Foundation
-import Hub
 import Logging
+
+#if canImport(Hub)
+import Hub
+#endif
 
 /// Central manager for model downloads, caching, and lifecycle.
 ///
@@ -531,10 +535,22 @@ public actor ModelManager {
         to destination: URL,
         progress: @escaping @Sendable (DownloadProgress) -> Void
     ) async throws -> URL {
-        var currentProgress = DownloadProgress()
-        currentProgress.totalFiles = 1 // Will be updated
-
         do {
+            #if canImport(HuggingFace)
+            // Prefer swift-huggingface when available (HuggingFaceHub trait).
+            return try await HuggingFaceHubDownloader.shared.downloadSnapshot(
+                repoId: repoId,
+                kind: .model,
+                to: destination,
+                revision: "main",
+                matching: [],
+                token: nil,
+                progressHandler: progress
+            )
+            #else
+            var currentProgress = DownloadProgress()
+            currentProgress.totalFiles = 1 // Will be updated
+
             // Create repo reference
             let repo = Hub.Repo(id: repoId)
 
@@ -558,7 +574,7 @@ public actor ModelManager {
             }
 
             return snapshotURL
-
+            #endif
         } catch {
             throw AIError.download(error)
         }
@@ -779,4 +795,4 @@ extension ModelManager {
     }
 }
 
-#endif // canImport(Hub)
+#endif // canImport(Hub) || canImport(HuggingFace)

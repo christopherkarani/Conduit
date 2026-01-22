@@ -100,8 +100,15 @@ public struct OpenRouterRoutingConfig: Sendable, Hashable {
 
     /// Custom route tag for grouping requests.
     ///
-    /// Use this to categorize requests in OpenRouter's dashboard.
+    /// - Important: OpenRouter's request API does not currently support arbitrary tagging.
+    ///   This property is retained for backward compatibility but is not sent in requests
+    ///   unless it matches a valid `data_collection` value ("allow" or "deny").
     public var routeTag: String?
+
+    /// Controls whether OpenRouter and upstream providers may store prompts/completions.
+    ///
+    /// This maps to OpenRouter's `provider.data_collection` field.
+    public var dataCollection: OpenRouterDataCollection?
 
     // MARK: - Initialization
 
@@ -115,6 +122,7 @@ public struct OpenRouterRoutingConfig: Sendable, Hashable {
     ///   - siteURL: Your site URL for rankings. Default: `nil`
     ///   - appName: Your app name for rankings. Default: `nil`
     ///   - routeTag: Custom route tag. Default: `nil`
+    ///   - dataCollection: Data collection policy. Default: `nil`
     public init(
         providers: [OpenRouterProvider]? = nil,
         fallbacks: Bool = true,
@@ -122,7 +130,8 @@ public struct OpenRouterRoutingConfig: Sendable, Hashable {
         requireProvidersForJSON: Bool = false,
         siteURL: URL? = nil,
         appName: String? = nil,
-        routeTag: String? = nil
+        routeTag: String? = nil,
+        dataCollection: OpenRouterDataCollection? = nil
     ) {
         self.providers = providers
         self.fallbacks = fallbacks
@@ -131,6 +140,7 @@ public struct OpenRouterRoutingConfig: Sendable, Hashable {
         self.siteURL = siteURL
         self.appName = appName
         self.routeTag = routeTag
+        self.dataCollection = dataCollection
     }
 
     // MARK: - Static Presets
@@ -193,19 +203,28 @@ public struct OpenRouterRoutingConfig: Sendable, Hashable {
         var routing: [String: Any] = [:]
 
         if let providers = providers, !providers.isEmpty {
-            routing["order"] = providers.map { $0.rawValue }
+            // OpenRouter expects provider slugs (e.g., "anthropic", "openai").
+            routing["order"] = providers.map(\.slug)
         }
 
         if !fallbacks {
             routing["allow_fallbacks"] = false
         }
 
+        if routeByLatency {
+            // OpenRouter provider routing supports `sort: "latency"`.
+            routing["sort"] = "latency"
+        }
+
         if requireProvidersForJSON {
             routing["require_parameters"] = true
         }
 
-        if let routeTag = routeTag {
-            routing["data_collection"] = routeTag
+        if let dataCollection = dataCollection {
+            routing["data_collection"] = dataCollection.rawValue
+        } else if let legacy = routeTag?.lowercased(), OpenRouterDataCollection(rawValue: legacy) != nil {
+            // Backward compatible: treat old `routeTag` as `data_collection` only when valid.
+            routing["data_collection"] = legacy
         }
 
         return routing.isEmpty ? nil : routing
@@ -262,10 +281,56 @@ public enum OpenRouterProvider: String, Sendable, Hashable, CaseIterable {
     /// Azure
     case azure = "Azure"
 
+    /// Provider slug used by OpenRouter's routing API (e.g., `provider.order`).
+    public var slug: String {
+        switch self {
+        case .openai:
+            return "openai"
+        case .anthropic:
+            return "anthropic"
+        case .google:
+            return "google"
+        case .googleAIStudio:
+            return "google-ai-studio"
+        case .together:
+            return "together"
+        case .fireworks:
+            return "fireworks"
+        case .perplexity:
+            return "perplexity"
+        case .mistral:
+            return "mistral"
+        case .groq:
+            return "groq"
+        case .deepseek:
+            return "deepseek"
+        case .cohere:
+            return "cohere"
+        case .ai21:
+            return "ai21"
+        case .bedrock:
+            return "bedrock"
+        case .azure:
+            return "azure"
+        }
+    }
+
     /// Human-readable display name.
     public var displayName: String {
         rawValue
     }
+}
+
+// MARK: - OpenRouterDataCollection
+
+/// Controls whether providers may store prompts/completions.
+///
+/// Maps to OpenRouter's `provider.data_collection` field.
+public enum OpenRouterDataCollection: String, Sendable, Hashable, CaseIterable {
+    /// Providers may store prompts/completions.
+    case allow
+    /// Providers must not store prompts/completions.
+    case deny
 }
 
 // MARK: - Fluent API
@@ -331,9 +396,20 @@ extension OpenRouterRoutingConfig {
         copy.routeTag = tag
         return copy
     }
+
+    /// Returns a copy with the specified data collection policy.
+    ///
+    /// - Parameter policy: Whether providers may store prompts/completions.
+    /// - Returns: A new configuration with the updated policy.
+    public func dataCollection(_ policy: OpenRouterDataCollection) -> OpenRouterRoutingConfig {
+        var copy = self
+        copy.dataCollection = policy
+        return copy
+    }
 }
 
 // MARK: - Codable
 
 extension OpenRouterRoutingConfig: Codable {}
 extension OpenRouterProvider: Codable {}
+extension OpenRouterDataCollection: Codable {}

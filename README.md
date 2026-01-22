@@ -659,7 +659,106 @@ if caps.supports(.functionCalling) {
 
 ---
 
+### OpenRouter
+
+Access 200+ models from OpenAI, Anthropic, Google, Meta, and more through a single unified API.
+
+**Best for:** Model flexibility, provider redundancy, cost optimization, trying different models
+
+**Setup:**
+```bash
+export OPENROUTER_API_KEY=sk-or-...
+```
+
+```swift
+import Conduit
+
+// Simple - minimal configuration
+let provider = OpenAIProvider(openRouterKey: "sk-or-...")
+let response = try await provider.generate(
+    "Hello",
+    model: .openRouter("anthropic/claude-3-opus"),
+    config: .default
+)
+
+// Optimized for Claude models
+let provider = OpenAIProvider.forClaude(apiKey: "sk-or-...")
+let response = try await provider.generate(
+    "Hello",
+    model: .claudeOpus,  // Predefined model constant
+    config: .default
+)
+
+// Fastest available provider
+let provider = OpenAIProvider.fastest(apiKey: "sk-or-...")
+```
+
+**Advanced Routing:**
+
+```swift
+// Configure provider preferences and fallbacks
+let config = OpenAIConfiguration.openRouter(apiKey: "sk-or-...")
+    .preferring(.anthropic, .openai)
+    .routeByLatency()
+
+let provider = OpenAIProvider(configuration: config)
+
+// Full control with OpenRouterRoutingConfig
+let routing = OpenRouterRoutingConfig(
+    providers: [.anthropic, .openai],
+    fallbacks: true,
+    routeByLatency: true,
+    dataCollection: .deny  // Privacy control
+)
+let config = OpenAIConfiguration.openRouter(apiKey: "sk-or-...")
+    .routing(routing)
+```
+
+**Streaming:**
+
+```swift
+for try await chunk in provider.stream(
+    "Write a story",
+    model: .openRouter("meta-llama/llama-3.1-70b-instruct"),
+    config: .default
+) {
+    print(chunk.text, terminator: "")
+}
+```
+
+**Model Format:**
+
+OpenRouter uses `provider/model` format:
+- `openai/gpt-4-turbo`
+- `anthropic/claude-3-opus`
+- `google/gemini-pro-1.5`
+- `meta-llama/llama-3.1-70b-instruct`
+
+**Predefined Model Constants:**
+
+| Constant | Model |
+|----------|-------|
+| `.claudeOpus` | `anthropic/claude-3-opus` |
+| `.claudeSonnet` | `anthropic/claude-3-sonnet` |
+| `.geminiPro15` | `google/gemini-pro-1.5` |
+| `.llama31B70B` | `meta-llama/llama-3.1-70b-instruct` |
+| `.mixtral8x7B` | `mistralai/mixtral-8x7b-instruct` |
+
+**Features:**
+- 200+ models from 20+ providers
+- Automatic fallbacks on provider failure
+- Latency-based routing
+- Provider preference ordering
+- Data collection controls (privacy)
+- Streaming support
+- Tool/function calling
+
+Get your API key at: https://openrouter.ai/
+
+---
+
 ## Core Concepts
+
 
 ### Model Identifiers
 
@@ -875,7 +974,7 @@ Define and execute tools that LLMs can invoke during generation.
 ### Defining Tools
 
 ```swift
-struct WeatherTool: AITool {
+struct WeatherTool: Tool {
     @Generable
     struct Arguments {
         @Guide("City name to get weather for")
@@ -898,7 +997,7 @@ struct WeatherTool: AITool {
 
 ```swift
 // Create executor and register tools
-let executor = AIToolExecutor()
+let executor = ToolExecutor()
 await executor.register(WeatherTool())
 await executor.register(SearchTool())
 

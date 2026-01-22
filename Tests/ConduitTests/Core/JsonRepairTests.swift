@@ -325,21 +325,22 @@ struct JsonRepairTests {
         }
     }
 
-    // MARK: - Integration with StructuredContent
+    // MARK: - Integration with GeneratedContent
 
-    @Suite("StructuredContent Integration")
-    struct StructuredContentIntegrationTests {
+    @Suite("GeneratedContent Integration")
+    struct GeneratedContentIntegrationTests {
 
-        @Test("parse() returns valid StructuredContent from incomplete JSON")
+        @Test("parse() returns valid GeneratedContent from incomplete JSON")
         func parseReturnsValidContent() throws {
             // Incomplete JSON that can be repaired
             let incomplete = #"{"name": "Alice", "age": 30"#
 
             let content = try JsonRepair.parse(incomplete)
 
-            let obj = try content.object
-            #expect(try obj["name"]?.string == "Alice")
-            #expect(try obj["age"]?.int == 30)
+            let name = try content.value(String.self, forProperty: "name")
+            let age = try content.value(Int.self, forProperty: "age")
+            #expect(name == "Alice")
+            #expect(age == 30)
         }
 
         @Test("tryParse() returns nil on fundamentally broken JSON")
@@ -368,17 +369,15 @@ struct JsonRepairTests {
             // Repair the incomplete JSON
             let repaired = JsonRepair.repair(streaming)
 
-            // Parse into StructuredContent
-            let content = try StructuredContent(json: repaired)
+            // Parse into GeneratedContent
+            let content = try GeneratedContent(json: repaired)
 
             // Access the values
-            let obj = try content.object
-            let users = try obj["users"]?.array
-
-            #expect(users?.count == 2)
-            #expect(try users?[0].object["name"]?.string == "Alice")
-            #expect(try users?[0].object["active"]?.bool == true)
-            #expect(try users?[1].object["name"]?.string == "Bob")
+            let users = try content.value([GeneratedContent].self, forProperty: "users")
+            #expect(users.count == 2)
+            #expect(try users[0].value(String.self, forProperty: "name") == "Alice")
+            #expect(try users[0].value(Bool.self, forProperty: "active") == true)
+            #expect(try users[1].value(String.self, forProperty: "name") == "Bob")
         }
 
         @Test("tryParse returns content for simple incomplete JSON")
@@ -388,7 +387,7 @@ struct JsonRepairTests {
             let content = JsonRepair.tryParse(incomplete)
 
             #expect(content != nil)
-            #expect((try? content?.object["message"]?.string) == "Hello, world")
+            #expect((try? content?.value(String.self, forProperty: "message")) == "Hello, world")
         }
 
         @Test("parse throws on non-repairable JSON")
@@ -398,7 +397,7 @@ struct JsonRepairTests {
 
             // JsonRepair will try to close it but the result won't be valid JSON
             // However, "not json at all" becomes "not json at all" (no brackets to close)
-            // This actually will fail to parse as StructuredContent
+            // This should fail to parse as GeneratedContent
             #expect(throws: (any Error).self) {
                 _ = try JsonRepair.parse(malformed)
             }
@@ -407,9 +406,11 @@ struct JsonRepairTests {
         @Test("Empty input parses to empty object")
         func emptyInputParsesToEmptyObject() throws {
             let content = try JsonRepair.parse("")
-
-            let obj = try content.object
-            #expect(obj.isEmpty)
+            if case .structure(let properties, _) = content.kind {
+                #expect(properties.isEmpty)
+            } else {
+                Issue.record("Expected empty structure content")
+            }
         }
     }
 

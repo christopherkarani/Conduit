@@ -205,8 +205,8 @@ struct StreamingTests {
         #expect(chunk.finishReason == reason)
     }
 
-    @Test("GenerationChunk is Hashable")
-    func generationChunkHashable() {
+    @Test("GenerationChunk is Equatable")
+    func generationChunkEquatable() {
         let timestamp1 = Date()
         let timestamp2 = Date(timeIntervalSinceNow: 1.0)
 
@@ -215,17 +215,6 @@ struct StreamingTests {
 
         // Chunks with different timestamps should be different
         #expect(chunk1 != chunk2)
-
-        // Both should be hashable
-        _ = chunk1.hashValue
-        _ = chunk2.hashValue
-
-        var set = Set<GenerationChunk>()
-        set.insert(chunk1)
-        set.insert(chunk2)
-
-        // Different timestamps mean different chunks in the set
-        #expect(set.count == 2)
     }
 
     @Test("GenerationChunk timestamp is set")
@@ -281,18 +270,6 @@ struct StreamingTests {
         )
 
         #expect(result.finishReason == .stop)
-    }
-
-    @Test("GenerationResult is Hashable")
-    func generationResultHashable() {
-        let result1 = GenerationResult.text("Hello")
-        let result2 = GenerationResult.text("World")
-
-        var set = Set<GenerationResult>()
-        set.insert(result1)
-        set.insert(result2)
-
-        #expect(set.count == 2)
     }
 
     @Test("GenerationResult equality")

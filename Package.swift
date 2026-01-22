@@ -2,8 +2,6 @@
 import PackageDescription
 import CompilerPluginSupport
 
-// MARK: - Package Definition
-
 let package = Package(
     name: "Conduit",
     platforms: [
@@ -22,6 +20,10 @@ let package = Package(
             name: "MLX",
             description: "Enable MLX on-device inference (Apple Silicon only)"
         ),
+        .trait(
+            name: "HuggingFaceHub",
+            description: "Enable Hugging Face Hub downloads via swift-huggingface"
+        ),
         .default(enabledTraits: []),
     ],
     dependencies: [
@@ -34,6 +36,9 @@ let package = Package(
         .package(url: "https://github.com/ml-explore/mlx-swift.git", from: "0.29.1"),
         .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", from: "2.29.2"),
         .package(url: "https://github.com/ml-explore/mlx-swift-examples.git", revision: "fc3afc7cdbc4b6120d210c4c58c6b132ce346775"),
+
+        // MARK: Hugging Face Hub (Optional)
+        .package(url: "https://github.com/huggingface/swift-huggingface", branch: "main"),
     ],
     targets: [
         .macro(
@@ -52,6 +57,7 @@ let package = Package(
                 "ConduitMacros",
                 .product(name: "OrderedCollections", package: "swift-collections"),
                 .product(name: "Logging", package: "swift-log"),
+                .product(name: "HuggingFace", package: "swift-huggingface", condition: .when(traits: ["HuggingFaceHub"])),
                 // MLX dependencies (only included when MLX trait is enabled)
                 .product(name: "MLX", package: "mlx-swift", condition: .when(traits: ["MLX"])),
                 .product(name: "MLXLMCommon", package: "mlx-swift-lm", condition: .when(traits: ["MLX"])),
@@ -65,7 +71,9 @@ let package = Package(
         ),
         .testTarget(
             name: "ConduitTests",
-            dependencies: ["Conduit"],
+            dependencies: [
+                "Conduit",
+            ],
             swiftSettings: [
                 .enableExperimentalFeature("StrictConcurrency")
             ]
@@ -73,6 +81,7 @@ let package = Package(
         .testTarget(
             name: "ConduitMacrosTests",
             dependencies: [
+                "Conduit",
                 "ConduitMacros",
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
             ],

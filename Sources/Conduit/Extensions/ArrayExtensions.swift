@@ -110,7 +110,7 @@ extension Array where Element == Message {
         config: GenerateConfig = .default
     ) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
-            Task {
+            let task = Task {
                 do {
                     let metadataStream = provider.streamWithMetadata(
                         messages: self,
@@ -128,6 +128,10 @@ extension Array where Element == Message {
                 } catch {
                     continuation.finish(throwing: error)
                 }
+            }
+
+            continuation.onTermination = { @Sendable _ in
+                task.cancel()
             }
         }
     }

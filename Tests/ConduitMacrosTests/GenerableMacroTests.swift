@@ -1,799 +1,284 @@
-// GenerableMacroTests.swift
-// ConduitMacrosTests
-//
-// Comprehensive tests for the @Generable macro expansion.
-
-import SwiftSyntax
-import SwiftSyntaxMacros
-import SwiftSyntaxMacrosTestSupport
 import Testing
-@testable import ConduitMacros
+import Conduit
+import Foundation
 
-// MARK: - Test Macros Registry
+@Generable
+private struct TestStructWithMultilineDescription {
+    @Guide(
+        description: """
+            This is a multi-line description.
+            It spans multiple lines.
+            """
+    )
+    var field: String
+}
 
-private let testMacros: [String: Macro.Type] = [
-    "Generable": GenerableMacro.self,
-    "Guide": GuideMacro.self,
-]
+@Generable
+private struct TestStructWithSpecialCharacters {
+    @Guide(description: "A description with \"quotes\" and backslashes \\")
+    var field: String
+}
 
-// MARK: - GenerableMacroTests
+@Generable
+private struct TestStructWithNewlines {
+    @Guide(description: "Line 1\nLine 2\nLine 3")
+    var field: String
+}
 
-@Suite("Generable Macro Tests")
+@Generable
+struct TestArguments {
+    @Guide(description: "A name field")
+    var name: String
+
+    @Guide(description: "An age field")
+    var age: Int
+}
+
+@Generable
+private struct ArrayItem {
+    @Guide(description: "A name")
+    var name: String
+}
+
+@Generable
+private struct ArrayContainer {
+    @Guide(description: "Items", .count(2))
+    var items: [ArrayItem]
+}
+
+@Generable
+private struct PrimitiveContainer {
+    @Guide(description: "A title")
+    var title: String
+
+    @Guide(description: "A count")
+    var count: Int
+}
+
+@Generable
+private struct PrimitiveArrayContainer {
+    @Guide(description: "Names", .count(2))
+    var names: [String]
+}
+
+@Generable
+private struct OptionalArrayContainer {
+    @Guide(description: "Optional names", .count(2))
+    var names: [String]?
+}
+
+@Generable
+private struct NestedArrayContainer {
+    @Guide(description: "Nested items", .count(2))
+    var items: [[ArrayItem]]
+}
+
+@Generable
+private struct OptionalPrimitiveContainer {
+    @Guide(description: "Optional title")
+    var title: String?
+
+    @Guide(description: "Optional count")
+    var count: Int?
+
+    @Guide(description: "Optional flag")
+    var flag: Bool?
+}
+
+@Generable
+private struct OptionalItemContainer {
+    @Guide(description: "Optional item")
+    var item: ArrayItem?
+}
+
+@Generable
+private struct OptionalItemsContainer {
+    @Guide(description: "Optional items", .count(2))
+    var items: [ArrayItem]?
+}
+
+@Suite("Generable Macro")
 struct GenerableMacroTests {
+    @Test("@Guide description with multiline string")
+    func multilineGuideDescription() async throws {
+        let schema = TestStructWithMultilineDescription.generationSchema
+        let encoder = JSONEncoder()
+        let jsonData = try encoder.encode(schema)
 
-    // MARK: - Simple Struct Expansion
+        // Verify that the schema can be encoded without errors (no unterminated strings)
+        #expect(jsonData.count > 0)
 
-    @Test("Simple struct with single String property expands correctly")
-    func testSimpleStructExpansion() {
-        assertMacroExpansion(
-            """
-            @Generable
-            struct Simple {
-                let name: String
-            }
-            """,
-            expandedSource: """
-            struct Simple {
-                let name: String
-
-                public static var schema: Schema {
-                    .object(
-                        name: "Simple",
-                        description: nil,
-                        properties: [
-                            "name": Schema.Property(
-                                schema: .string(constraints: []),
-                                description: nil,
-                                isRequired: true
-                            )
-                        ]
-                    )
-                }
-
-                public struct Partial: GenerableContentConvertible, Sendable {
-                    public var name: String?
-
-                    public var generableContent: StructuredContent {
-                        var dict: [String: StructuredContent] = [:]
-                        if let v = name { dict["name"] = v.generableContent }
-                        return .object(dict)
-                    }
-
-                    public init(from structuredContent: StructuredContent) throws {
-                        let obj = try structuredContent.object
-                        self.name = try? obj["name"].map { try String.init(from: $0) }
-                    }
-
-                    public init() {}
-                }
-
-                public init(from structuredContent: StructuredContent) throws {
-                    let obj = try structuredContent.object
-                    guard let nameContent = obj["name"] else { throw StructuredContentError.missingKey("name") }
-                    self.name = try String.init(from: nameContent)
-                }
-
-                public var generableContent: StructuredContent {
-                    var dict: [String: StructuredContent] = [:]
-                    dict["name"] = name.generableContent
-                    return .object(dict)
-                }
-            }
-
-            extension Simple: Generable {
-            }
-            """,
-            macros: testMacros,
-            indentationWidth: .spaces(4)
-        )
+        // Verify it can be decoded back
+        let decoder = JSONDecoder()
+        let decodedSchema = try decoder.decode(GenerationSchema.self, from: jsonData)
+        #expect(decodedSchema.debugDescription.contains("object"))
     }
 
-    // MARK: - Multiple Properties
+    @Test("@Guide description with special characters")
+    func guideDescriptionWithSpecialCharacters() async throws {
+        let schema = TestStructWithSpecialCharacters.generationSchema
+        let encoder = JSONEncoder()
+        let jsonData = try encoder.encode(schema)
+        let jsonString = String(data: jsonData, encoding: .utf8)!
 
-    @Test("Struct with multiple properties of different types expands correctly")
-    func testMultipleProperties() {
-        assertMacroExpansion(
-            """
-            @Generable
-            struct Person {
-                let name: String
-                let age: Int
-            }
-            """,
-            expandedSource: """
-            struct Person {
-                let name: String
-                let age: Int
+        // Verify the special characters are escaped
+        #expect(jsonString.contains(#"\\\"quotes\\\""#))
+        #expect(jsonString.contains(#"backslashes \\\\"#))
 
-                public static var schema: Schema {
-                    .object(
-                        name: "Person",
-                        description: nil,
-                        properties: [
-                            "name": Schema.Property(
-                                schema: .string(constraints: []),
-                                description: nil,
-                                isRequired: true
-                            ),
-                            "age": Schema.Property(
-                                schema: .integer(constraints: []),
-                                description: nil,
-                                isRequired: true
-                            )
-                        ]
-                    )
-                }
-
-                public struct Partial: GenerableContentConvertible, Sendable {
-                    public var name: String?
-                    public var age: Int?
-
-                    public var generableContent: StructuredContent {
-                        var dict: [String: StructuredContent] = [:]
-                        if let v = name { dict["name"] = v.generableContent }
-                        if let v = age { dict["age"] = v.generableContent }
-                        return .object(dict)
-                    }
-
-                    public init(from structuredContent: StructuredContent) throws {
-                        let obj = try structuredContent.object
-                        self.name = try? obj["name"].map { try String.init(from: $0) }
-                        self.age = try? obj["age"].map { try Int.init(from: $0) }
-                    }
-
-                    public init() {}
-                }
-
-                public init(from structuredContent: StructuredContent) throws {
-                    let obj = try structuredContent.object
-                    guard let nameContent = obj["name"] else { throw StructuredContentError.missingKey("name") }
-                    self.name = try String.init(from: nameContent)
-                    guard let ageContent = obj["age"] else { throw StructuredContentError.missingKey("age") }
-                    self.age = try Int.init(from: ageContent)
-                }
-
-                public var generableContent: StructuredContent {
-                    var dict: [String: StructuredContent] = [:]
-                    dict["name"] = name.generableContent
-                    dict["age"] = age.generableContent
-                    return .object(dict)
-                }
-            }
-
-            extension Person: Generable {
-            }
-            """,
-            macros: testMacros,
-            indentationWidth: .spaces(4)
-        )
+        // Verify roundtrip encoding/decoding works
+        let decoder = JSONDecoder()
+        let decodedSchema = try decoder.decode(GenerationSchema.self, from: jsonData)
+        #expect(decodedSchema.debugDescription.contains("object"))
     }
 
-    // MARK: - Optional Property
+    @Test("@Guide description with newlines")
+    func guideDescriptionWithNewlines() async throws {
+        let schema = TestStructWithNewlines.generationSchema
+        let encoder = JSONEncoder()
+        let jsonData = try encoder.encode(schema)
 
-    @Test("Struct with optional property expands correctly")
-    func testOptionalProperty() {
-        assertMacroExpansion(
-            """
-            @Generable
-            struct OptionalExample {
-                let nickname: String?
-            }
-            """,
-            expandedSource: """
-            struct OptionalExample {
-                let nickname: String?
+        // Verify that the schema can be encoded without errors
+        #expect(jsonData.count > 0)
 
-                public static var schema: Schema {
-                    .object(
-                        name: "OptionalExample",
-                        description: nil,
-                        properties: [
-                            "nickname": Schema.Property(
-                                schema: .optional(wrapped: .string(constraints: [])),
-                                description: nil,
-                                isRequired: false
-                            )
-                        ]
-                    )
-                }
-
-                public struct Partial: GenerableContentConvertible, Sendable {
-                    public var nickname: String?
-
-                    public var generableContent: StructuredContent {
-                        var dict: [String: StructuredContent] = [:]
-                        if let v = nickname { dict["nickname"] = v.generableContent }
-                        return .object(dict)
-                    }
-
-                    public init(from structuredContent: StructuredContent) throws {
-                        let obj = try structuredContent.object
-                        self.nickname = try? obj["nickname"].map { try String.init(from: $0) }
-                    }
-
-                    public init() {}
-                }
-
-                public init(from structuredContent: StructuredContent) throws {
-                    let obj = try structuredContent.object
-                    self.nickname = try obj["nickname"].map { try String.init(from: $0) }
-                }
-
-                public var generableContent: StructuredContent {
-                    var dict: [String: StructuredContent] = [:]
-                    if let v = nickname { dict["nickname"] = v.generableContent }
-                    return .object(dict)
-                }
-            }
-
-            extension OptionalExample: Generable {
-            }
-            """,
-            macros: testMacros,
-            indentationWidth: .spaces(4)
-        )
+        // Verify roundtrip encoding/decoding works
+        let decoder = JSONDecoder()
+        let decodedSchema = try decoder.decode(GenerationSchema.self, from: jsonData)
+        #expect(decodedSchema.debugDescription.contains("object"))
     }
 
-    // MARK: - Array Property
-
-    @Test("Struct with array property expands correctly")
-    func testArrayProperty() {
-        assertMacroExpansion(
-            """
-            @Generable
-            struct ArrayExample {
-                let tags: [String]
-            }
-            """,
-            expandedSource: """
-            struct ArrayExample {
-                let tags: [String]
-
-                public static var schema: Schema {
-                    .object(
-                        name: "ArrayExample",
-                        description: nil,
-                        properties: [
-                            "tags": Schema.Property(
-                                schema: .array(items: .string(constraints: []), constraints: []),
-                                description: nil,
-                                isRequired: true
-                            )
-                        ]
-                    )
-                }
-
-                public struct Partial: GenerableContentConvertible, Sendable {
-                    public var tags: [String]?
-
-                    public var generableContent: StructuredContent {
-                        var dict: [String: StructuredContent] = [:]
-                        if let v = tags { dict["tags"] = v.generableContent }
-                        return .object(dict)
-                    }
-
-                    public init(from structuredContent: StructuredContent) throws {
-                        let obj = try structuredContent.object
-                        self.tags = try? obj["tags"].map { try [String].init(from: $0) }
-                    }
-
-                    public init() {}
-                }
-
-                public init(from structuredContent: StructuredContent) throws {
-                    let obj = try structuredContent.object
-                    guard let tagsContent = obj["tags"] else { throw StructuredContentError.missingKey("tags") }
-                    self.tags = try [String].init(from: tagsContent)
-                }
-
-                public var generableContent: StructuredContent {
-                    var dict: [String: StructuredContent] = [:]
-                    dict["tags"] = tags.generableContent
-                    return .object(dict)
-                }
-            }
-
-            extension ArrayExample: Generable {
-            }
-            """,
-            macros: testMacros,
-            indentationWidth: .spaces(4)
-        )
+    @MainActor
+    @Generable
+    struct MainActorIsolatedStruct {
+        @Guide(description: "A test field")
+        var field: String
     }
 
-    // MARK: - Guide Macro with Description
+    @MainActor
+    @Test("@MainActor isolation")
+    func mainActorIsolation() async throws {
+        let generatedContent = GeneratedContent(properties: [
+            "field": "test value"
+        ])
+        let instance = try MainActorIsolatedStruct(generatedContent)
+        #expect(instance.field == "test value")
 
-    @Test("Struct with @Guide description expands correctly")
-    func testGuideWithDescription() {
-        assertMacroExpansion(
-            """
-            @Generable
-            struct Recipe {
-                @Guide("The recipe title")
-                let title: String
-            }
-            """,
-            expandedSource: """
-            struct Recipe {
-                let title: String
+        let convertedBack = instance.generatedContent
+        let decoded = try MainActorIsolatedStruct(convertedBack)
+        #expect(decoded.field == "test value")
 
-                public static var schema: Schema {
-                    .object(
-                        name: "Recipe",
-                        description: nil,
-                        properties: [
-                            "title": Schema.Property(
-                                schema: .string(constraints: []),
-                                description: "The recipe title",
-                                isRequired: true
-                            )
-                        ]
-                    )
-                }
+        let schema = MainActorIsolatedStruct.generationSchema
+        #expect(schema.debugDescription.contains("MainActorIsolatedStruct"))
 
-                public struct Partial: GenerableContentConvertible, Sendable {
-                    public var title: String?
-
-                    public var generableContent: StructuredContent {
-                        var dict: [String: StructuredContent] = [:]
-                        if let v = title { dict["title"] = v.generableContent }
-                        return .object(dict)
-                    }
-
-                    public init(from structuredContent: StructuredContent) throws {
-                        let obj = try structuredContent.object
-                        self.title = try? obj["title"].map { try String.init(from: $0) }
-                    }
-
-                    public init() {}
-                }
-
-                public init(from structuredContent: StructuredContent) throws {
-                    let obj = try structuredContent.object
-                    guard let titleContent = obj["title"] else { throw StructuredContentError.missingKey("title") }
-                    self.title = try String.init(from: titleContent)
-                }
-
-                public var generableContent: StructuredContent {
-                    var dict: [String: StructuredContent] = [:]
-                    dict["title"] = title.generableContent
-                    return .object(dict)
-                }
-            }
-
-            extension Recipe: Generable {
-            }
-            """,
-            macros: testMacros,
-            indentationWidth: .spaces(4)
-        )
+        let partiallyGenerated = instance.asPartiallyGenerated()
+        #expect(partiallyGenerated.field == "test value")
     }
 
-    // MARK: - Diagnostic Tests
+    @Test("Memberwise initializer")
+    func memberwiseInit() throws {
+        // This is the natural Swift way to create instances
+        let args = TestArguments(name: "Alice", age: 30)
 
-    @Test("@Generable on class produces error diagnostic")
-    func testNotAStructDiagnostic() {
-        assertMacroExpansion(
-            """
-            @Generable
-            class NotAStruct {
-                var name: String = ""
-            }
-            """,
-            expandedSource: """
-            class NotAStruct {
-                var name: String = ""
-            }
-            """,
-            diagnostics: [
-                DiagnosticSpec(
-                    message: "@Generable can only be applied to structs",
-                    line: 1,
-                    column: 1,
-                    severity: .error
-                )
+        #expect(args.name == "Alice")
+        #expect(args.age == 30)
+
+        // The generatedContent should also be properly populated
+        let content = args.generatedContent
+        #expect(content.jsonString.contains("Alice"))
+        #expect(content.jsonString.contains("30"))
+    }
+
+    @Test("Create instance from GeneratedContent")
+    func fromGeneratedContent() throws {
+        let generationID = GenerationID()
+        let content = GeneratedContent(
+            properties: [
+                "name": GeneratedContent("Bob"),
+                "age": GeneratedContent(kind: .number(25)),
             ],
-            macros: testMacros,
-            indentationWidth: .spaces(4)
+            id: generationID
         )
+
+        let args = try TestArguments(content)
+        #expect(args.name == "Bob")
+        #expect(args.age == 25)
+        #expect(args.asPartiallyGenerated().id == generationID)
     }
 
-    // MARK: - Additional Type Tests
-
-    @Test("Struct with Bool property expands correctly")
-    func testBoolProperty() {
-        assertMacroExpansion(
-            """
-            @Generable
-            struct BoolExample {
-                let isActive: Bool
-            }
-            """,
-            expandedSource: """
-            struct BoolExample {
-                let isActive: Bool
-
-                public static var schema: Schema {
-                    .object(
-                        name: "BoolExample",
-                        description: nil,
-                        properties: [
-                            "isActive": Schema.Property(
-                                schema: .boolean(constraints: []),
-                                description: nil,
-                                isRequired: true
-                            )
-                        ]
-                    )
-                }
-
-                public struct Partial: GenerableContentConvertible, Sendable {
-                    public var isActive: Bool?
-
-                    public var generableContent: StructuredContent {
-                        var dict: [String: StructuredContent] = [:]
-                        if let v = isActive { dict["isActive"] = v.generableContent }
-                        return .object(dict)
-                    }
-
-                    public init(from structuredContent: StructuredContent) throws {
-                        let obj = try structuredContent.object
-                        self.isActive = try? obj["isActive"].map { try Bool.init(from: $0) }
-                    }
-
-                    public init() {}
-                }
-
-                public init(from structuredContent: StructuredContent) throws {
-                    let obj = try structuredContent.object
-                    guard let isActiveContent = obj["isActive"] else { throw StructuredContentError.missingKey("isActive") }
-                    self.isActive = try Bool.init(from: isActiveContent)
-                }
-
-                public var generableContent: StructuredContent {
-                    var dict: [String: StructuredContent] = [:]
-                    dict["isActive"] = isActive.generableContent
-                    return .object(dict)
-                }
-            }
-
-            extension BoolExample: Generable {
-            }
-            """,
-            macros: testMacros,
-            indentationWidth: .spaces(4)
+    @Test("Array properties use partially generated element types")
+    func arrayPropertiesUsePartiallyGeneratedElements() throws {
+        let content = GeneratedContent(
+            properties: [
+                "items": GeneratedContent(
+                    kind: .array([
+                        GeneratedContent(properties: ["name": "Alpha"]),
+                        GeneratedContent(properties: ["name": "Beta"]),
+                    ])
+                )
+            ]
         )
+
+        let container = try ArrayContainer(content)
+        #expect(container.items.count == 2)
+        #expect(container.items[0].name == "Alpha")
+        #expect(container.items[1].name == "Beta")
     }
 
-    @Test("Struct with Double property expands correctly")
-    func testDoubleProperty() {
-        assertMacroExpansion(
-            """
-            @Generable
-            struct DoubleExample {
-                let price: Double
-            }
-            """,
-            expandedSource: """
-            struct DoubleExample {
-                let price: Double
-
-                public static var schema: Schema {
-                    .object(
-                        name: "DoubleExample",
-                        description: nil,
-                        properties: [
-                            "price": Schema.Property(
-                                schema: .number(constraints: []),
-                                description: nil,
-                                isRequired: true
-                            )
-                        ]
-                    )
-                }
-
-                public struct Partial: GenerableContentConvertible, Sendable {
-                    public var price: Double?
-
-                    public var generableContent: StructuredContent {
-                        var dict: [String: StructuredContent] = [:]
-                        if let v = price { dict["price"] = v.generableContent }
-                        return .object(dict)
-                    }
-
-                    public init(from structuredContent: StructuredContent) throws {
-                        let obj = try structuredContent.object
-                        self.price = try? obj["price"].map { try Double.init(from: $0) }
-                    }
-
-                    public init() {}
-                }
-
-                public init(from structuredContent: StructuredContent) throws {
-                    let obj = try structuredContent.object
-                    guard let priceContent = obj["price"] else { throw StructuredContentError.missingKey("price") }
-                    self.price = try Double.init(from: priceContent)
-                }
-
-                public var generableContent: StructuredContent {
-                    var dict: [String: StructuredContent] = [:]
-                    dict["price"] = price.generableContent
-                    return .object(dict)
-                }
-            }
-
-            extension DoubleExample: Generable {
-            }
-            """,
-            macros: testMacros,
-            indentationWidth: .spaces(4)
-        )
+    @Test("Primitive properties generate correct schema")
+    func primitiveProperties() throws {
+        let schema = PrimitiveContainer.generationSchema
+        let data = try JSONEncoder().encode(schema)
+        let json = String(decoding: data, as: UTF8.self)
+        #expect(json.contains(#""title""#))
+        #expect(json.contains(#""count""#))
     }
 
-    @Test("Struct with Float property expands correctly")
-    func testFloatProperty() {
-        assertMacroExpansion(
-            """
-            @Generable
-            struct FloatExample {
-                let temperature: Float
-            }
-            """,
-            expandedSource: """
-            struct FloatExample {
-                let temperature: Float
-
-                public static var schema: Schema {
-                    .object(
-                        name: "FloatExample",
-                        description: nil,
-                        properties: [
-                            "temperature": Schema.Property(
-                                schema: .number(constraints: []),
-                                description: nil,
-                                isRequired: true
-                            )
-                        ]
-                    )
-                }
-
-                public struct Partial: GenerableContentConvertible, Sendable {
-                    public var temperature: Float?
-
-                    public var generableContent: StructuredContent {
-                        var dict: [String: StructuredContent] = [:]
-                        if let v = temperature { dict["temperature"] = v.generableContent }
-                        return .object(dict)
-                    }
-
-                    public init(from structuredContent: StructuredContent) throws {
-                        let obj = try structuredContent.object
-                        self.temperature = try? obj["temperature"].map { try Float.init(from: $0) }
-                    }
-
-                    public init() {}
-                }
-
-                public init(from structuredContent: StructuredContent) throws {
-                    let obj = try structuredContent.object
-                    guard let temperatureContent = obj["temperature"] else { throw StructuredContentError.missingKey("temperature") }
-                    self.temperature = try Float.init(from: temperatureContent)
-                }
-
-                public var generableContent: StructuredContent {
-                    var dict: [String: StructuredContent] = [:]
-                    dict["temperature"] = temperature.generableContent
-                    return .object(dict)
-                }
-            }
-
-            extension FloatExample: Generable {
-            }
-            """,
-            macros: testMacros,
-            indentationWidth: .spaces(4)
-        )
+    @Test("Primitive array schema")
+    func primitiveArraySchema() throws {
+        let schema = PrimitiveArrayContainer.generationSchema
+        let data = try JSONEncoder().encode(schema)
+        let json = String(decoding: data, as: UTF8.self)
+        #expect(json.contains(#""names""#))
     }
 
-    // MARK: - Complex Examples
-
-    @Test("Struct with mixed required and optional properties")
-    func testMixedProperties() {
-        assertMacroExpansion(
-            """
-            @Generable
-            struct MixedExample {
-                let required: String
-                let optional: Int?
-            }
-            """,
-            expandedSource: """
-            struct MixedExample {
-                let required: String
-                let optional: Int?
-
-                public static var schema: Schema {
-                    .object(
-                        name: "MixedExample",
-                        description: nil,
-                        properties: [
-                            "required": Schema.Property(
-                                schema: .string(constraints: []),
-                                description: nil,
-                                isRequired: true
-                            ),
-                            "optional": Schema.Property(
-                                schema: .optional(wrapped: .integer(constraints: [])),
-                                description: nil,
-                                isRequired: false
-                            )
-                        ]
-                    )
-                }
-
-                public struct Partial: GenerableContentConvertible, Sendable {
-                    public var required: String?
-                    public var optional: Int?
-
-                    public var generableContent: StructuredContent {
-                        var dict: [String: StructuredContent] = [:]
-                        if let v = required { dict["required"] = v.generableContent }
-                        if let v = optional { dict["optional"] = v.generableContent }
-                        return .object(dict)
-                    }
-
-                    public init(from structuredContent: StructuredContent) throws {
-                        let obj = try structuredContent.object
-                        self.required = try? obj["required"].map { try String.init(from: $0) }
-                        self.optional = try? obj["optional"].map { try Int.init(from: $0) }
-                    }
-
-                    public init() {}
-                }
-
-                public init(from structuredContent: StructuredContent) throws {
-                    let obj = try structuredContent.object
-                    guard let requiredContent = obj["required"] else { throw StructuredContentError.missingKey("required") }
-                    self.required = try String.init(from: requiredContent)
-                    self.optional = try obj["optional"].map { try Int.init(from: $0) }
-                }
-
-                public var generableContent: StructuredContent {
-                    var dict: [String: StructuredContent] = [:]
-                    dict["required"] = required.generableContent
-                    if let v = optional { dict["optional"] = v.generableContent }
-                    return .object(dict)
-                }
-            }
-
-            extension MixedExample: Generable {
-            }
-            """,
-            macros: testMacros,
-            indentationWidth: .spaces(4)
-        )
+    @Test("Optional array schema")
+    func optionalArraySchema() throws {
+        let schema = OptionalArrayContainer.generationSchema
+        let data = try JSONEncoder().encode(schema)
+        let json = String(decoding: data, as: UTF8.self)
+        #expect(json.contains(#""names""#))
     }
 
-    @Test("Struct with array of integers")
-    func testArrayOfIntegers() {
-        assertMacroExpansion(
-            """
-            @Generable
-            struct IntArrayExample {
-                let scores: [Int]
-            }
-            """,
-            expandedSource: """
-            struct IntArrayExample {
-                let scores: [Int]
-
-                public static var schema: Schema {
-                    .object(
-                        name: "IntArrayExample",
-                        description: nil,
-                        properties: [
-                            "scores": Schema.Property(
-                                schema: .array(items: .integer(constraints: []), constraints: []),
-                                description: nil,
-                                isRequired: true
-                            )
-                        ]
-                    )
-                }
-
-                public struct Partial: GenerableContentConvertible, Sendable {
-                    public var scores: [Int]?
-
-                    public var generableContent: StructuredContent {
-                        var dict: [String: StructuredContent] = [:]
-                        if let v = scores { dict["scores"] = v.generableContent }
-                        return .object(dict)
-                    }
-
-                    public init(from structuredContent: StructuredContent) throws {
-                        let obj = try structuredContent.object
-                        self.scores = try? obj["scores"].map { try [Int].init(from: $0) }
-                    }
-
-                    public init() {}
-                }
-
-                public init(from structuredContent: StructuredContent) throws {
-                    let obj = try structuredContent.object
-                    guard let scoresContent = obj["scores"] else { throw StructuredContentError.missingKey("scores") }
-                    self.scores = try [Int].init(from: scoresContent)
-                }
-
-                public var generableContent: StructuredContent {
-                    var dict: [String: StructuredContent] = [:]
-                    dict["scores"] = scores.generableContent
-                    return .object(dict)
-                }
-            }
-
-            extension IntArrayExample: Generable {
-            }
-            """,
-            macros: testMacros,
-            indentationWidth: .spaces(4)
-        )
+    @Test("Nested array schema")
+    func nestedArraySchema() throws {
+        let schema = NestedArrayContainer.generationSchema
+        let data = try JSONEncoder().encode(schema)
+        let json = String(decoding: data, as: UTF8.self)
+        #expect(json.contains(#""items""#))
     }
 
-    @Test("Empty struct expands correctly")
-    func testEmptyStruct() {
-        assertMacroExpansion(
-            """
-            @Generable
-            struct EmptyStruct {
-            }
-            """,
-            expandedSource: """
-            struct EmptyStruct {
+    @Test("Optional primitive schema")
+    func optionalPrimitiveSchema() throws {
+        let schema = OptionalPrimitiveContainer.generationSchema
+        let data = try JSONEncoder().encode(schema)
+        let json = String(decoding: data, as: UTF8.self)
+        #expect(json.contains(#""title""#))
+        #expect(json.contains(#""count""#))
+        #expect(json.contains(#""flag""#))
+    }
 
-                public static var schema: Schema {
-                    .object(
-                        name: "EmptyStruct",
-                        description: nil,
-                        properties: [
+    @Test("Optional item schema")
+    func optionalItemSchema() throws {
+        let schema = OptionalItemContainer.generationSchema
+        let data = try JSONEncoder().encode(schema)
+        let json = String(decoding: data, as: UTF8.self)
+        #expect(json.contains(#""item""#))
+    }
 
-                        ]
-                    )
-                }
-
-                public struct Partial: GenerableContentConvertible, Sendable {
-
-
-                    public var generableContent: StructuredContent {
-                        var dict: [String: StructuredContent] = [:]
-
-                        return .object(dict)
-                    }
-
-                    public init(from structuredContent: StructuredContent) throws {
-                        let obj = try structuredContent.object
-
-                    }
-
-                    public init() {}
-                }
-
-                public init(from structuredContent: StructuredContent) throws {
-                    let obj = try structuredContent.object
-
-                }
-
-                public var generableContent: StructuredContent {
-                    var dict: [String: StructuredContent] = [:]
-
-                    return .object(dict)
-                }
-            }
-
-            extension EmptyStruct: Generable {
-            }
-            """,
-            macros: testMacros,
-            indentationWidth: .spaces(4)
-        )
+    @Test("Optional items schema")
+    func optionalItemsSchema() throws {
+        let schema = OptionalItemsContainer.generationSchema
+        let data = try JSONEncoder().encode(schema)
+        let json = String(decoding: data, as: UTF8.self)
+        #expect(json.contains(#""items""#))
     }
 }

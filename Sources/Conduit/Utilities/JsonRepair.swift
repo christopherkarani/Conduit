@@ -21,7 +21,7 @@ import Foundation
 /// // repaired: {"name": "Alice", "age": 30, "city": "New Yor"}
 ///
 /// let content = try JsonRepair.parse(partial)
-/// // content: StructuredContent with available fields
+/// // content: GeneratedContent with available fields
 /// ```
 ///
 /// ## Supported Repairs
@@ -40,11 +40,43 @@ public enum JsonRepair {
 
     // MARK: - Public API
 
+    /// Creates GeneratedContent from a complete JSON string.
+    ///
+    /// - Parameter json: A complete JSON string
+    /// - Returns: GeneratedContent with the parsed JSON structure
+    public static func from(json: String) throws -> GeneratedContent {
+        try parse(json)
+    }
+
+    /// Repairs incomplete JSON and parses it into `GeneratedContent`.
+    ///
+    /// - Parameter json: A potentially incomplete JSON string.
+    /// - Returns: Parsed `GeneratedContent`.
+    /// - Throws: If the repaired JSON is still not valid JSON.
+    public static func parse(_ json: String) throws -> GeneratedContent {
+        let repaired = repair(json)
+        guard let data = repaired.data(using: .utf8) else {
+            throw JsonRepairError.invalidJSON
+        }
+
+        do {
+            let parsed = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+            return try GeneratedContent.fromJSONValue(parsed)
+        } catch {
+            throw JsonRepairError.invalidJSON
+        }
+    }
+
+    /// Attempts to repair and parse JSON, returning `nil` on failure.
+    public static func tryParse(_ json: String) -> GeneratedContent? {
+        try? parse(json)
+    }
+
     /// Attempts to repair incomplete JSON to make it parseable.
     ///
     /// - Parameter json: The potentially incomplete JSON string
     /// - Returns: A repaired JSON string that should be valid JSON
-    public static func repair(_ json: String) -> String {
+    public static func repair(_ json: String, maximumDepth: Int = 64) -> String {
         let trimmed = json.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return "{}" }
 
@@ -52,7 +84,7 @@ public enum JsonRepair {
         var resultBuilder = ""
         resultBuilder.reserveCapacity(json.count + 100)
 
-        var state = ParserState()
+        var state = ParserState(maximumDepth: maximumDepth)
 
         // Single pass: analyze AND build simultaneously
         for char in json {
@@ -98,6 +130,12 @@ public enum JsonRepair {
         resultBuilder = removeTrailingCommasBeforeClosingBrackets(resultBuilder)
 
         return resultBuilder
+    }
+
+    // MARK: - Errors
+
+    private enum JsonRepairError: Error {
+        case invalidJSON
     }
 
     /// Checks if the string ends with a partial unicode escape sequence.
@@ -421,23 +459,6 @@ public enum JsonRepair {
         return result
     }
 
-    /// Attempts to repair and parse incomplete JSON into StructuredContent.
-    ///
-    /// - Parameter json: The potentially incomplete JSON string
-    /// - Returns: Parsed StructuredContent
-    /// - Throws: If the repaired JSON still cannot be parsed
-    public static func parse(_ json: String) throws -> StructuredContent {
-        let repaired = repair(json)
-        return try StructuredContent(json: repaired)
-    }
-
-    /// Attempts to repair and parse JSON, returning nil on failure.
-    ///
-    /// - Parameter json: The potentially incomplete JSON string
-    /// - Returns: Parsed StructuredContent, or nil if repair failed
-    public static func tryParse(_ json: String) -> StructuredContent? {
-        try? parse(json)
-    }
 }
 
 // MARK: - Parser State
@@ -449,6 +470,11 @@ private extension JsonRepair {
         var inString = false
         var escapeNext = false
         var bracketStack: [Bracket] = []
+        let maximumDepth: Int
+
+        init(maximumDepth: Int) {
+            self.maximumDepth = max(1, maximumDepth)
+        }
 
         mutating func process(_ char: Character) {
             if escapeNext {
@@ -470,7 +496,9 @@ private extension JsonRepair {
                 case "\"":
                     inString = true
                 case "{":
-                    bracketStack.append(.brace)
+                    if bracketStack.count < maximumDepth {
+                        bracketStack.append(.brace)
+                    }
                 case "}":
                     guard !bracketStack.isEmpty else { break }
                     if bracketStack.last == .brace {
@@ -482,7 +510,9 @@ private extension JsonRepair {
                         bracketStack.removeLast()
                     }
                 case "[":
-                    bracketStack.append(.bracket)
+                    if bracketStack.count < maximumDepth {
+                        bracketStack.append(.bracket)
+                    }
                 case "]":
                     guard !bracketStack.isEmpty else { break }
                     if bracketStack.last == .bracket {
@@ -513,4 +543,3 @@ private extension JsonRepair {
         }
     }
 }
-

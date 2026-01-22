@@ -181,68 +181,6 @@ internal struct HFErrorResponse: Codable, Sendable {
     let estimated_time: Double?
 }
 
-// MARK: - SSE Event
-
-/// A server-sent event from the streaming API.
-internal struct SSEEvent: Sendable {
-    let type: String?
-    let data: String
-
-    /// Whether this is the final event marker.
-    var isDone: Bool {
-        data == "[DONE]"
-    }
-}
-
-// MARK: - SSE Stream Parser
-
-/// Parses server-sent events from a byte stream.
-internal actor SSEStreamParser {
-    private var buffer: String = ""
-
-    /// Parses incoming data and returns complete events.
-    ///
-    /// - Parameter data: Raw bytes from the network stream.
-    /// - Returns: Array of complete SSE events found in the data.
-    func parse(_ data: Data) -> [SSEEvent] {
-        guard let text = String(data: data, encoding: .utf8) else {
-            return []
-        }
-
-        buffer += text
-
-        var events: [SSEEvent] = []
-        let lines = buffer.components(separatedBy: "\n")
-
-        // Keep the last incomplete line in the buffer
-        buffer = lines.last ?? ""
-
-        var currentEvent: (type: String?, data: String?) = (nil, nil)
-
-        for line in lines.dropLast() {
-            if line.isEmpty {
-                // Empty line marks the end of an event
-                if let data = currentEvent.data {
-                    events.append(SSEEvent(type: currentEvent.type, data: data))
-                }
-                currentEvent = (nil, nil)
-            } else if line.hasPrefix("data: ") {
-                currentEvent.data = String(line.dropFirst(6))
-            } else if line.hasPrefix("event: ") {
-                currentEvent.type = String(line.dropFirst(7))
-            }
-            // Ignore other SSE fields (id:, retry:, etc.)
-        }
-
-        return events
-    }
-
-    /// Resets the internal buffer.
-    func reset() {
-        buffer = ""
-    }
-}
-
 // MARK: - HFInferenceClient
 
 /// Internal HTTP client for HuggingFace Inference API.
@@ -599,25 +537,17 @@ internal actor HFInferenceClient {
             try handleHTTPError(statusCode: httpResponse.statusCode, data: errorData, response: httpResponse)
         }
 
-        let parser = SSEStreamParser()
+        var parser = ServerSentEventParser()
 
         for try await line in bytes.lines {
-            let events = await parser.parse(Data((line + "\n").utf8))
+            let events = parser.ingestLine(line)
 
             for event in events {
-                if event.isDone {
-                    return
-                }
+                if event.data == "[DONE]" { return }
 
-                // Parse the JSON data
-                if let data = event.data.data(using: .utf8) {
-                    do {
-                        let chunk = try decoder.decode(HFChatCompletionResponse.self, from: data)
-                        continuation.yield(chunk)
-                    } catch {
-                        // Skip malformed chunks
-                        continue
-                    }
+                guard let data = event.data.data(using: .utf8) else { continue }
+                if let chunk = try? decoder.decode(HFChatCompletionResponse.self, from: data) {
+                    continuation.yield(chunk)
                 }
             }
         }

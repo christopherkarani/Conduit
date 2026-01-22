@@ -7,27 +7,63 @@ import Foundation
 import Testing
 @testable import Conduit
 
+@Generable
+private struct WeatherArgs {
+    let city: String
+}
+
+@Generable
+private struct SearchArgs {
+    let query: String
+}
+
+@Generable
+private struct EmptyArgs {}
+
+@Generable
+private struct QueryArgs {
+    let query: String
+}
+
+@Generable
+private struct CreateUserArgs {
+    let name: String
+    let age: Int
+    let active: Bool
+}
+
+@Generable
+private struct Address {
+    let street: String
+    let city: String
+}
+
+@Generable
+private struct UserArgs {
+    let name: String
+    let address: Address
+}
+
+@Generable
+private struct TagArgs {
+    let tags: [String]
+}
+
 // MARK: - Test Suite
 
 @Suite("OpenAI Tool Request Building Tests")
 struct OpenAIToolRequestBuildingTests {
 
-    // MARK: - ToolDefinition Type Tests
+    // MARK: - Transcript.ToolDefinition Type Tests
 
-    @Suite("ToolDefinition Type")
+    @Suite("Transcript.ToolDefinition Type")
     struct ToolDefinitionTypeTests {
 
-        @Test("ToolDefinition creation with name, description, parameters")
+        @Test("Transcript.ToolDefinition creation with name, description, parameters")
         func toolDefinitionInit() {
-            let schema = Schema.object(
-                name: "WeatherArgs",
-                description: nil,
-                properties: [
-                    "city": .init(schema: .string(constraints: []), description: "City name")
-                ]
-            )
+            let schema = WeatherArgs.generationSchema
 
-            let tool = ToolDefinition(
+            let tool = Transcript.ToolDefinition(
                 name: "get_weather",
                 description: "Get weather for a city",
                 parameters: schema
@@ -37,35 +73,29 @@ struct OpenAIToolRequestBuildingTests {
             #expect(tool.description == "Get weather for a city")
         }
 
-        @Test("ToolDefinition conforms to Sendable")
+        @Test("Transcript.ToolDefinition conforms to Sendable")
         func sendableConformance() {
-            let schema = Schema.object(name: "Args", description: nil, properties: [:])
-            let tool: any Sendable = ToolDefinition(
+            let schema = EmptyArgs.generationSchema
+            let tool: any Sendable = Transcript.ToolDefinition(
                 name: "test",
                 description: "Test tool",
                 parameters: schema
             )
-            #expect(tool is ToolDefinition)
+            #expect(tool is Transcript.ToolDefinition)
         }
 
-        @Test("ToolDefinition Codable round-trip")
+        @Test("Transcript.ToolDefinition Codable round-trip")
         func codableRoundTrip() throws {
-            let schema = Schema.object(
-                name: "SearchArgs",
-                description: nil,
-                properties: [
-                    "query": .init(schema: .string(constraints: []), description: "Search query")
-                ]
-            )
+            let schema = SearchArgs.generationSchema
 
-            let original = ToolDefinition(
+            let original = Transcript.ToolDefinition(
                 name: "search",
                 description: "Search the web",
                 parameters: schema
             )
 
             let encoded = try JSONEncoder().encode(original)
-            let decoded = try JSONDecoder().decode(ToolDefinition.self, from: encoded)
+            let decoded = try JSONDecoder().decode(Transcript.ToolDefinition.self, from: encoded)
 
             #expect(decoded.name == original.name)
             #expect(decoded.description == original.description)
@@ -126,8 +156,8 @@ struct OpenAIToolRequestBuildingTests {
 
         @Test("GenerateConfig fluent API for tools")
         func fluentAPITools() {
-            let schema = Schema.object(name: "Args", description: nil, properties: [:])
-            let tool = ToolDefinition(name: "test", description: "Test", parameters: schema)
+            let schema = EmptyArgs.generationSchema
+            let tool = Transcript.ToolDefinition(name: "test", description: "Test", parameters: schema)
 
             let config = GenerateConfig.default.tools([tool])
 
@@ -137,10 +167,10 @@ struct OpenAIToolRequestBuildingTests {
 
         @Test("GenerateConfig fluent API for multiple tools")
         func fluentAPIMultipleTools() {
-            let schema = Schema.object(name: "Args", description: nil, properties: [:])
+            let schema = EmptyArgs.generationSchema
 
-            let tool1 = ToolDefinition(name: "tool1", description: "Tool 1", parameters: schema)
-            let tool2 = ToolDefinition(name: "tool2", description: "Tool 2", parameters: schema)
+            let tool1 = Transcript.ToolDefinition(name: "tool1", description: "Tool 1", parameters: schema)
+            let tool2 = Transcript.ToolDefinition(name: "tool2", description: "Tool 2", parameters: schema)
 
             let config = GenerateConfig.default.tools([tool1, tool2])
 
@@ -155,8 +185,8 @@ struct OpenAIToolRequestBuildingTests {
 
         @Test("GenerateConfig fluent API for toolChoice")
         func fluentAPIToolChoice() {
-            let schema = Schema.object(name: "Args", description: nil, properties: [:])
-            let tool = ToolDefinition(name: "test", description: "Test", parameters: schema)
+            let schema = EmptyArgs.generationSchema
+            let tool = Transcript.ToolDefinition(name: "test", description: "Test", parameters: schema)
 
             let config = GenerateConfig.default
                 .tools([tool])
@@ -173,8 +203,8 @@ struct OpenAIToolRequestBuildingTests {
 
         @Test("GenerateConfig fluent API for parallelToolCalls")
         func fluentAPIParallelToolCalls() {
-            let schema = Schema.object(name: "Args", description: nil, properties: [:])
-            let tool = ToolDefinition(name: "test", description: "Test", parameters: schema)
+            let schema = EmptyArgs.generationSchema
+            let tool = Transcript.ToolDefinition(name: "test", description: "Test", parameters: schema)
 
             let config = GenerateConfig.default
                 .tools([tool])
@@ -185,8 +215,8 @@ struct OpenAIToolRequestBuildingTests {
 
         @Test("GenerateConfig tools preserved in config copy")
         func toolsPreservedInCopy() {
-            let schema = Schema.object(name: "Args", description: nil, properties: [:])
-            let tool = ToolDefinition(name: "test", description: "Test", parameters: schema)
+            let schema = EmptyArgs.generationSchema
+            let tool = Transcript.ToolDefinition(name: "test", description: "Test", parameters: schema)
 
             let config = GenerateConfig.default
                 .tools([tool])
@@ -205,14 +235,8 @@ struct OpenAIToolRequestBuildingTests {
 
         @Test("GenerateConfig tools included in Codable")
         func toolsCodable() throws {
-            let schema = Schema.object(
-                name: "WeatherArgs",
-                description: nil,
-                properties: [
-                    "city": .init(schema: .string(constraints: []), description: "City")
-                ]
-            )
-            let tool = ToolDefinition(name: "weather", description: "Get weather", parameters: schema)
+            let schema = WeatherArgs.generationSchema
+            let tool = Transcript.ToolDefinition(name: "weather", description: "Get weather", parameters: schema)
 
             let config = GenerateConfig.default
                 .tools([tool])
@@ -229,38 +253,24 @@ struct OpenAIToolRequestBuildingTests {
         }
     }
 
-    // MARK: - Tool Schema Tests
+    // MARK: - Tool schema tests
 
-    @Suite("Tool Schema")
+    @Suite("Tool schema")
     struct ToolSchemaTests {
 
         @Test("Tool with simple string property")
         func simpleStringProperty() {
-            let schema = Schema.object(
-                name: "Args",
-                description: nil,
-                properties: [
-                    "query": .init(schema: .string(constraints: []), description: "Query string")
-                ]
-            )
+            let schema = QueryArgs.generationSchema
 
-            let tool = ToolDefinition(name: "search", description: "Search", parameters: schema)
+            let tool = Transcript.ToolDefinition(name: "search", description: "Search", parameters: schema)
             #expect(tool.name == "search")
         }
 
         @Test("Tool with multiple property types")
         func multiplePropertyTypes() {
-            let schema = Schema.object(
-                name: "CreateUserArgs",
-                description: "Arguments for creating a user",
-                properties: [
-                    "name": .init(schema: .string(constraints: []), description: "User name"),
-                    "age": .init(schema: .integer(constraints: []), description: "User age"),
-                    "active": .init(schema: .boolean(constraints: []), description: "Is active")
-                ]
-            )
+            let schema = CreateUserArgs.generationSchema
 
-            let tool = ToolDefinition(
+            let tool = Transcript.ToolDefinition(
                 name: "create_user",
                 description: "Create a new user",
                 parameters: schema
@@ -271,25 +281,9 @@ struct OpenAIToolRequestBuildingTests {
 
         @Test("Tool with nested object property")
         func nestedObjectProperty() {
-            let addressSchema = Schema.object(
-                name: "Address",
-                description: nil,
-                properties: [
-                    "street": .init(schema: .string(constraints: []), description: "Street"),
-                    "city": .init(schema: .string(constraints: []), description: "City")
-                ]
-            )
+            let schema = UserArgs.generationSchema
 
-            let schema = Schema.object(
-                name: "UserArgs",
-                description: nil,
-                properties: [
-                    "name": .init(schema: .string(constraints: []), description: "Name"),
-                    "address": .init(schema: addressSchema, description: "Address")
-                ]
-            )
-
-            let tool = ToolDefinition(
+            let tool = Transcript.ToolDefinition(
                 name: "create_user",
                 description: "Create user with address",
                 parameters: schema
@@ -300,18 +294,9 @@ struct OpenAIToolRequestBuildingTests {
 
         @Test("Tool with array property")
         func arrayProperty() {
-            let schema = Schema.object(
-                name: "TagArgs",
-                description: nil,
-                properties: [
-                    "tags": .init(
-                        schema: .array(items: .string(constraints: []), constraints: []),
-                        description: "List of tags"
-                    )
-                ]
-            )
+            let schema = TagArgs.generationSchema
 
-            let tool = ToolDefinition(
+            let tool = Transcript.ToolDefinition(
                 name: "add_tags",
                 description: "Add tags",
                 parameters: schema

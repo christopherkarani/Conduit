@@ -158,7 +158,7 @@ public struct GenerationStream: AsyncSequence, Sendable {
     /// - Returns: A GenerationStream wrapping the string stream.
     public static func from(_ stringStream: AsyncThrowingStream<String, Error>) -> GenerationStream {
         let chunkStream = AsyncThrowingStream<GenerationChunk, Error> { continuation in
-            Task {
+            let task = Task {
                 do {
                     for try await text in stringStream {
                         let chunk = GenerationChunk(text: text)
@@ -168,6 +168,10 @@ public struct GenerationStream: AsyncSequence, Sendable {
                 } catch {
                     continuation.finish(throwing: error)
                 }
+            }
+
+            continuation.onTermination = { @Sendable _ in
+                task.cancel()
             }
         }
         return GenerationStream(chunkStream)

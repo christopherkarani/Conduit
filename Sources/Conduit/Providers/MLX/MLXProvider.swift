@@ -186,13 +186,18 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
         config: GenerateConfig
     ) -> AsyncThrowingStream<GenerationChunk, Error> {
         AsyncThrowingStream { continuation in
-            Task {
+            let task = Task {
                 await self.performStreamingGeneration(
                     messages: messages,
                     model: model,
                     config: config,
                     continuation: continuation
                 )
+            }
+
+            continuation.onTermination = { @Sendable _ in
+                task.cancel()
+                Task { await self.cancelGeneration() }
             }
         }
     }
@@ -447,7 +452,7 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
         let chunkStream = stream(messages: messages, model: model, config: config)
 
         return AsyncThrowingStream { continuation in
-            Task {
+            let task = Task {
                 do {
                     for try await chunk in chunkStream {
                         continuation.yield(chunk.text)
@@ -456,6 +461,11 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
                 } catch {
                     continuation.finish(throwing: error)
                 }
+            }
+
+            continuation.onTermination = { @Sendable _ in
+                task.cancel()
+                Task { await self.cancelGeneration() }
             }
         }
     }

@@ -36,6 +36,12 @@ public struct MessageMetadata: Sendable, Hashable, Codable {
     /// Custom application-specific metadata.
     public var custom: [String: String]?
 
+    /// Tool calls associated with an assistant message.
+    ///
+    /// This enables providers like Anthropic that require tool call
+    /// information to be included in the assistant's message content.
+    public var toolCalls: [Transcript.ToolCall]?
+
     /// Creates message metadata with optional fields.
     ///
     /// - Parameters:
@@ -49,13 +55,15 @@ public struct MessageMetadata: Sendable, Hashable, Codable {
         generationTime: TimeInterval? = nil,
         model: String? = nil,
         tokensPerSecond: Double? = nil,
-        custom: [String: String]? = nil
+        custom: [String: String]? = nil,
+        toolCalls: [Transcript.ToolCall]? = nil
     ) {
         self.tokenCount = tokenCount
         self.generationTime = generationTime
         self.model = model
         self.tokensPerSecond = tokensPerSecond
         self.custom = custom
+        self.toolCalls = toolCalls
     }
 }
 
@@ -180,6 +188,31 @@ public struct Message: Sendable, Hashable, Codable, Identifiable {
     /// - Returns: A message with `role: .assistant`.
     public static func assistant(_ text: String) -> Message {
         Message(role: .assistant, content: .text(text))
+    }
+
+    /// Creates an assistant message with tool calls attached.
+    ///
+    /// Use this when a provider (e.g. Anthropic) requires tool call blocks to
+    /// be included in the assistant message history.
+    ///
+    /// - Parameters:
+    ///   - text: The assistant's response text (may be empty if the model only emitted tool calls).
+    ///   - toolCalls: The tool calls emitted by the model.
+    /// - Returns: A message with `role: .assistant` and attached tool calls metadata.
+    public static func assistant(_ text: String, toolCalls: [Transcript.ToolCall]) -> Message {
+        Message(
+            role: .assistant,
+            content: .text(text),
+            metadata: MessageMetadata(toolCalls: toolCalls)
+        )
+    }
+
+    /// Creates an assistant message containing only tool calls.
+    ///
+    /// - Parameter toolCalls: The tool calls emitted by the model.
+    /// - Returns: A message with `role: .assistant` and attached tool calls metadata.
+    public static func assistant(toolCalls: [Transcript.ToolCall]) -> Message {
+        assistant("", toolCalls: toolCalls)
     }
 
     /// Creates a user message with text content (alternative syntax).

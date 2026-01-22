@@ -71,9 +71,7 @@ import Foundation
 /// )
 ///
 /// for try await chunk in stream {
-///     if let text = chunk.text {
-///         print(text, terminator: "")
-///     }
+///     if !chunk.text.isEmpty { print(chunk.text, terminator: "") }
 ///     if chunk.finishReason != nil {
 ///         print("\nGeneration complete: \(chunk.finishReason!)")
 ///     }
@@ -249,9 +247,7 @@ public protocol TextGenerator: Sendable {
     /// for try await chunk in stream {
     ///     chunks.append(chunk)
     ///
-    ///     if let text = chunk.text {
-    ///         print(text, terminator: "")
-    ///     }
+    ///     if !chunk.text.isEmpty { print(chunk.text, terminator: "") }
     ///
     ///     if let finishReason = chunk.finishReason {
     ///         print("\n\nFinished: \(finishReason)")
@@ -265,7 +261,7 @@ public protocol TextGenerator: Sendable {
     /// ## Chunk Structure
     ///
     /// Each `GenerationChunk` may contain:
-    /// - `text`: The text fragment for this chunk (may be nil for metadata-only chunks)
+    /// - `text`: The text fragment for this chunk (may be empty for metadata-only chunks)
     /// - `finishReason`: Present in the final chunk, indicates why generation stopped
     /// - `usage`: Token usage statistics (typically only in the final chunk)
     /// - `index`: The sequential position of this chunk in the stream

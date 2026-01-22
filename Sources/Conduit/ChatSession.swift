@@ -234,8 +234,7 @@ public struct WarmupConfig: Sendable {
 #if canImport(Observation)
 @Observable
 #endif
-public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked Sendable
-where Provider.ModelID == ModelIdentifier {
+public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked Sendable {
 
     // MARK: - Properties
 
