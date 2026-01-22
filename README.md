@@ -67,7 +67,7 @@ Add Conduit to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/christopherkarani/Conduit", from: "1.0.1")
+    .package(url: "https://github.com/christopherkarani/Conduit", from: "0.3.0")
 ]
 ```
 
@@ -79,7 +79,7 @@ To use on-device MLX inference, enable the `MLX` trait:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/christopherkarani/Conduit", from: "1.0.0", traits: ["MLX"])
+    .package(url: "https://github.com/christopherkarani/Conduit", from: "0.3.0", traits: ["MLX"])
 ]
 ```
 
