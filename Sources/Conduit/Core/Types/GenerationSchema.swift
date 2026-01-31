@@ -3,11 +3,30 @@ import class Foundation.JSONEncoder
 import class Foundation.JSONDecoder
 import struct Foundation.Decimal
 
-/// A type that describes the properties of an object and any guides
+// MARK: - EncodingError
+
+/// Error that occurs during schema encoding.
+private enum EncodingError: Error, LocalizedError {
+    case invalidValue(Any, Context)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidValue(let value, let context):
+            return "Invalid value during encoding: \(value). \(context.debugDescription)"
+        }
+    }
+
+    struct Context: Sendable {
+        let codingPath: [any CodingKey]
+        let debugDescription: String
+    }
+}
+
+/// A type that describes properties of an object and any guides
 /// on their values.
 ///
 /// Generation  schemas guide the output of a ``SystemLanguageModel`` to deterministically
-/// ensure the output is in the desired format.
+/// ensure output is in desired format.
 public struct GenerationSchema: Sendable, Codable, CustomDebugStringConvertible {
     indirect enum Node: Sendable, Codable {
         case object(ObjectNode)
@@ -38,7 +57,16 @@ public struct GenerationSchema: Sendable, Codable, CustomDebugStringConvertible 
                 }
                 var propsContainer = container.nestedContainer(keyedBy: DynamicCodingKey.self, forKey: .properties)
                 for (name, node) in obj.properties {
-                    try propsContainer.encode(node, forKey: DynamicCodingKey(stringValue: name)!)
+                    guard let key = DynamicCodingKey(stringValue: name) else {
+                        throw EncodingError.invalidValue(
+                            name,
+                            EncodingError.Context(
+                                codingPath: container.codingPath,
+                                debugDescription: "Unable to create coding key for property '\(name)'"
+                            )
+                        )
+                    }
+                    try propsContainer.encode(node, forKey: key)
                 }
                 try container.encode(Array(obj.required), forKey: .required)
 
@@ -269,7 +297,9 @@ public struct GenerationSchema: Sendable, Codable, CustomDebugStringConvertible 
             }
             for (defName, defNode) in property.deps {
                 if let existing = allDefs[defName], !Self.nodesEqual(existing, defNode) {
-                    fatalError("Duplicate type '\(defName)' with different structure")
+                    // Duplicate type with different structure indicates a schema conflict.
+                    // This is a programmer error that should be caught during development.
+                    preconditionFailure("Duplicate type '\(defName)' with different structure")
                 }
                 allDefs[defName] = defNode
             }
@@ -293,9 +323,9 @@ public struct GenerationSchema: Sendable, Codable, CustomDebugStringConvertible 
         description: String? = nil,
         anyOf choices: [String]
     ) {
-        guard !choices.isEmpty else {
-            fatalError("Empty choices for enum schema")
-        }
+        // Empty choices for an enum schema is a programmer error.
+        // This should be caught during development by the macro or caller.
+        precondition(!choices.isEmpty, "Empty choices for enum schema")
         let node = StringNode(description: description, pattern: nil, enumChoices: choices)
         self.root = .string(node)
         self.defs = [:]
@@ -312,9 +342,9 @@ public struct GenerationSchema: Sendable, Codable, CustomDebugStringConvertible 
         description: String? = nil,
         anyOf types: [any Generable.Type]
     ) {
-        guard !types.isEmpty else {
-            fatalError("Empty types for anyOf schema")
-        }
+        // Empty types for an anyOf schema is a programmer error.
+        // This should be caught during development by the macro or caller.
+        precondition(!types.isEmpty, "Empty types for anyOf schema")
 
         var members: [Node] = []
         var allDefs: [String: Node] = [:]
@@ -326,7 +356,9 @@ public struct GenerationSchema: Sendable, Codable, CustomDebugStringConvertible 
             let tSchema = t.generationSchema
             for (defName, defNode) in tSchema.defs {
                 if let existing = allDefs[defName], !Self.nodesEqual(existing, defNode) {
-                    fatalError("Duplicate type '\(defName)' with different structure")
+                    // Duplicate type with different structure indicates a schema conflict.
+                    // This is a programmer error that should be caught during development.
+                    preconditionFailure("Duplicate type '\(defName)' with different structure")
                 }
                 allDefs[defName] = defNode
             }
@@ -546,7 +578,16 @@ public struct GenerationSchema: Sendable, Codable, CustomDebugStringConvertible 
         if !defs.isEmpty {
             var defsContainer = container.nestedContainer(keyedBy: DynamicCodingKey.self, forKey: .defs)
             for (name, node) in defs {
-                try defsContainer.encode(node, forKey: DynamicCodingKey(stringValue: name)!)
+                guard let key = DynamicCodingKey(stringValue: name) else {
+                    throw EncodingError.invalidValue(
+                        name,
+                        EncodingError.Context(
+                            codingPath: encoder.codingPath,
+                            debugDescription: "Unable to create coding key for definition '\(name)'"
+                        )
+                    )
+                }
+                try defsContainer.encode(node, forKey: key)
             }
         }
 
@@ -799,5 +840,8 @@ extension GenerationSchema {
     /// encoder.userInfo[GenerationSchema.omitAdditionalPropertiesKey] = true
     /// let data = try encoder.encode(schema)
     /// ```
-    static let omitAdditionalPropertiesKey = CodingUserInfoKey(rawValue: "GenerationSchema.omitAdditionalProperties")!
+    // This force unwrap is safe because the rawValue is a hardcoded valid string.
+    // CodingUserInfoKey only fails with nil if the rawValue is empty, which this is not.
+    static let omitAdditionalPropertiesKey: CodingUserInfoKey =
+        CodingUserInfoKey(rawValue: "GenerationSchema.omitAdditionalProperties")!
 }
