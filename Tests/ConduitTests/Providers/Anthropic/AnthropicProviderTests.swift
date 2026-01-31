@@ -7,6 +7,10 @@ import Testing
 import Foundation
 @testable import Conduit
 
+// MARK: - Test Helpers
+
+
+
 // MARK: - Configuration Tests
 
 @Suite("Anthropic Configuration Tests")
@@ -57,7 +61,7 @@ struct AnthropicConfigurationTests {
     @Test("HTTPS URL is accepted")
     func httpsURLAccepted() throws {
         let config = try AnthropicConfiguration(
-            baseURL: URL(string: "https://custom.api.example.com")!
+            baseURL: makeTestURL("https://custom.api.example.com")
         )
         #expect(config.baseURL.absoluteString == "https://custom.api.example.com")
     }
@@ -66,7 +70,7 @@ struct AnthropicConfigurationTests {
     func httpURLRejected() {
         #expect(throws: AIError.self) {
             _ = try AnthropicConfiguration(
-                baseURL: URL(string: "http://insecure.api.example.com")!
+                baseURL: makeTestURL("http://insecure.api.example.com")
             )
         }
     }
@@ -75,19 +79,19 @@ struct AnthropicConfigurationTests {
     func localhostHTTPAllowed() throws {
         // localhost hostname
         let localhost = try AnthropicConfiguration(
-            baseURL: URL(string: "http://localhost:8080")!
+            baseURL: makeTestURL("http://localhost:8080")
         )
         #expect(localhost.baseURL.host == "localhost")
 
         // 127.0.0.1
         let ipv4 = try AnthropicConfiguration(
-            baseURL: URL(string: "http://127.0.0.1:8080")!
+            baseURL: makeTestURL("http://127.0.0.1:8080")
         )
         #expect(ipv4.baseURL.host == "127.0.0.1")
 
         // IPv6 loopback
         let ipv6 = try AnthropicConfiguration(
-            baseURL: URL(string: "http://[::1]:8080")!
+            baseURL: makeTestURL("http://[::1]:8080")
         )
         #expect(ipv6.baseURL.host == "::1")
     }
@@ -97,12 +101,12 @@ struct AnthropicConfigurationTests {
         let config = AnthropicConfiguration.standard(apiKey: "sk-ant-test")
 
         // HTTPS should work
-        let httpsConfig = try config.baseURL(URL(string: "https://custom.example.com")!)
+        let httpsConfig = try config.baseURL(makeTestURL("https://custom.example.com"))
         #expect(httpsConfig.baseURL.absoluteString == "https://custom.example.com")
 
         // HTTP should throw
         #expect(throws: AIError.self) {
-            _ = try config.baseURL(URL(string: "http://insecure.example.com")!)
+            _ = try config.baseURL(makeTestURL("http://insecure.example.com"))
         }
     }
 }
@@ -544,9 +548,13 @@ struct AnthropicStreamingEventTests {
                 "text": "Hello"
             }
         }
-        """.data(using: .utf8)!
+        """
+        guard let data = json.data(using: .utf8) else {
+            Issue.record("Failed to convert test JSON to Data")
+            return
+        }
 
-        let event = try await provider.parseStreamEvent(from: json)
+        let event = try await provider.parseStreamEvent(from: data)
 
         if case .contentBlockDelta(let delta) = event {
             #expect(delta.index == 0)
@@ -572,9 +580,13 @@ struct AnthropicStreamingEventTests {
                 "stop_sequence": null
             }
         }
-        """.data(using: .utf8)!
+        """
+        guard let data = json.data(using: .utf8) else {
+            Issue.record("Failed to convert test JSON to Data")
+            return
+        }
 
-        let event = try await provider.parseStreamEvent(from: json)
+        let event = try await provider.parseStreamEvent(from: data)
 
         if case .messageStart(let start) = event {
             #expect(start.message.id == "msg_123")
@@ -641,9 +653,13 @@ struct AnthropicStreamingEventTests {
             "type": "future_event_type",
             "data": {}
         }
-        """.data(using: .utf8)!
+        """
+        guard let data = json.data(using: .utf8) else {
+            Issue.record("Failed to convert test JSON to Data")
+            return
+        }
 
-        let event = try await provider.parseStreamEvent(from: json)
+        let event = try await provider.parseStreamEvent(from: data)
         #expect(event == nil) // Unknown types gracefully return nil
     }
 }

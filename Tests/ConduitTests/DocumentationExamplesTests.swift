@@ -11,19 +11,19 @@ final class DocumentationExamplesTests: XCTestCase {
 
         let steps = [
             DocumentationRunner.Step(label: "Claude Opus 4.5") {
-                let provider = MockProvider(label: "Anthropic", modelID: .anthropicOpus)
+                let provider = ExampleMockProvider(label: "Anthropic", modelID: ExampleMockModel.anthropicOpus)
                 return try await runner.run(provider: provider, model: provider.modelID)
             },
             DocumentationRunner.Step(label: "OpenRouter GPT-5.2") {
-                let provider = MockProvider(label: "OpenRouter", modelID: .openRouterGPT52)
+                let provider = ExampleMockProvider(label: "OpenRouter", modelID: ExampleMockModel.openRouterGPT52)
                 return try await runner.run(provider: provider, model: provider.modelID)
             },
             DocumentationRunner.Step(label: "Ollama Llama3.2") {
-                let provider = MockProvider(label: "Ollama", modelID: .ollamaLlama32)
+                let provider = ExampleMockProvider(label: "Ollama", modelID: ExampleMockModel.ollamaLlama32)
                 return try await runner.run(provider: provider, model: provider.modelID)
             },
             DocumentationRunner.Step(label: "MLX Llama3.2 1B") {
-                let provider = MockProvider(label: "MLX", modelID: .mlxLlama32)
+                let provider = ExampleMockProvider(label: "MLX", modelID: ExampleMockModel.mlxLlama32)
                 return try await runner.run(provider: provider, model: provider.modelID)
             }
         ]
@@ -60,29 +60,29 @@ private struct DocumentationRunner {
     }
 }
 
-private struct MockProvider: TextGenerator {
-    typealias ModelID = MockModel
+private struct ExampleMockProvider: TextGenerator {
+    typealias ModelID = ExampleMockModel
 
     let label: String
-    let modelID: MockModel
+    let modelID: ExampleMockModel
 
-    func generate(_ prompt: String, model: MockModel, config: GenerateConfig) async throws -> String {
+    func generate(_ prompt: String, model: ExampleMockModel, config: GenerateConfig) async throws -> String {
         "\(label): \(prompt) [\(model.displayName)]"
     }
 
-    func generate(messages: [Message], model: MockModel, config: GenerateConfig) async throws -> GenerationResult {
+    func generate(messages: [Message], model: ExampleMockModel, config: GenerateConfig) async throws -> GenerationResult {
         let joined = messages.map { $0.content.textValue }.joined(separator: " ")
         return GenerationResult.text(joined.isEmpty ? model.displayName : joined)
     }
 
-    func stream(_ prompt: String, model: MockModel, config: GenerateConfig) -> AsyncThrowingStream<String, Error> {
+    func stream(_ prompt: String, model: ExampleMockModel, config: GenerateConfig) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             continuation.yield("\(label) stream: \(prompt)")
             continuation.finish()
         }
     }
 
-    func streamWithMetadata(messages: [Message], model: MockModel, config: GenerateConfig) -> AsyncThrowingStream<GenerationChunk, Error> {
+    func streamWithMetadata(messages: [Message], model: ExampleMockModel, config: GenerateConfig) -> AsyncThrowingStream<GenerationChunk, Error> {
         AsyncThrowingStream { continuation in
             let chunk = GenerationChunk(text: "\(label) chunk", isComplete: true, finishReason: .stop)
             continuation.yield(chunk)
@@ -91,7 +91,7 @@ private struct MockProvider: TextGenerator {
     }
 }
 
-private struct MockModel: ModelIdentifying {
+private struct ExampleMockModel: ModelIdentifying {
     let rawValue: String
     let providerType: ProviderType
 
@@ -99,8 +99,8 @@ private struct MockModel: ModelIdentifying {
     var provider: ProviderType { providerType }
     var description: String { "[\(provider.displayName)] \(rawValue)" }
 
-    static let anthropicOpus = MockModel(rawValue: "claude-opus-4-5-20251101", providerType: .anthropic)
-    static let openRouterGPT52 = MockModel(rawValue: "openai/gpt-5.2-opus", providerType: .openRouter)
-    static let ollamaLlama32 = MockModel(rawValue: "llama3.2", providerType: .ollama)
-    static let mlxLlama32 = MockModel(rawValue: "mlx-community/Llama-3.2-1B-Instruct-4bit", providerType: .mlx)
+    static let anthropicOpus = ExampleMockModel(rawValue: "claude-opus-4-5-20251101", providerType: .anthropic)
+    static let openRouterGPT52 = ExampleMockModel(rawValue: "openai/gpt-5.2-opus", providerType: .openRouter)
+    static let ollamaLlama32 = ExampleMockModel(rawValue: "llama3.2", providerType: .ollama)
+    static let mlxLlama32 = ExampleMockModel(rawValue: "mlx-community/Llama-3.2-1B-Instruct-4bit", providerType: .mlx)
 }

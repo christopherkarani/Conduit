@@ -9,6 +9,18 @@ import Foundation
 import Testing
 @testable import Conduit
 
+// MARK: - Test Helpers
+
+/// Creates a URL from a string, failing the test if the URL is invalid.
+func makeTestURL(_ string: String) -> URL {
+    guard let url = URL(string: string) else {
+        Issue.record("Failed to create URL from string: \(string)")
+        return makeTestURL("https://example.com")
+    }
+    return url
+}
+
+
 @Suite("DiffusionModelRegistry Tests", .serialized)
 struct DiffusionModelRegistryTests {
 
@@ -75,7 +87,7 @@ struct DiffusionModelRegistryTests {
             variant: .sdxlTurbo,
             sizeGiB: 6.5,
             description: "Test model",
-            huggingFaceURL: URL(string: "https://example.com")!
+            huggingFaceURL: makeTestURL("https://example.com")
         )
         #expect(model.formattedSize == "6.5 GiB")
     }
@@ -88,7 +100,7 @@ struct DiffusionModelRegistryTests {
             variant: .sd15,
             sizeGiB: 2.0,
             description: "Test model",
-            huggingFaceURL: URL(string: "https://example.com")!
+            huggingFaceURL: makeTestURL("https://example.com")
         )
         #expect(model.sizeBytes == 2_147_483_648)  // 2 GiB
     }

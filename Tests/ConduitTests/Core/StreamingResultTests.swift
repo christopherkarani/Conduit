@@ -23,8 +23,15 @@ private func makeSnapshot(_ value: String?) -> StreamingResult<TestGenerable>.Sn
         rawContent = GeneratedContent(kind: .structure(properties: [:], orderedKeys: []))
     }
 
+    let content: TestGenerable.PartiallyGenerated
+    do {
+        content = try TestGenerable.PartiallyGenerated(rawContent)
+    } catch {
+        fatalError("Test data setup failed: \(error)")
+    }
+
     return StreamingResult<TestGenerable>.Snapshot(
-        content: try! TestGenerable.PartiallyGenerated(rawContent),
+        content: content,
         rawContent: rawContent
     )
 }

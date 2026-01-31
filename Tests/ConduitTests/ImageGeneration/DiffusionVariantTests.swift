@@ -156,7 +156,10 @@ struct DiffusionVariantTests {
         ("\"flux\"", DiffusionVariant.flux)
     ])
     func decodeFromJSON(json: String, expected: DiffusionVariant) throws {
-        let data = json.data(using: .utf8)!
+        guard let data = json.data(using: .utf8) else {
+            Issue.record("Failed to convert test JSON to Data")
+            return
+        }
         let variant = try JSONDecoder().decode(DiffusionVariant.self, from: data)
         #expect(variant == expected)
     }
@@ -164,7 +167,10 @@ struct DiffusionVariantTests {
     @Test("Decoding invalid JSON throws error")
     func decodeInvalidJSON() throws {
         let json = "\"invalid-variant\""
-        let data = json.data(using: .utf8)!
+        guard let data = json.data(using: .utf8) else {
+            Issue.record("Failed to convert test JSON to Data")
+            return
+        }
 
         #expect(throws: Error.self) {
             try JSONDecoder().decode(DiffusionVariant.self, from: data)

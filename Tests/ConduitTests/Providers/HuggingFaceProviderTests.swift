@@ -1,8 +1,21 @@
 // HuggingFaceProviderTests.swift
 // Conduit Tests
 
+import Testing
 import XCTest
 @testable import Conduit
+
+// MARK: - Test Helpers
+
+/// Creates a URL from a string, failing the test if the URL is invalid.
+func makeTestURL(_ string: String) -> URL {
+    guard let url = URL(string: string) else {
+        Issue.record("Failed to create URL from string: \(string)")
+        return makeTestURL("https://example.com")
+    }
+    return url
+}
+
 
 /// Comprehensive test suite for HuggingFace provider components.
 ///
@@ -187,7 +200,7 @@ extension HuggingFaceProviderTests {
     }
 
     func testEndpointFactoryMethod() {
-        let customURL = URL(string: "https://custom.example.com")!
+        let customURL = makeTestURL("https://custom.example.com")
         let config = HFConfiguration.endpoint(customURL)
 
         XCTAssertEqual(config.baseURL, customURL, "Endpoint factory should set custom base URL")
@@ -216,7 +229,7 @@ extension HuggingFaceProviderTests {
     }
 
     func testFluentBaseURLAPI() {
-        let customURL = URL(string: "https://custom.example.com")!
+        let customURL = makeTestURL("https://custom.example.com")
         let config = HFConfiguration.default.baseURL(customURL)
         XCTAssertEqual(config.baseURL, customURL)
     }

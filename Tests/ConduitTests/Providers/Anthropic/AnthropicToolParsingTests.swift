@@ -26,7 +26,10 @@ struct AnthropicToolParsingTests {
                 "text": "I'll check the weather for you."
             }
             """
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
 
             let block = try JSONDecoder().decode(
                 AnthropicMessagesResponse.ContentBlock.self,
@@ -47,7 +50,10 @@ struct AnthropicToolParsingTests {
                 "input": {"city": "San Francisco", "units": "celsius"}
             }
             """
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
 
             let block = try JSONDecoder().decode(
                 AnthropicMessagesResponse.ContentBlock.self,
@@ -78,7 +84,10 @@ struct AnthropicToolParsingTests {
                 }
             }
             """
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
 
             let block = try JSONDecoder().decode(
                 AnthropicMessagesResponse.ContentBlock.self,
@@ -101,7 +110,10 @@ struct AnthropicToolParsingTests {
                 "input": {}
             }
             """
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
 
             let block = try JSONDecoder().decode(
                 AnthropicMessagesResponse.ContentBlock.self,
@@ -136,7 +148,10 @@ struct AnthropicToolParsingTests {
                 "usage": {"input_tokens": 100, "output_tokens": 50}
             }
             """
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
 
             let response = try JSONDecoder().decode(
                 AnthropicMessagesResponse.self,
@@ -174,7 +189,10 @@ struct AnthropicToolParsingTests {
                 "usage": {"input_tokens": 100, "output_tokens": 80}
             }
             """
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
 
             let response = try JSONDecoder().decode(
                 AnthropicMessagesResponse.self,
@@ -208,7 +226,10 @@ struct AnthropicToolParsingTests {
                 "usage": {"input_tokens": 50, "output_tokens": 10}
             }
             """
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
 
             let response = try JSONDecoder().decode(
                 AnthropicMessagesResponse.self,
@@ -250,7 +271,10 @@ struct AnthropicToolParsingTests {
                 "usage": {"input_tokens": 100, "output_tokens": 30}
             }
             """
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
             let response = try JSONDecoder().decode(AnthropicMessagesResponse.self, from: data)
 
             // Convert to GenerationResult
@@ -283,7 +307,10 @@ struct AnthropicToolParsingTests {
                 "usage": {"input_tokens": 100, "output_tokens": 50}
             }
             """
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
             let response = try JSONDecoder().decode(AnthropicMessagesResponse.self, from: data)
 
             let result = try await provider.convertToGenerationResult(response, startTime: Date())
@@ -312,7 +339,10 @@ struct AnthropicToolParsingTests {
                 "usage": {"input_tokens": 100, "output_tokens": 40}
             }
             """
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
             let response = try JSONDecoder().decode(AnthropicMessagesResponse.self, from: data)
 
             let result = try await provider.convertToGenerationResult(response, startTime: Date())
@@ -342,7 +372,10 @@ struct AnthropicToolParsingTests {
                 "usage": {"input_tokens": 50, "output_tokens": 10}
             }
             """
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
             let response = try JSONDecoder().decode(AnthropicMessagesResponse.self, from: data)
 
             let result = try await provider.convertToGenerationResult(response, startTime: Date())
@@ -375,7 +408,10 @@ struct AnthropicToolParsingTests {
                 "usage": {"input_tokens": 10, "output_tokens": 5}
             }
             """
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
             let response = try JSONDecoder().decode(AnthropicMessagesResponse.self, from: data)
 
             let result = try await provider.convertToGenerationResult(response, startTime: Date())
@@ -398,7 +434,10 @@ struct AnthropicToolParsingTests {
                 "usage": {"input_tokens": 10, "output_tokens": 1}
             }
             """
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
             let response = try JSONDecoder().decode(AnthropicMessagesResponse.self, from: data)
 
             let result = try await provider.convertToGenerationResult(response, startTime: Date())
@@ -438,7 +477,10 @@ struct AnthropicToolParsingTests {
                 "usage": {"input_tokens": 50, "output_tokens": 20}
             }
             """
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
             let response = try JSONDecoder().decode(AnthropicMessagesResponse.self, from: data)
 
             let result = try await provider.convertToGenerationResult(response, startTime: Date())
@@ -477,7 +519,10 @@ struct AnthropicToolParsingTests {
                 "usage": {"input_tokens": 20, "output_tokens": 10}
             }
             """
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
             let response = try JSONDecoder().decode(AnthropicMessagesResponse.self, from: data)
 
             let result = try await provider.convertToGenerationResult(response, startTime: Date())
