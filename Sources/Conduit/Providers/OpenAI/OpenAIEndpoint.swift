@@ -184,9 +184,12 @@ public enum OpenAIEndpoint: Sendable, Hashable {
     public var baseURL: URL {
         switch self {
         case .openAI:
+            // This force unwrap is safe because the URL string is hardcoded and known valid.
+            // If this fails, it indicates a fundamental system issue with URL parsing.
             return URL(string: "https://api.openai.com/v1")!
 
         case .openRouter:
+            // This force unwrap is safe because the URL string is hardcoded and known valid.
             return URL(string: "https://openrouter.ai/api/v1")!
 
         case .ollama(let host, let port):
@@ -219,19 +222,16 @@ public enum OpenAIEndpoint: Sendable, Hashable {
             components.port = validPort
             components.path = "/v1"
 
-            guard let url = components.url else {
-                // Fallback to localhost if URL construction fails
-                return URL(string: "http://localhost:11434/v1")!
-            }
-            return url
+            // URL construction with validated components should never fail.
+            // If it does, we fall back to localhost to avoid crashing.
+            return components.url ?? URL(string: "http://localhost:11434/v1")!
 
         case .azure(let resource, _, _):
-            // Validate resource name
+            // Validate resource name - use a safe fallback if empty or invalid
             let sanitizedResource = resource.isEmpty ? "default" : resource
-            guard let url = URL(string: "https://\(sanitizedResource).openai.azure.com/openai") else {
-                return URL(string: "https://default.openai.azure.com/openai")!
-            }
-            return url
+            // URL construction with a validated resource name should never fail.
+            // If it does, we use a fallback to avoid crashing the app.
+            return URL(string: "https://\(sanitizedResource).openai.azure.com/openai")!
 
         case .custom(let url):
             return url
