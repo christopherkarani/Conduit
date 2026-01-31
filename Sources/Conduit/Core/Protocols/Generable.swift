@@ -78,6 +78,8 @@ public macro Guide<RegexOutput>(
 extension Generable {
     /// The partially generated type of this struct.
     public func asPartiallyGenerated() -> Self.PartiallyGenerated {
+        // This force cast is safe for the default implementation where PartiallyGenerated = Self.
+        // Types that override PartiallyGenerated to a different type must also override this method.
         self as! Self.PartiallyGenerated
     }
 }

@@ -51,7 +51,10 @@ struct OpenAIToolParsingTests {
             """
 
             let provider = OpenAIProvider(apiKey: "sk-test")
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
             let result = try await provider.parseGenerationResponse(data: data)
 
             #expect(result.hasToolCalls)
@@ -104,7 +107,10 @@ struct OpenAIToolParsingTests {
             """
 
             let provider = OpenAIProvider(apiKey: "sk-test")
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
             let result = try await provider.parseGenerationResponse(data: data)
 
             #expect(result.hasToolCalls)
@@ -140,7 +146,10 @@ struct OpenAIToolParsingTests {
             """
 
             let provider = OpenAIProvider(apiKey: "sk-test")
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
             let result = try await provider.parseGenerationResponse(data: data)
 
             #expect(!result.hasToolCalls)
@@ -182,7 +191,10 @@ struct OpenAIToolParsingTests {
             """
 
             let provider = OpenAIProvider(apiKey: "sk-test")
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
             let result = try await provider.parseGenerationResponse(data: data)
 
             // Both text and tool calls should be present
@@ -223,7 +235,10 @@ struct OpenAIToolParsingTests {
             """
 
             let provider = OpenAIProvider(apiKey: "sk-test")
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
             let result = try await provider.parseGenerationResponse(data: data)
 
             #expect(result.finishReason == .toolCalls)
@@ -247,7 +262,10 @@ struct OpenAIToolParsingTests {
             """
 
             let provider = OpenAIProvider(apiKey: "sk-test")
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
             let result = try await provider.parseGenerationResponse(data: data)
 
             #expect(result.finishReason == .stop)
@@ -271,7 +289,10 @@ struct OpenAIToolParsingTests {
             """
 
             let provider = OpenAIProvider(apiKey: "sk-test")
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
             let result = try await provider.parseGenerationResponse(data: data)
 
             #expect(result.finishReason == .maxTokens)
@@ -295,7 +316,10 @@ struct OpenAIToolParsingTests {
             """
 
             let provider = OpenAIProvider(apiKey: "sk-test")
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
             let result = try await provider.parseGenerationResponse(data: data)
 
             #expect(result.finishReason == .contentFilter)
@@ -336,7 +360,10 @@ struct OpenAIToolParsingTests {
             """
 
             let provider = OpenAIProvider(apiKey: "sk-test")
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
             let result = try await provider.parseGenerationResponse(data: data)
 
             #expect(result.toolCalls.count == 1)
@@ -380,7 +407,10 @@ struct OpenAIToolParsingTests {
             """
 
             let provider = OpenAIProvider(apiKey: "sk-test")
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
             let result = try await provider.parseGenerationResponse(data: data)
 
             #expect(result.toolCalls.count == 1)
@@ -420,7 +450,10 @@ struct OpenAIToolParsingTests {
             """
 
             let provider = OpenAIProvider(apiKey: "sk-test")
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
             let result = try await provider.parseGenerationResponse(data: data)
 
             let argsString = result.toolCalls[0].argumentsString
@@ -463,7 +496,10 @@ struct OpenAIToolParsingTests {
             """
 
             let provider = OpenAIProvider(apiKey: "sk-test")
-            let data = json.data(using: .utf8)!
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
             let result = try await provider.parseGenerationResponse(data: data)
 
             #expect(result.usage?.promptTokens == 150)

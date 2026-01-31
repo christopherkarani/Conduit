@@ -241,7 +241,9 @@ public actor VLMDetector {
         // Construct path to model directory
         // This assumes models are stored in ~/Library/Application Support/Conduit/models/
         // or a similar location. Adjust based on actual ModelManager storage path.
-        let modelPath = modelStoragePath(for: repoId)
+        guard let modelPath = modelStoragePath(for: repoId) else {
+            return nil
+        }
 
         guard FileManager.default.fileExists(atPath: modelPath.path) else {
             return nil
@@ -371,11 +373,13 @@ public actor VLMDetector {
     /// Currently assumes models are stored in Application Support directory.
     ///
     /// - Parameter repoId: The HuggingFace repository ID.
-    /// - Returns: URL to the model's local directory.
-    private func modelStoragePath(for repoId: String) -> URL {
+    /// - Returns: URL to the model's local directory, or `nil` if Application Support is unavailable.
+    private func modelStoragePath(for repoId: String) -> URL? {
         // Get Application Support directory
         let fileManager = FileManager.default
-        let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        guard let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            return nil
+        }
 
         // Construct Conduit models directory
         let conduitDir = appSupport.appendingPathComponent("Conduit", isDirectory: true)

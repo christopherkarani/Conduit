@@ -190,6 +190,9 @@ public struct AnthropicConfiguration: Sendable, Hashable, Codable {
     /// - Parameter apiKey: Your Anthropic API key (starts with "sk-ant-").
     /// - Returns: A standard configuration with the specified API key.
     public static func standard(apiKey: String) -> AnthropicConfiguration {
+        // The initializer only throws if URL validation fails.
+        // Since we use the default HTTPS URL which is hardcoded and valid,
+        // this force try is safe and will never crash.
         // swiftlint:disable:next force_try
         try! AnthropicConfiguration(
             authentication: .apiKey(apiKey)

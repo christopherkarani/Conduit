@@ -1,16 +1,16 @@
 
 ![unnamed-14](https://github.com/user-attachments/assets/30ca8b25-ac66-48d9-b462-afd135050304)
 
-**Unified Swift SDK for LLM inference across local and cloud providers**
+**Unified Swift 6.2 SDK for local and cloud LLM inference**
 
 [![Swift 6.2](https://img.shields.io/badge/Swift-6.2-F05138.svg?style=flat&logo=swift)](https://swift.org)
 [![Platforms](https://img.shields.io/badge/Platforms-iOS%2017+%20|%20macOS%2014+%20|%20visionOS%201+%20|%20Linux-007AFF.svg?style=flat)](https://developer.apple.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=flat)](LICENSE)
 [![Version](https://img.shields.io/badge/Version-1.0.0-blue.svg?style=flat)](https://github.com/christopherkarani/Conduit/releases)
 
----
+Conduit gives you a single Swift-native API that can target Anthropic, OpenRouter, Ollama, MLX, HuggingFace, and Apple’s Foundation Models without rewriting your prompt pipeline. Everything conforms to `TextGenerator`, so switching between highly capable Claude 4.5, GPT-5.2 on OpenRouter, Ollama-hosted Llama3, and local MLX is literally swapping one initializer.
 
-Conduit provides a clean, idiomatic Swift interface for LLM inference. Choose your provider explicitly—local inference with MLX on Apple Silicon, cloud inference via HuggingFace, or system-integrated AI with Apple Foundation Models on iOS 26+.
+## Provider highlights
 
 ## Why Conduit?
 
@@ -143,39 +143,8 @@ let response = try await provider.generate(
 ```swift
 import Conduit
 
-let provider = MLXProvider()
-let response = try await provider.generate(
-    "Explain quantum computing in simple terms",
-    model: .llama3_2_1B,
-    config: .default
-)
-print(response)
-```
-
-### Cloud Generation (HuggingFace)
-
-```swift
-let provider = HuggingFaceProvider() // Uses HF_TOKEN environment variable
-let response = try await provider.generate(
-    "Write a haiku about Swift",
-    model: .huggingFace("meta-llama/Llama-3.1-8B-Instruct"),
-    config: .creative
-)
-print(response)
-```
-
-### Streaming
-
-```swift
-let provider = MLXProvider()
-let stream = provider.stream(
-    "Tell me a story about a robot",
-    model: .llama3_2_3B,
-    config: .default
-)
-
-for try await chunk in stream {
-    print(chunk.text, terminator: "")
+enum ExampleError: Error {
+    case missingAPIKey(String)
 }
 ```
 
@@ -881,196 +850,58 @@ for try await chunk in stream {
     if let reason = chunk.finishReason {
         print("\nFinished: \(reason)")
     }
+    return key
 }
 
-// Collect all chunks into final result
-let result = try await stream.collectWithMetadata()
-print("Total tokens: \(result.tokenCount)")
+let prompt = "Plan a three-day SwiftUI sprint for a side project with daily goals."
+
+func run<P: TextGenerator>(provider: P, model: P.ModelID) async throws -> String {
+    try await provider.generate(prompt, model: model, config: .creative)
+}
+
+func gatherPlans() async throws {
+    let anthropic = AnthropicProvider(apiKey: try requireAPIKey("ANTHROPIC_API_KEY"))
+    let openRouter = OpenAIProvider.forOpenRouter(
+        apiKey: try requireAPIKey("OPENROUTER_API_KEY"),
+        preferring: [.anthropic, .openai]
+    )
+    let ollama = OpenAIProvider(endpoint: .ollama, apiKey: nil)
+    let mlx = MLXProvider()
+
+    let plans: [(label: String, job: () async throws -> String)] = [
+        ("Claude Opus 4.5", { try await run(provider: anthropic, model: .claudeOpus45) }),
+        ("OpenRouter GPT-5.2", { try await run(provider: openRouter, model: .openRouter("openai/gpt-5.2-opus")) }),
+        ("Ollama Llama3.2", { try await run(provider: ollama, model: .ollamaLlama32) }),
+        ("MLX Llama3.2 1B", { try await run(provider: mlx, model: .llama3_2_1b) })
+    ]
+
+    for plan in plans {
+        let text = try await plan.job()
+        print("\(plan.label): \(text)\n")
+    }
+}
 ```
 
----
+Every provider call uses the same `run` helper, so you can part-hybrid your stack (a private MLX answer plus a Claude-derived reasoning path) without copying prompts.
 
-## Structured Output
+## Ready in minutes
 
-Generate type-safe structured responses using the `@Generable` macro, mirroring Apple's FoundationModels API from iOS 26.
-
-### Defining Generable Types
+Want a single line of code that just works? Conduit keeps it simple:
 
 ```swift
 import Conduit
 
-@Generable
-struct Recipe {
-    @Guide("The recipe title")
-    let title: String
-
-    @Guide("Cooking time in minutes", .range(1...180))
-    let cookingTime: Int
-
-    @Guide("Difficulty level", .anyOf(["easy", "medium", "hard"]))
-    let difficulty: String
-
-    @Guide("List of ingredients")
-    let ingredients: [String]
-}
-```
-
-### Generating Structured Responses
-
-```swift
-let provider = AnthropicProvider(apiKey: "sk-ant-...")
-
-// Generate typed response
-let recipe = try await provider.generate(
-    "Create a recipe for chocolate chip cookies",
-    returning: Recipe.self,
-    model: .claudeSonnet45
+let provider = MLXProvider()
+let quickWins = try await provider.generate(
+    "Explain how `async let` differs from `Task` in Swift.",
+    model: .llama3_2_1b
 )
-
-print(recipe.title)           // "Classic Chocolate Chip Cookies"
-print(recipe.cookingTime)     // 25
-print(recipe.difficulty)      // "easy"
-print(recipe.ingredients)     // ["flour", "butter", "chocolate chips", ...]
+print(quickWins)
 ```
 
-### Streaming Structured Output
+Enable the `MLX` trait in `Package.swift` when targeting Apple Silicon, or switch to `AnthropicProvider`, `OpenAIProvider`, or `HuggingFaceProvider` for cloud-ready inference.
 
-Get progressive updates as the response is generated:
-
-```swift
-let stream = provider.stream(
-    "Generate a detailed recipe",
-    returning: Recipe.self,
-    model: .claudeSonnet45
-)
-
-for try await partial in stream {
-    // Update UI progressively
-    if let title = partial.title {
-        titleLabel.text = title
-    }
-    if let ingredients = partial.ingredients {
-        updateIngredientsList(ingredients)
-    }
-}
-
-// Get final complete result
-let recipe = try await stream.collect()
-```
-
-### Available Constraints
-
-| Type | Constraints |
-|------|-------------|
-| String | `.pattern(_:)`, `.anyOf(_:)`, `.minLength(_:)`, `.maxLength(_:)` |
-| Int/Double | `.range(_:)`, `.minimum(_:)`, `.maximum(_:)` |
-| Array | `.count(_:)`, `.minimumCount(_:)`, `.maximumCount(_:)` |
-
----
-
-## Tool Calling
-
-Define and execute tools that LLMs can invoke during generation.
-
-### Defining Tools
-
-```swift
-struct WeatherTool: Tool {
-    @Generable
-    struct Arguments {
-        @Guide("City name to get weather for")
-        let city: String
-
-        @Guide("Temperature unit", .anyOf(["celsius", "fahrenheit"]))
-        let unit: String?
-    }
-
-    var description: String { "Get current weather for a city" }
-
-    func call(arguments: Arguments) async throws -> String {
-        // Implement weather lookup
-        return "Weather in \(arguments.city): 22C, Sunny"
-    }
-}
-```
-
-### Executing Tools
-
-```swift
-// Create executor and register tools
-let executor = ToolExecutor()
-await executor.register(WeatherTool())
-await executor.register(SearchTool())
-
-// Configure provider with tools
-let config = GenerateConfig.default
-    .tools([WeatherTool(), SearchTool()])
-    .toolChoice(.auto)
-
-// Generate with tool access
-let response = try await provider.generate(
-    messages: messages,
-    model: .claudeSonnet45,
-    config: config
-)
-
-// Handle tool calls if present
-if let toolCalls = response.toolCalls {
-    let results = try await executor.execute(toolCalls: toolCalls)
-    // Continue conversation with results...
-}
-```
-
-### Tool Choice Options
-
-```swift
-.toolChoice(.auto)              // Model decides whether to use tools
-.toolChoice(.required)          // Model must use a tool
-.toolChoice(.none)              // Model cannot use tools
-.toolChoice(.tool(name: "weather"))  // Model must use specific tool
-```
-
----
-
-## ChatSession
-
-Stateful conversation management with automatic history:
-
-```swift
-let session = try await ChatSession(
-    provider: MLXProvider(),
-    model: .llama3_2_1B,
-    systemPrompt: "You are a helpful coding assistant.",
-    warmup: .eager  // Fast first response
-)
-
-// Send messages—history is managed automatically
-let response1 = try await session.send("What is a protocol in Swift?")
-let response2 = try await session.send("Can you give me an example?")
-
-// Stream responses
-for try await text in session.streamResponse("Explain associated types") {
-    print(text, terminator: "")
-}
-
-// Access conversation history
-let history = await session.messages
-
-// Clear and start fresh
-await session.clearHistory()
-```
-
-**Warmup Options:**
-
-| Option | First Message Latency | Use Case |
-|--------|----------------------|----------|
-| `nil` | 2-4 seconds | Infrequent use |
-| `.default` | 1-2 seconds | Balanced |
-| `.eager` | 100-300ms | Chat interfaces |
-
----
-
-## Model Management
+## Installation
 
 Conduit provides a comprehensive model management system for downloading models from HuggingFace Hub and managing local storage.
 
@@ -1240,82 +1071,37 @@ if let info = ModelRegistry.info(for: .llama3_2_1B) {
 Manage context windows with precise token counts:
 
 ```swift
-let provider = MLXProvider()
-
-// Count tokens in text
-let count = try await provider.countTokens(
-    in: "Hello, world!",
-    for: .llama3_2_1B
-)
-print("Tokens: \(count.count)")
-
-// Count tokens in conversation (includes chat template overhead)
-let messageCount = try await provider.countTokens(
-    in: messages,
-    for: .llama3_2_1B
-)
-
-// Check if content fits in context window
-if messageCount.fitsInContext(size: 4096) {
-    // Safe to generate
-}
-
-// Encode/decode
-let tokens = try await provider.encode("Hello", for: .llama3_2_1B)
-let decoded = try await provider.decode(tokens, for: .llama3_2_1B)
+dependencies: [
+    .package(url: "https://github.com/christopherkarani/Conduit", from: "2.0.0", traits: ["MLX"])
+]
 ```
 
----
+Then add `"Conduit"` to your target dependencies.
 
-## Error Handling
+## Testing
 
-Conduit provides detailed, actionable errors:
+Documentation-driven examples are covered by `Tests/ConduitTests/DocumentationExamplesTests.swift`. Run
+the tests that keep the README code working:
 
-```swift
-do {
-    let response = try await provider.generate(prompt, model: model)
-} catch AIError.modelNotCached(let model) {
-    // Download the model first
-    try await ModelManager.shared.download(model)
-} catch AIError.providerUnavailable(let reason) {
-    // Check availability requirements
-    print("Provider unavailable: \(reason)")
-} catch AIError.tokenLimitExceeded(let count, let limit) {
-    // Truncate input
-    print("Input has \(count) tokens, limit is \(limit)")
-} catch AIError.networkError(let message) {
-    // Handle connectivity issues
-    print("Network error: \(message)")
-}
+```bash
+swift test --filter DocumentationExamplesTests
 ```
 
----
+## Platform support
 
-## Requirements
+| Platform | Available Providers |
+| --- | --- |
+| macOS 14+ | MLX, Anthropic, OpenRouter/OpenAI, HuggingFace, Foundation Models |
+| iOS 17+ / visionOS 1+ | MLX, Anthropic, OpenRouter/OpenAI, HuggingFace, Foundation Models |
+| Linux | Anthropic, OpenRouter/OpenAI, HuggingFace, Ollama |
 
-| Platform | Minimum Version |
-|----------|-----------------|
-| iOS | 17.0 |
-| macOS | 14.0 |
-| visionOS | 1.0 |
-| Swift | 6.2 |
+MLX runs on Apple Silicon only; Linux builds exclude MLX by default. Most cloud providers require network connectivity whereas MLX and Ollama (local server mode) work offline.
 
-**MLX Provider:** Requires Apple Silicon (arm64)
+## Design notes
 
-**Foundation Models:** Requires iOS 26.0+
-
----
-
-## Design Principles
-
-1. **Explicit Model Selection** — You choose your provider. No magic auto-detection.
-2. **Swift 6.2 Concurrency** — Actors, Sendable types, and AsyncSequence throughout.
-3. **Progressive Disclosure** — Simple one-liners for beginners, full control for experts.
-4. **Protocol-Oriented** — Extensible via protocols with associated types.
-5. **Type-Safe Structured Output** — @Generable macro mirrors Apple's FoundationModels API.
-6. **Tool Integration** — First-class support for LLM tool/function calling.
-
----
+- **Protocol-first**: everything conforms to `TextGenerator`, `TranscriptionGenerator`, or `EmbeddingGenerator` so your app code stays provider-agnostic.
+- **Explicit model selection**: choose `AnthropicModelID`, `OpenAIModelID`, or `ModelIdentifier` symbols so there is no guesswork about which model is in use.
+- **Streaming + structured output**: shared helpers for chunk streaming, structured response macros (`@Generable`), and tool execution keep advanced scenarios consistent across providers.
 
 ## Documentation
 

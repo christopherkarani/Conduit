@@ -223,6 +223,16 @@ public actor DiffusionModelDownloader {
         activeDownloads.count
     }
 
+    // MARK: - Helpers
+
+    private nonisolated func getFirstAvailableModel() throws -> DiffusionModelInfo {
+        let models = DiffusionModelRegistry.availableModels
+        guard let availableModel = models.first else {
+            throw AIError.invalidInput("No models available in registry")
+        }
+        return availableModel
+    }
+
     // MARK: - Delete
 
     /// Deletes a downloaded model from disk.
