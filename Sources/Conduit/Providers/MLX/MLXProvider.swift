@@ -195,9 +195,20 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
                 )
             }
 
-            continuation.onTermination = { @Sendable _ in
+            continuation.onTermination = { @Sendable termination in
                 task.cancel()
-                Task { await self.cancelGeneration() }
+                Task {
+                    await self.cancelGeneration()
+                }
+
+                // Ensure continuation is finished when stream is cancelled
+                // This prevents resource leaks when cancellation happens
+                // before the streaming loop begins
+                if case .cancelled = termination {
+                    let finalChunk = GenerationChunk.completion(finishReason: .cancelled)
+                    continuation.yield(finalChunk)
+                    continuation.finish()
+                }
             }
         }
     }
