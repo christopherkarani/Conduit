@@ -1,27 +1,144 @@
-# Conduit
+
+![unnamed-14](https://github.com/user-attachments/assets/30ca8b25-ac66-48d9-b462-afd135050304)
 
 **Unified Swift 6.2 SDK for local and cloud LLM inference**
 
 [![Swift 6.2](https://img.shields.io/badge/Swift-6.2-F05138.svg?style=flat&logo=swift)](https://swift.org)
 [![Platforms](https://img.shields.io/badge/Platforms-iOS%2017+%20|%20macOS%2014+%20|%20visionOS%201+%20|%20Linux-007AFF.svg?style=flat)](https://developer.apple.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=flat)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-0.6.0-blue.svg?style=flat)](https://github.com/christopherkarani/Conduit/releases)
+[![Version](https://img.shields.io/badge/Version-1.0.0-blue.svg?style=flat)](https://github.com/christopherkarani/Conduit/releases)
 
 Conduit gives you a single Swift-native API that can target Anthropic, OpenRouter, Ollama, MLX, HuggingFace, and Apple’s Foundation Models without rewriting your prompt pipeline. Everything conforms to `TextGenerator`, so switching between highly capable Claude 4.5, GPT-5.2 on OpenRouter, Ollama-hosted Llama3, and local MLX is literally swapping one initializer.
 
 ## Provider highlights
 
-| Provider | Why it matters |
-| --- | --- |
-| **Anthropic Claude 4.5 (Opus)** | Claude Opus 4.5 delivers extended thinking, vision + text inputs, and the most capable reasoning path; just pass `AnthropicModelID.claudeOpus45` to `AnthropicProvider`. |
-| **OpenRouter GPT-5.2** | OpenRouter sits on top of 400+ models—route to OpenAI, Anthropic, Google, Mistral, etc. The Conduit helper `OpenAIProvider.forOpenRouter(apiKey:preferring:fallbacks:)` and `OpenAIModelID.openRouter("openai/gpt-5.2-opus")` let you target GPT-5.2 with routing, fallbacks, and latency-based preferences. |
-| **Ollama local server** | Connect with `OpenAIProvider(endpoint: .ollama, apiKey: nil)` to talk to the Ollama daemon; models like `.ollamaLlama32` run on any platform without Apple Silicon. |
-| **MLX Apple Silicon** | `MLXProvider` runs Llama 3.2 or Phi models entirely on-device, giving deterministic latency, private inference, and instant warm starts.
-| **HuggingFace / Foundation Models** | The same interfaces support HuggingFace for embeddings, transcription, and images, and Apple Foundation Models for system-integrated intelligence on iOS 26+/macOS 26+.
+## Why Conduit?
 
-## Multi-provider orchestration
+- **One API, Many Providers** — Switch between local (MLX), cloud (Anthropic, OpenAI, HuggingFace, OpenRouter), and system (Foundation Models) with minimal code changes
+- **Download Models from HuggingFace** — Download any model from HuggingFace Hub for local MLX inference with progress tracking
+- **Type-Safe Structured Output** — Generate Swift types directly from LLM responses with the `@Generable` macro
+- **Privacy-First Options** — Run models entirely on-device with MLX, Ollama, or Foundation Models
+- **Swift 6.2 Concurrency** — Built from the ground up with actors, Sendable types, and AsyncSequence
 
-Want to gather multiple perspectives with one prompt? This example shows how the same `run` helper works with Anthropic Opus 4.5, OpenRouter GPT-5.2, Ollama, and MLX.
+## Table of Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Providers](#providers)
+  - [MLXProvider](#mlxprovider)
+  - [HuggingFaceProvider](#huggingfaceprovider)
+  - [Foundation Models](#foundation-models-ios-26)
+  - [Anthropic Claude](#anthropic-claude)
+  - [OpenAI Provider](#openai-provider) (OpenAI, OpenRouter, Ollama, Azure)
+- [Model Management](#model-management)
+- [Streaming](#streaming)
+- [Structured Output](#structured-output)
+- [Tool Calling](#tool-calling)
+- [ChatSession](#chatsession)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
+- [Community](#community)
+- [License](#license)
+
+## Features
+
+| Capability | MLX | HuggingFace | Anthropic | OpenAI | Foundation Models |
+|:-----------|:---:|:-----------:|:---------:|:------:|:-----------------:|
+| Text Generation | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Streaming | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Structured Output | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Tool Calling | — | — | ✓ | ✓ | — |
+| Vision | — | — | ✓ | ✓ | — |
+| Extended Thinking | — | — | ✓ | — | — |
+| Embeddings | — | ✓ | — | ✓ | — |
+| Transcription | — | ✓ | — | ✓ | — |
+| Image Generation | — | ✓ | — | ✓ | — |
+| Token Counting | ✓ | — | — | ✓* | — |
+| Offline | ✓ | — | — | —** | ✓ |
+| Privacy | ✓ | — | — | —** | ✓ |
+
+*Estimated token counting
+**Offline/privacy available when using Ollama local endpoint
+
+## Installation
+
+Add Conduit to your `Package.swift`:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/christopherkarani/Conduit", from: "0.3.0")
+]
+```
+
+Then add `"Conduit"` to your target's dependencies.
+
+### Enabling MLX (Apple Silicon Only)
+
+To use on-device MLX inference, enable the `MLX` trait:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/christopherkarani/Conduit", from: "0.3.0", traits: ["MLX"])
+]
+```
+
+> **Note**: MLX requires Apple Silicon with Metal GPU. Without the trait, only cloud providers are available.
+
+## Platform Support
+
+| Platform | Status | Available Providers |
+|:---------|:------:|:--------------------|
+| macOS 14+ | **Full** | MLX, Anthropic, OpenAI, HuggingFace, Foundation Models |
+| iOS 17+ | **Full** | MLX, Anthropic, OpenAI, HuggingFace, Foundation Models |
+| visionOS 1+ | **Full** | MLX, Anthropic, OpenAI, HuggingFace, Foundation Models |
+| **Linux** | **Partial** | Anthropic, OpenAI, HuggingFace |
+
+### Building on Linux
+
+Conduit supports Linux for server-side Swift deployments. Build normally with Swift 6.2+:
+
+```bash
+swift build
+swift test
+```
+
+By default, MLX dependencies are excluded (no trait enabled). This makes Conduit Linux-compatible out of the box.
+
+### Linux Limitations
+
+- **MLX Provider**: Requires Apple Silicon with Metal GPU (not available on Linux)
+- **Foundation Models**: Requires iOS 26+/macOS 26+ (not available on Linux)
+- **Image Generation**: `GeneratedImage.image` returns `nil` (use `data` or `save(to:)`)
+- **Keychain**: Token storage falls back to environment variables
+
+### Local Inference on Linux
+
+For local LLM inference on Linux, use **Ollama** via the OpenAI provider:
+
+```bash
+# Install Ollama on Linux
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Pull a model
+ollama pull llama3.2
+```
+
+```swift
+import Conduit
+
+// Use Ollama for local inference on Linux
+let provider = OpenAIProvider(endpoint: .ollama, apiKey: nil)
+let response = try await provider.generate(
+    "Hello from Linux!",
+    model: .ollama("llama3.2"),
+    config: .default
+)
+```
+
+## Quick Start
+
+### Local Generation (MLX)
 
 ```swift
 import Conduit
@@ -29,10 +146,709 @@ import Conduit
 enum ExampleError: Error {
     case missingAPIKey(String)
 }
+```
 
-func requireAPIKey(_ name: String) throws -> String {
-    guard let key = ProcessInfo.processInfo.environment[name], !key.isEmpty else {
-        throw ExampleError.missingAPIKey(name)
+---
+
+## Providers
+
+### MLXProvider
+
+Local inference on Apple Silicon. Zero network traffic, complete privacy.
+
+**Best for:** Privacy-sensitive apps, offline functionality, consistent latency
+
+```swift
+// Default configuration
+let provider = MLXProvider()
+
+// Optimized for M1 devices
+let provider = MLXProvider(configuration: .m1Optimized)
+
+// Full control
+let config = MLXConfiguration.default
+    .memoryLimit(.gigabytes(8))
+    .withQuantizedKVCache(bits: 4)
+let provider = MLXProvider(configuration: config)
+```
+
+**Configuration Presets:**
+
+| Preset | Memory | Use Case |
+|--------|--------|----------|
+| `.default` | Auto | Balanced performance |
+| `.m1Optimized` | 6 GB | M1 MacBooks, base iPads |
+| `.mProOptimized` | 12 GB | M1/M2 Pro, Max chips |
+| `.memoryEfficient` | 4 GB | Constrained devices |
+| `.highPerformance` | 16+ GB | M2/M3 Max, Ultra |
+
+**Warmup for Fast First Response:**
+
+```swift
+let provider = MLXProvider()
+
+// Warm up Metal shaders before first generation
+try await provider.warmUp(model: .llama3_2_1B, maxTokens: 5)
+
+// Now first response is fast
+let response = try await provider.generate("Hello", model: .llama3_2_1B)
+```
+
+### HuggingFaceProvider
+
+Cloud inference via HuggingFace Inference API. Access hundreds of models.
+
+**Best for:** Large models, embeddings, transcription, image generation, model variety
+
+**Setup:**
+```bash
+export HF_TOKEN=hf_your_token_here
+```
+
+```swift
+// Auto-detects HF_TOKEN from environment
+let provider = HuggingFaceProvider()
+
+// Or provide token explicitly
+let provider = HuggingFaceProvider(token: "hf_...")
+
+// Custom configuration
+let config = HFConfiguration.default.timeout(120)
+let provider = HuggingFaceProvider(configuration: config)
+```
+
+**Embeddings:**
+
+```swift
+let provider = HuggingFaceProvider()
+
+let embedding = try await provider.embed(
+    "Conduit makes LLM inference easy",
+    model: .huggingFace("sentence-transformers/all-MiniLM-L6-v2")
+)
+
+print("Dimensions: \(embedding.dimensions)")
+print("Vector: \(embedding.vector)")
+
+// Similarity comparison
+let other = try await provider.embed("AI frameworks for Swift", model: /* ... */)
+let similarity = embedding.cosineSimilarity(with: other)
+```
+
+**Transcription:**
+
+```swift
+let provider = HuggingFaceProvider()
+
+let result = try await provider.transcribe(
+    audioURL: audioFileURL,
+    model: .huggingFace("openai/whisper-large-v3"),
+    config: .detailed
+)
+
+print(result.text)
+for segment in result.segments {
+    print("\(segment.startTime)s: \(segment.text)")
+}
+```
+
+**Image Generation:**
+
+```swift
+let provider = HuggingFaceProvider()
+
+// Simple text-to-image with defaults
+let result = try await provider.textToImage(
+    "A cat wearing a top hat, digital art",
+    model: .huggingFace("stabilityai/stable-diffusion-3")
+)
+
+// Use directly in SwiftUI
+result.image  // SwiftUI Image (cross-platform)
+
+// With configuration presets
+let result = try await provider.textToImage(
+    "Mountain landscape at sunset, photorealistic",
+    model: .huggingFace("stabilityai/stable-diffusion-xl-base-1.0"),
+    config: .highQuality.width(1024).height(768)
+)
+
+// Available presets: .default, .highQuality, .fast, .square512, .square1024, .landscape, .portrait
+
+// Save to file
+try result.save(to: URL.documentsDirectory.appending(path: "landscape.png"))
+
+// Save to Photos library (iOS only, requires NSPhotoLibraryAddUsageDescription)
+try await result.saveToPhotos()
+
+// Access raw data if needed
+let data = result.data
+```
+
+### Foundation Models (iOS 26+)
+
+System-integrated on-device AI. Zero setup, managed by the OS.
+
+**Best for:** iOS 26+ apps, system integration, no model downloads
+
+```swift
+if #available(iOS 26.0, *) {
+    let provider = FoundationModelsProvider()
+    let response = try await provider.generate(
+        "What can you help me with?",
+        model: .foundationModels,
+        config: .default
+    )
+    print(response)
+}
+```
+
+### Anthropic Claude
+
+Conduit includes first-class support for Anthropic's Claude models via the Anthropic API.
+
+**Best for:** Advanced reasoning, vision tasks, extended thinking, production applications
+
+**Setup:**
+```bash
+export ANTHROPIC_API_KEY=sk-ant-api-03-...
+```
+
+```swift
+import Conduit
+
+// Simple generation
+let provider = AnthropicProvider(apiKey: "sk-ant-...")
+let response = try await provider.generate(
+    "Explain quantum computing",
+    model: .claudeSonnet45,
+    config: .default.maxTokens(500)
+)
+
+// Streaming
+for try await chunk in provider.stream(
+    "Write a poem about Swift",
+    model: .claude3Haiku,
+    config: .default
+) {
+    print(chunk, terminator: "")
+}
+```
+
+**Available Models:**
+
+| Model | ID | Best For |
+|-------|----|----|
+| Claude Opus 4.5 | `.claudeOpus45` | Most capable, complex reasoning |
+| Claude Sonnet 4.5 | `.claudeSonnet45` | Balanced performance and speed |
+| Claude 3.5 Sonnet | `.claude35Sonnet` | Fast, high-quality responses |
+| Claude 3 Haiku | `.claude3Haiku` | Fastest, most cost-effective |
+
+**Features:**
+
+- Text generation (streaming and non-streaming)
+- Multi-turn conversations with context
+- Vision support (multimodal image+text)
+- Extended thinking mode for complex reasoning
+- Comprehensive error handling
+- Environment variable support (ANTHROPIC_API_KEY)
+
+**Vision Example:**
+
+```swift
+let messages = Messages {
+    Message.user([
+        .text("What's in this image?"),
+        .image(base64Data: imageData, mimeType: "image/jpeg")
+    ])
+}
+
+let result = try await provider.generate(
+    messages: messages,
+    model: .claudeSonnet45,
+    config: .default
+)
+```
+
+**Extended Thinking:**
+
+```swift
+var config = AnthropicConfiguration.standard(apiKey: "sk-ant-...")
+config.thinkingConfig = .standard
+
+let provider = AnthropicProvider(configuration: config)
+let result = try await provider.generate(
+    "Solve this complex problem...",
+    model: .claudeOpus45,
+    config: .default
+)
+```
+
+Get your API key at: https://console.anthropic.com/
+
+### OpenAI Provider
+
+Conduit includes a powerful OpenAI-compatible provider that works with multiple backends through a unified interface.
+
+**Supported Backends:**
+- **OpenAI** — Official GPT-4, DALL-E, Whisper APIs
+- **OpenRouter** — Aggregator with access to OpenAI, Anthropic, Google, and 100+ models
+- **Ollama** — Local inference server for offline/privacy use
+- **Azure OpenAI** — Microsoft's enterprise OpenAI service
+- **Custom** — Any OpenAI-compatible endpoint
+
+#### OpenAI (Official API)
+
+```swift
+import Conduit
+
+// Simple usage
+let provider = OpenAIProvider(apiKey: "sk-...")
+let response = try await provider.generate("Hello", model: .gpt4o)
+
+// Streaming
+for try await chunk in provider.stream("Tell me a story", model: .gpt4oMini) {
+    print(chunk, terminator: "")
+}
+```
+
+**Available Models:**
+
+| Model | ID | Best For |
+|-------|----|----|
+| GPT-4o | `.gpt4o` | Latest multimodal flagship |
+| GPT-4o Mini | `.gpt4oMini` | Fast, cost-effective |
+| GPT-4 Turbo | `.gpt4Turbo` | Vision + function calling |
+| o1 | `.o1` | Complex reasoning |
+| o1 Mini | `.o1Mini` | Fast reasoning |
+| o3 Mini | `.o3Mini` | Latest mini reasoning |
+
+**Setup:**
+```bash
+export OPENAI_API_KEY=sk-...
+```
+
+#### OpenRouter
+
+Access 100+ models from OpenAI, Anthropic, Google, Mistral, and more through a single API.
+
+```swift
+// Simple usage
+let provider = OpenAIProvider(endpoint: .openRouter, apiKey: "sk-or-...")
+let response = try await provider.generate(
+    "Explain quantum computing",
+    model: .openRouter("anthropic/claude-3-opus")
+)
+
+// With routing configuration
+let config = OpenAIConfiguration(
+    endpoint: .openRouter,
+    authentication: .bearer("sk-or-..."),
+    openRouterConfig: OpenRouterRoutingConfig(
+        providers: [.anthropic, .openai],  // Prefer these providers
+        fallbacks: true,                    // Auto-fallback on failure
+        routeByLatency: true               // Route to fastest provider
+    )
+)
+let provider = OpenAIProvider(configuration: config)
+```
+
+**Popular OpenRouter Models:**
+
+```swift
+// OpenAI via OpenRouter
+.openRouter("openai/gpt-4-turbo")
+
+// Anthropic via OpenRouter
+.openRouter("anthropic/claude-3-opus")
+.claudeOpus    // Convenience alias
+.claudeSonnet
+.claudeHaiku
+
+// Google via OpenRouter
+.openRouter("google/gemini-pro-1.5")
+.geminiPro15   // Convenience alias
+
+// Meta via OpenRouter
+.openRouter("meta-llama/llama-3.1-70b-instruct")
+.llama31B70B   // Convenience alias
+
+// Mistral via OpenRouter
+.openRouter("mistralai/mixtral-8x7b-instruct")
+```
+
+**Setup:**
+```bash
+export OPENROUTER_API_KEY=sk-or-...
+```
+
+Get your API key at: https://openrouter.ai/keys
+
+#### Ollama (Local Inference)
+
+Run LLMs locally on your machine with complete privacy—no API key required.
+
+```bash
+# Install Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Pull a model
+ollama pull llama3.2
+```
+
+```swift
+// Default localhost:11434
+let provider = OpenAIProvider(endpoint: .ollama())
+let response = try await provider.generate(
+    "Hello from local inference!",
+    model: .ollama("llama3.2")
+)
+
+// Custom host/port
+let provider = OpenAIProvider(endpoint: .ollama(host: "192.168.1.100", port: 11434))
+
+// With Ollama-specific configuration
+let config = OpenAIConfiguration(
+    endpoint: .ollama(),
+    authentication: .none,
+    ollamaConfig: OllamaConfiguration(
+        keepAlive: "30m",     // Keep model in memory
+        pullOnMissing: true,   // Auto-download models
+        numGPU: 35            // GPU layers to use
+    )
+)
+let provider = OpenAIProvider(configuration: config)
+```
+
+**Popular Ollama Models:**
+
+```swift
+.ollamaLlama32       // Llama 3.2 (default size)
+.ollamaLlama32B3B    // Llama 3.2 3B
+.ollamaLlama32B1B    // Llama 3.2 1B
+.ollamaMistral       // Mistral 7B
+.ollamaCodeLlama     // CodeLlama 7B
+.ollamaPhi3          // Phi-3
+.ollamaGemma2        // Gemma 2
+.ollamaQwen25        // Qwen 2.5
+.ollamaDeepseekCoder // DeepSeek Coder
+
+// Any Ollama model by name
+.ollama("llama3.2:3b")
+.ollama("codellama:7b-instruct")
+```
+
+**Ollama Configuration Presets:**
+
+```swift
+OllamaConfiguration.default       // Standard settings
+OllamaConfiguration.lowMemory     // For constrained systems
+OllamaConfiguration.interactive   // Longer keep-alive for chat
+OllamaConfiguration.batch         // Unload immediately after use
+OllamaConfiguration.alwaysOn      // Keep model loaded indefinitely
+```
+
+#### Azure OpenAI
+
+Microsoft's enterprise Azure-hosted OpenAI service with compliance and security features.
+
+```swift
+let provider = OpenAIProvider(
+    endpoint: .azure(
+        resource: "my-resource",
+        deployment: "gpt-4",
+        apiVersion: "2024-02-15-preview"
+    ),
+    apiKey: "azure-api-key"
+)
+
+let response = try await provider.generate(
+    "Hello from Azure",
+    model: .azure(deployment: "gpt-4")
+)
+```
+
+#### Custom Endpoints
+
+Use any OpenAI-compatible API endpoint (self-hosted, proxy servers, etc.):
+
+```swift
+let provider = OpenAIProvider(
+    endpoint: .custom(URL(string: "https://my-proxy.com/v1")!),
+    apiKey: "custom-key"
+)
+```
+
+#### OpenAI Provider Features
+
+**Image Generation (DALL-E):**
+
+```swift
+let provider = OpenAIProvider(apiKey: "sk-...")
+
+let image = try await provider.textToImage(
+    "A cat astronaut on the moon",
+    model: .dallE3,
+    config: .highQuality.size(.square1024)
+)
+
+// Use in SwiftUI
+image.image
+
+// Save to file
+try image.save(to: URL.documentsDirectory.appending(path: "cat.png"))
+```
+
+**Embeddings:**
+
+```swift
+let provider = OpenAIProvider(apiKey: "sk-...")
+
+let embedding = try await provider.embed(
+    "Conduit makes LLM inference easy",
+    model: .textEmbedding3Small
+)
+
+print("Dimensions: \(embedding.dimensions)")
+```
+
+**Capability Detection:**
+
+```swift
+let provider = OpenAIProvider(endpoint: .openRouter, apiKey: "...")
+let caps = await provider.capabilities
+
+if caps.contains(.imageGeneration) {
+    // DALL-E available
+}
+
+if caps.supports(.functionCalling) {
+    // Tool calling available
+}
+```
+
+---
+
+### OpenRouter
+
+Access 200+ models from OpenAI, Anthropic, Google, Meta, and more through a single unified API.
+
+**Best for:** Model flexibility, provider redundancy, cost optimization, trying different models
+
+**Setup:**
+```bash
+export OPENROUTER_API_KEY=sk-or-...
+```
+
+```swift
+import Conduit
+
+// Simple - minimal configuration
+let provider = OpenAIProvider(openRouterKey: "sk-or-...")
+let response = try await provider.generate(
+    "Hello",
+    model: .openRouter("anthropic/claude-3-opus"),
+    config: .default
+)
+
+// Optimized for Claude models
+let provider = OpenAIProvider.forClaude(apiKey: "sk-or-...")
+let response = try await provider.generate(
+    "Hello",
+    model: .claudeOpus,  // Predefined model constant
+    config: .default
+)
+
+// Fastest available provider
+let provider = OpenAIProvider.fastest(apiKey: "sk-or-...")
+```
+
+**Advanced Routing:**
+
+```swift
+// Configure provider preferences and fallbacks
+let config = OpenAIConfiguration.openRouter(apiKey: "sk-or-...")
+    .preferring(.anthropic, .openai)
+    .routeByLatency()
+
+let provider = OpenAIProvider(configuration: config)
+
+// Full control with OpenRouterRoutingConfig
+let routing = OpenRouterRoutingConfig(
+    providers: [.anthropic, .openai],
+    fallbacks: true,
+    routeByLatency: true,
+    dataCollection: .deny  // Privacy control
+)
+let config = OpenAIConfiguration.openRouter(apiKey: "sk-or-...")
+    .routing(routing)
+```
+
+**Streaming:**
+
+```swift
+for try await chunk in provider.stream(
+    "Write a story",
+    model: .openRouter("meta-llama/llama-3.1-70b-instruct"),
+    config: .default
+) {
+    print(chunk.text, terminator: "")
+}
+```
+
+**Model Format:**
+
+OpenRouter uses `provider/model` format:
+- `openai/gpt-4-turbo`
+- `anthropic/claude-3-opus`
+- `google/gemini-pro-1.5`
+- `meta-llama/llama-3.1-70b-instruct`
+
+**Predefined Model Constants:**
+
+| Constant | Model |
+|----------|-------|
+| `.claudeOpus` | `anthropic/claude-3-opus` |
+| `.claudeSonnet` | `anthropic/claude-3-sonnet` |
+| `.geminiPro15` | `google/gemini-pro-1.5` |
+| `.llama31B70B` | `meta-llama/llama-3.1-70b-instruct` |
+| `.mixtral8x7B` | `mistralai/mixtral-8x7b-instruct` |
+
+**Features:**
+- 200+ models from 20+ providers
+- Automatic fallbacks on provider failure
+- Latency-based routing
+- Provider preference ordering
+- Data collection controls (privacy)
+- Streaming support
+- Tool/function calling
+
+Get your API key at: https://openrouter.ai/
+
+---
+
+## Core Concepts
+
+
+### Model Identifiers
+
+Conduit requires explicit model selection—no magic auto-detection:
+
+```swift
+// MLX models (local)
+.mlx("mlx-community/Llama-3.2-1B-Instruct-4bit")
+.llama3_2_1B  // Convenience alias
+.phi4
+.qwen2_5_3B
+
+// HuggingFace models (cloud)
+.huggingFace("meta-llama/Llama-3.1-70B-Instruct")
+.huggingFace("sentence-transformers/all-MiniLM-L6-v2")
+
+// Anthropic models (cloud)
+.claudeOpus45
+.claudeSonnet45
+.claude35Sonnet
+.claude3Haiku
+
+// OpenAI models (cloud)
+.gpt4o
+.gpt4oMini
+.gpt4Turbo
+.o1
+.o3Mini
+
+// OpenRouter models (cloud aggregator)
+.openRouter("anthropic/claude-3-opus")
+.openRouter("google/gemini-pro-1.5")
+.openRouter("meta-llama/llama-3.1-70b-instruct")
+
+// Ollama models (local)
+.ollama("llama3.2")
+.ollamaLlama32
+.ollamaMistral
+.ollamaCodeLlama
+
+// Azure OpenAI (enterprise cloud)
+.azure(deployment: "my-gpt4-deployment")
+
+// Foundation Models (iOS 26+)
+.foundationModels
+```
+
+### Generation Config
+
+Control generation behavior with presets or custom settings:
+
+```swift
+// Presets
+.default      // temperature: 0.7, topP: 0.9
+.creative     // temperature: 1.0, topP: 0.95
+.precise      // temperature: 0.3, topP: 0.8
+.code         // temperature: 0.2, topP: 0.9
+
+// Custom
+let config = GenerateConfig(
+    temperature: 0.8,
+    maxTokens: 500,
+    topP: 0.9,
+    stopSequences: ["END"]
+)
+
+// Fluent API
+let config = GenerateConfig.default
+    .temperature(0.8)
+    .maxTokens(500)
+```
+
+### Messages
+
+Build conversations with the `Messages` result builder:
+
+```swift
+let messages = Messages {
+    Message.system("You are a Swift expert.")
+    Message.user("What are actors?")
+}
+
+let result = try await provider.generate(
+    messages: messages,
+    model: .llama3_2_1B,
+    config: .default
+)
+
+print(result.text)
+print("Tokens: \(result.usage.totalTokens)")
+```
+
+---
+
+## Streaming
+
+Real-time token streaming with `AsyncSequence`:
+
+```swift
+// Simple text streaming
+for try await text in provider.stream("Tell me a joke", model: .llama3_2_1B) {
+    print(text, terminator: "")
+}
+
+// With metadata
+let stream = provider.streamWithMetadata(
+    messages: messages,
+    model: .llama3_2_1B,
+    config: .default
+)
+
+for try await chunk in stream {
+    print(chunk.text, terminator: "")
+
+    if let tokensPerSecond = chunk.tokensPerSecond {
+        // Track performance
+    }
+
+    if let reason = chunk.finishReason {
+        print("\nFinished: \(reason)")
     }
     return key
 }
@@ -87,17 +903,174 @@ Enable the `MLX` trait in `Package.swift` when targeting Apple Silicon, or switc
 
 ## Installation
 
-Add Conduit to your `Package.swift`:
+Conduit provides a comprehensive model management system for downloading models from HuggingFace Hub and managing local storage.
+
+### Downloading HuggingFace Models
+
+Download any model from [HuggingFace Hub](https://huggingface.co) for local MLX inference:
 
 ```swift
-dependencies: [
-    .package(url: "https://github.com/christopherkarani/Conduit", from: "2.0.0")
-]
+let manager = ModelManager.shared
+
+// Download a pre-configured model
+let url = try await manager.download(.llama3_2_1B) { progress in
+    print("Downloading: \(progress.percentComplete)%")
+    if let speed = progress.formattedSpeed {
+        print("Speed: \(speed)")
+    }
+    if let eta = progress.formattedETA {
+        print("ETA: \(eta)")
+    }
+}
+
+// Download any HuggingFace model by repository ID
+let customModel = ModelIdentifier.mlx("mlx-community/Mistral-7B-Instruct-v0.3-4bit")
+let url = try await manager.download(customModel)
 ```
 
-Conduit keeps the core lean by making provider implementations opt-in via SwiftPM traits.
+**Finding Models:**
 
-For MLX-enabled builds on Apple Silicon, opt into the `MLX` trait:
+Browse the [mlx-community on HuggingFace](https://huggingface.co/mlx-community) for 4-bit quantized models optimized for Apple Silicon. Any model with MLX-compatible weights can be downloaded.
+
+### Download with Validation
+
+Validate model compatibility before downloading to avoid wasted bandwidth:
+
+```swift
+do {
+    // Validates MLX compatibility, estimates size, then downloads
+    let url = try await manager.downloadValidated(.llama3_2_1B) { progress in
+        print("Progress: \(progress.percentComplete)%")
+    }
+} catch AIError.incompatibleModel(let model, let reasons) {
+    print("Cannot download \(model.rawValue):")
+    for reason in reasons {
+        print("  - \(reason)")
+    }
+}
+```
+
+### Size Estimation
+
+Check download size before committing:
+
+```swift
+if let size = await manager.estimateDownloadSize(.llama3_2_1B) {
+    print("Download size: \(size.formatted)")  // e.g., "2.1 GB"
+
+    // Check available storage
+    let available = try FileManager.default.availableCapacity(forUsage: .opportunistic)
+    if available < size.bytes {
+        print("Warning: Insufficient storage space")
+    }
+}
+```
+
+### SwiftUI Integration
+
+The `DownloadTask` is `@Observable` for seamless SwiftUI integration:
+
+```swift
+struct ModelDownloadView: View {
+    @State private var downloadTask: DownloadTask?
+
+    var body: some View {
+        if let task = downloadTask {
+            VStack {
+                ProgressView(value: task.progress.fractionCompleted)
+                Text("\(task.progress.percentComplete)%")
+
+                if let speed = task.progress.formattedSpeed {
+                    Text(speed)
+                }
+
+                Button("Cancel") { task.cancel() }
+            }
+        } else {
+            Button("Download") {
+                Task {
+                    downloadTask = await ModelManager.shared.downloadTask(for: .llama3_2_1B)
+                }
+            }
+        }
+    }
+}
+```
+
+### Cache Management
+
+```swift
+let manager = ModelManager.shared
+
+// Check if model is cached
+if await manager.isCached(.llama3_2_1B) {
+    print("Model ready")
+}
+
+// Get local path for cached model
+if let path = await manager.localPath(for: .llama3_2_1B) {
+    print("Model at: \(path)")
+}
+
+// List all cached models
+let cached = try await manager.cachedModels()
+for model in cached {
+    print("\(model.identifier.displayName): \(model.size.formatted)")
+}
+
+// Cache size
+let size = await manager.cacheSize()
+print("Cache size: \(size.formatted)")
+
+// Evict least-recently-used models to fit storage limit
+try await manager.evictToFit(maxSize: .gigabytes(30))
+
+// Remove specific model
+try await manager.delete(.llama3_2_1B)
+
+// Clear entire cache
+try await manager.clearCache()
+```
+
+
+### Model Registry
+
+Discover available models with metadata:
+
+```swift
+// Get all known models
+let allModels = ModelRegistry.allModels
+
+// Filter by provider
+let mlxModels = ModelRegistry.models(for: .mlx)
+let cloudModels = ModelRegistry.models(for: .huggingFace)
+
+// Filter by capability
+let embeddingModels = ModelRegistry.models(with: .embeddings)
+let reasoningModels = ModelRegistry.models(with: .reasoning)
+
+// Get recommended models
+let recommended = ModelRegistry.recommendedModels()
+
+// Look up model info
+if let info = ModelRegistry.info(for: .llama3_2_1B) {
+    print("Name: \(info.name)")
+    print("Size: \(info.size.displayName)")
+    print("Context: \(info.contextWindow) tokens")
+    print("Disk: \(info.diskSize?.formatted ?? "N/A")")
+}
+```
+
+**Storage Location:**
+- MLX models: `~/Library/Caches/Conduit/Models/mlx/`
+- HuggingFace models: `~/Library/Caches/Conduit/Models/huggingface/`
+
+---
+
+## Token Counting
+
+Manage context windows with precise token counts:
+
 
 ```swift
 dependencies: [
@@ -143,6 +1116,49 @@ MLX runs on Apple Silicon only; Linux builds exclude MLX by default. Most cloud 
 - **Protocol-first**: everything conforms to `TextGenerator`, `TranscriptionGenerator`, or `EmbeddingGenerator` so your app code stays provider-agnostic.
 - **Explicit model selection**: choose `AnthropicModelID`, `OpenAIModelID`, or `ModelIdentifier` symbols so there is no guesswork about which model is in use.
 - **Streaming + structured output**: shared helpers for chunk streaming, structured response macros (`@Generable`), and tool execution keep advanced scenarios consistent across providers.
+
+## Documentation
+
+Comprehensive guides are available in the [docs](docs/) folder:
+
+| Guide | Description |
+|-------|-------------|
+| [Getting Started](docs/GettingStarted.md) | Installation, setup, and first generation |
+| [Providers](docs/Providers/README.md) | Detailed guides for each provider |
+| [Structured Output](docs/StructuredOutput.md) | Type-safe responses with `@Generable` |
+| [Tool Calling](docs/ToolCalling.md) | Define and execute LLM-invokable tools |
+| [Streaming](docs/Streaming.md) | Real-time token streaming patterns |
+| [ChatSession](docs/ChatSession.md) | Stateful conversation management |
+| [Model Management](docs/ModelManagement.md) | Download, cache, and manage models |
+| [Error Handling](docs/ErrorHandling.md) | Handle errors gracefully |
+| [Architecture](docs/Architecture.md) | Design principles and internals |
+
+---
+
+## Contributing
+
+We welcome contributions! Here's how to get started:
+
+1. **Fork** the repository
+2. **Create** a feature branch: `git checkout -b feature/amazing-feature`
+3. **Commit** your changes: `git commit -m 'Add amazing feature'`
+4. **Push** to the branch: `git push origin feature/amazing-feature`
+5. **Open** a Pull Request
+
+Please ensure your code:
+- Follows existing code style and conventions
+- Includes tests for new functionality
+- Updates documentation as needed
+- Maintains backward compatibility
+
+---
+
+## Community
+
+- **[GitHub Discussions](https://github.com/christopherkarani/Conduit/discussions)** — Ask questions, share ideas
+- **[GitHub Issues](https://github.com/christopherkarani/Conduit/issues)** — Report bugs, request features
+
+---
 
 ## License
 
