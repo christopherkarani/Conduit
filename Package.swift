@@ -17,6 +17,18 @@ let package = Package(
     ],
     traits: [
         .trait(
+            name: "OpenAI",
+            description: "Enable OpenAI-compatible providers (OpenAI, Azure OpenAI, Ollama, custom endpoints)"
+        ),
+        .trait(
+            name: "OpenRouter",
+            description: "Enable OpenRouter support (OpenAI-compatible via OpenAIProvider)"
+        ),
+        .trait(
+            name: "Anthropic",
+            description: "Enable Anthropic Claude provider support"
+        ),
+        .trait(
             name: "MLX",
             description: "Enable MLX on-device inference (Apple Silicon only)"
         ),
@@ -66,6 +78,10 @@ let package = Package(
                 .product(name: "StableDiffusion", package: "mlx-swift-examples", condition: .when(traits: ["MLX"])),
             ],
             swiftSettings: [
+                .define("CONDUIT_TRAIT_OPENAI", .when(traits: ["OpenAI"])),
+                .define("CONDUIT_TRAIT_OPENROUTER", .when(traits: ["OpenRouter"])),
+                .define("CONDUIT_TRAIT_ANTHROPIC", .when(traits: ["Anthropic"])),
+                .define("CONDUIT_TRAIT_MLX", .when(traits: ["MLX"])),
                 .enableExperimentalFeature("StrictConcurrency")
             ]
         ),
@@ -75,6 +91,10 @@ let package = Package(
                 "Conduit",
             ],
             swiftSettings: [
+                .define("CONDUIT_TRAIT_OPENAI", .when(traits: ["OpenAI"])),
+                .define("CONDUIT_TRAIT_OPENROUTER", .when(traits: ["OpenRouter"])),
+                .define("CONDUIT_TRAIT_ANTHROPIC", .when(traits: ["Anthropic"])),
+                .define("CONDUIT_TRAIT_MLX", .when(traits: ["MLX"])),
                 .enableExperimentalFeature("StrictConcurrency")
             ]
         ),

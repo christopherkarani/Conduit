@@ -3,6 +3,7 @@
 //
 // Capability flags for OpenAI-compatible providers.
 
+#if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
 import Foundation
 
 // MARK: - OpenAICapabilities
@@ -284,3 +285,5 @@ extension OpenAIEndpoint {
         }
     }
 }
+
+#endif // CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER

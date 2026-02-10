@@ -3,6 +3,7 @@
 //
 // Tests for OpenRouter reasoning/thinking mode support.
 
+#if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
 import Foundation
 import Testing
 @testable import Conduit
@@ -231,3 +232,5 @@ struct OpenAIProviderReasoningTests {
         }
     }
 }
+
+#endif // CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER

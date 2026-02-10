@@ -3,6 +3,7 @@
 //
 // Tests for OpenRouter/OpenAI tool calling configuration support.
 
+#if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
 import Foundation
 import Testing
 @testable import Conduit
@@ -306,3 +307,5 @@ struct OpenAIToolRequestBuildingTests {
         }
     }
 }
+
+#endif // CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER

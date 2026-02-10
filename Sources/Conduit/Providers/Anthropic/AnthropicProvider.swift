@@ -3,6 +3,7 @@
 //
 // Actor-based provider for Anthropic Claude API.
 
+#if CONDUIT_TRAIT_ANTHROPIC
 import Foundation
 
 #if canImport(FoundationNetworking)
@@ -457,3 +458,5 @@ public actor AnthropicProvider: AIProvider, TextGenerator {
     // - streamWithMetadata(messages:model:config:) -> AsyncThrowingStream<GenerationChunk, Error>
     // - stream(messages:model:config:) -> AsyncThrowingStream<GenerationChunk, Error>
 }
+
+#endif // CONDUIT_TRAIT_ANTHROPIC

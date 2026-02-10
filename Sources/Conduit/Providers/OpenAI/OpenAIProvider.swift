@@ -3,6 +3,7 @@
 //
 // OpenAI-compatible provider actor for text generation, embeddings, and more.
 
+#if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
 import Foundation
 
 #if canImport(FoundationNetworking)
@@ -382,3 +383,5 @@ extension OpenAIProvider {
         return OpenAIProvider(configuration: .openRouter(apiKey: apiKey).routing(routing))
     }
 }
+
+#endif // CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER

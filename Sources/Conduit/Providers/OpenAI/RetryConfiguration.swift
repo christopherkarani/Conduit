@@ -3,6 +3,7 @@
 //
 // Retry and resilience configuration for OpenAI-compatible providers.
 
+#if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
 import Foundation
 
 // MARK: - RetryConfiguration
@@ -382,3 +383,5 @@ extension RetryConfiguration {
 extension RetryConfiguration: Codable {}
 extension RetryStrategy: Codable {}
 extension RetryableErrorType: Codable {}
+
+#endif // CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER

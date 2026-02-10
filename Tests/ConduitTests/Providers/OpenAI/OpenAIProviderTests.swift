@@ -3,6 +3,7 @@
 //
 // Unit tests for OpenAI provider components.
 
+#if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
 import Testing
 import Foundation
 @testable import Conduit
@@ -283,3 +284,5 @@ struct TokenCountIsEstimateTests {
         #expect(!precise.description.contains("estimated"))
     }
 }
+
+#endif // CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER

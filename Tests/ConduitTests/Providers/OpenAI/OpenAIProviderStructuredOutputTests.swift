@@ -3,6 +3,7 @@
 //
 // Tests for OpenRouter/OpenAI structured output support.
 
+#if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
 import Foundation
 import Testing
 @testable import Conduit
@@ -233,3 +234,5 @@ struct OpenAIProviderStructuredOutputTests {
         }
     }
 }
+
+#endif // CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER

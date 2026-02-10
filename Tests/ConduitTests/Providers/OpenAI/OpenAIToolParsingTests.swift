@@ -4,6 +4,7 @@
 // Tests for OpenAI tool call response parsing.
 // TDD Red Phase: These tests should fail until implementation is complete.
 
+#if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
 import Foundation
 import Testing
 @testable import Conduit
@@ -507,3 +508,5 @@ struct OpenAIToolParsingTests {
         }
     }
 }
+
+#endif // CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER

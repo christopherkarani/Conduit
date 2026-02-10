@@ -3,6 +3,7 @@
 //
 // OpenRouter-specific configuration for routing and fallbacks.
 
+#if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
 import Foundation
 
 // MARK: - OpenRouterRoutingConfig
@@ -413,3 +414,5 @@ extension OpenRouterRoutingConfig {
 extension OpenRouterRoutingConfig: Codable {}
 extension OpenRouterProvider: Codable {}
 extension OpenRouterDataCollection: Codable {}
+
+#endif // CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER

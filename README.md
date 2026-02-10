@@ -1032,6 +1032,7 @@ try await manager.delete(.llama3_2_1B)
 try await manager.clearCache()
 ```
 
+
 ### Model Registry
 
 Discover available models with metadata:
@@ -1070,9 +1071,22 @@ if let info = ModelRegistry.info(for: .llama3_2_1B) {
 
 Manage context windows with precise token counts:
 
+
 ```swift
 dependencies: [
     .package(url: "https://github.com/christopherkarani/Conduit", from: "2.0.0", traits: ["MLX"])
+]
+```
+
+For cloud providers, opt into the corresponding traits:
+
+```swift
+dependencies: [
+    .package(
+        url: "https://github.com/christopherkarani/Conduit",
+        from: "2.0.0",
+        traits: ["Anthropic", "OpenAI", "OpenRouter"]
+    )
 ]
 ```
 

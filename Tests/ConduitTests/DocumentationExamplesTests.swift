@@ -10,19 +10,19 @@ final class DocumentationExamplesTests: XCTestCase {
         let runner = DocumentationRunner(prompt: "Plan a three-day sprint.")
 
         let steps = [
-            DocumentationRunner.Step(label: "Claude Opus 4.5") {
+            DocumentationRunner.Step(label: "Claude Opus 4.5", providerLabel: "Anthropic") {
                 let provider = ExampleMockProvider(label: "Anthropic", modelID: ExampleMockModel.anthropicOpus)
                 return try await runner.run(provider: provider, model: provider.modelID)
             },
-            DocumentationRunner.Step(label: "OpenRouter GPT-5.2") {
+            DocumentationRunner.Step(label: "OpenRouter GPT-5.2", providerLabel: "OpenRouter") {
                 let provider = ExampleMockProvider(label: "OpenRouter", modelID: ExampleMockModel.openRouterGPT52)
                 return try await runner.run(provider: provider, model: provider.modelID)
             },
-            DocumentationRunner.Step(label: "Ollama Llama3.2") {
+            DocumentationRunner.Step(label: "Ollama Llama3.2", providerLabel: "Ollama") {
                 let provider = ExampleMockProvider(label: "Ollama", modelID: ExampleMockModel.ollamaLlama32)
                 return try await runner.run(provider: provider, model: provider.modelID)
             },
-            DocumentationRunner.Step(label: "MLX Llama3.2 1B") {
+            DocumentationRunner.Step(label: "MLX Llama3.2 1B", providerLabel: "MLX") {
                 let provider = ExampleMockProvider(label: "MLX", modelID: ExampleMockModel.mlxLlama32)
                 return try await runner.run(provider: provider, model: provider.modelID)
             }
@@ -33,7 +33,7 @@ final class DocumentationExamplesTests: XCTestCase {
 
         for (step, result) in zip(steps, results) {
             XCTAssertEqual(step.label, result.label)
-            XCTAssertTrue(result.text.contains(step.label.components(separatedBy: " ").first ?? ""))
+            XCTAssertTrue(result.text.contains(step.providerLabel))
         }
     }
 }
@@ -43,6 +43,7 @@ private struct DocumentationRunner {
 
     struct Step {
         let label: String
+        let providerLabel: String
         let job: () async throws -> String
     }
 

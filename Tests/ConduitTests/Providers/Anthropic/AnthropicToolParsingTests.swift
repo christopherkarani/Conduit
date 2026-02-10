@@ -4,6 +4,7 @@
 // Tests for Anthropic tool call response parsing.
 // TDD Red Phase: These tests should fail until implementation is complete.
 
+#if CONDUIT_TRAIT_ANTHROPIC
 import Foundation
 import Testing
 @testable import Conduit
@@ -534,3 +535,5 @@ struct AnthropicToolParsingTests {
         }
     }
 }
+
+#endif // CONDUIT_TRAIT_ANTHROPIC

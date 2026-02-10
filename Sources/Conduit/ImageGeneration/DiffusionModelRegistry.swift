@@ -3,7 +3,7 @@
 //
 // This file requires the MLX trait as it depends on DiffusionVariant.
 
-#if canImport(MLX)
+#if CONDUIT_TRAIT_MLX && canImport(MLX)
 
 import Foundation
 

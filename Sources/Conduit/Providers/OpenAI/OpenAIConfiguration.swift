@@ -3,6 +3,7 @@
 //
 // Main configuration for OpenAI-compatible providers.
 
+#if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
 import Foundation
 
 // MARK: - OpenAIConfiguration
@@ -621,3 +622,5 @@ extension OpenAIConfiguration: Codable {
         try container.encodeIfPresent(ollamaConfig, forKey: .ollamaConfig)
     }
 }
+
+#endif // CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER

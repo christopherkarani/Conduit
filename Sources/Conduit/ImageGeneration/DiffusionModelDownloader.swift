@@ -5,7 +5,7 @@
 // using either `Hub` (swift-transformers) or `HuggingFace` (swift-huggingface,
 // via the HuggingFaceHub trait).
 
-#if canImport(MLX) && (canImport(Hub) || canImport(HuggingFace))
+#if CONDUIT_TRAIT_MLX && canImport(MLX) && (canImport(Hub) || canImport(HuggingFace))
 
 import Foundation
 #if canImport(Hub)

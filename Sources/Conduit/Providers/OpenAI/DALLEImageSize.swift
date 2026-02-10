@@ -101,7 +101,7 @@ public enum DALLEImageSize: String, Sendable, Hashable, Codable, CaseIterable {
     /// Human-readable display name.
     ///
     /// Returns the size in "WIDTHxHEIGHT" format.
-    public var displayName: String {
-        rawValue
-    }
+public var displayName: String {
+    rawValue
+}
 }

@@ -3,6 +3,7 @@
 //
 // Streaming implementation for AnthropicProvider with Server-Sent Events (SSE) parsing.
 
+#if CONDUIT_TRAIT_ANTHROPIC
 import Foundation
 
 #if canImport(FoundationNetworking)
@@ -731,3 +732,5 @@ extension AnthropicProvider {
         }
     }
 }
+
+#endif // CONDUIT_TRAIT_ANTHROPIC

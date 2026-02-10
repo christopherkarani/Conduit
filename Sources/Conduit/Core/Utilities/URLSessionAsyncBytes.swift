@@ -135,6 +135,11 @@ public struct AsyncLineSequence: AsyncSequence, Sendable {
 ///
 /// This class buffers incoming data and feeds it to an AsyncThrowingStream
 /// for consumption by async/await code.
+///
+/// ## Thread Safety
+/// NSLock is used to synchronize access to mutable state. The `@unchecked Sendable`
+/// conformance is safe because all mutable state is protected by the lock
+/// and lock is never held across await points.
 final class StreamingDataDelegate: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     private let continuation: AsyncThrowingStream<UInt8, Error>.Continuation
     private let responseContinuation: CheckedContinuation<URLResponse, Error>

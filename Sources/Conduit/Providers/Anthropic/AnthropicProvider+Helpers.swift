@@ -3,6 +3,7 @@
 //
 // Helper methods for AnthropicProvider request/response handling.
 
+#if CONDUIT_TRAIT_ANTHROPIC
 import Foundation
 
 #if canImport(FoundationNetworking)
@@ -348,6 +349,7 @@ extension AnthropicProvider {
         )
     }
 }
+
 
 // MARK: - HTTP Execution
 
@@ -835,3 +837,5 @@ extension AnthropicProvider {
         }
     }
 }
+
+#endif // CONDUIT_TRAIT_ANTHROPIC

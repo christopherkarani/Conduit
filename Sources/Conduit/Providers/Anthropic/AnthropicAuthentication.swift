@@ -3,6 +3,7 @@
 //
 // Authentication configuration for Anthropic API.
 
+#if CONDUIT_TRAIT_ANTHROPIC
 import Foundation
 
 // MARK: - AnthropicAuthentication
@@ -179,3 +180,5 @@ extension AnthropicAuthentication: CustomStringConvertible {
         debugDescription
     }
 }
+
+#endif // CONDUIT_TRAIT_ANTHROPIC

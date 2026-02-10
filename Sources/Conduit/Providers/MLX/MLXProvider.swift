@@ -1,6 +1,7 @@
 // MLXProvider.swift
 // Conduit
 
+#if CONDUIT_TRAIT_MLX
 import Foundation
 
 // MARK: - Linux Compatibility
@@ -80,6 +81,9 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
 
     /// Flag for cancellation support.
     private var isCancelled: Bool = false
+
+    /// Tracks whether runtime configuration has been applied.
+    private var didApplyRuntimeConfiguration: Bool = false
 
     // MARK: - Initialization
 
@@ -195,9 +199,20 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
                 )
             }
 
-            continuation.onTermination = { @Sendable _ in
+            continuation.onTermination = { @Sendable termination in
                 task.cancel()
-                Task { await self.cancelGeneration() }
+                Task {
+                    await self.cancelGeneration()
+                }
+
+                // Ensure continuation is finished when stream is cancelled
+                // This prevents resource leaks when cancellation happens
+                // before the streaming loop begins
+                if case .cancelled = termination {
+                    let finalChunk = GenerationChunk.completion(finishReason: .cancelled)
+                    continuation.yield(finalChunk)
+                    continuation.finish()
+                }
             }
         }
     }
@@ -499,6 +514,8 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
         for model: ModelID
     ) async throws -> TokenCount {
         #if arch(arm64)
+        await applyRuntimeConfigurationIfNeeded()
+
         // Validate model type
         guard case .mlx(let modelId) = model else {
             throw AIError.invalidInput("MLXProvider only supports .mlx() models")
@@ -530,6 +547,8 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
         for model: ModelID
     ) async throws -> TokenCount {
         #if arch(arm64)
+        await applyRuntimeConfigurationIfNeeded()
+
         // Validate model type
         guard case .mlx(let modelId) = model else {
             throw AIError.invalidInput("MLXProvider only supports .mlx() models")
@@ -631,6 +650,8 @@ extension MLXProvider {
             throw AIError.invalidInput("MLXProvider only supports .mlx() models")
         }
 
+        await applyRuntimeConfigurationIfNeeded()
+
         // Load model container
         let container = try await modelLoader.loadModel(identifier: model)
 
@@ -699,6 +720,8 @@ extension MLXProvider {
 
             // Reset cancellation flag
             isCancelled = false
+
+            await applyRuntimeConfigurationIfNeeded()
 
             // Load model container
             let container = try await modelLoader.loadModel(identifier: model)
@@ -799,22 +822,28 @@ extension MLXProvider {
 
     /// Converts Conduit GenerateConfig to mlx-swift-lm GenerateParameters.
     private func createGenerateParameters(from config: GenerateConfig) -> GenerateParameters {
-        var params = GenerateParameters()
+        MLXGenerateParametersBuilder().make(
+            mlxConfiguration: configuration,
+            generateConfig: config
+        )
+    }
 
-        // Token limits
-        if let maxTokens = config.maxTokens {
-            params.maxTokens = maxTokens
+    // MARK: - Runtime Configuration
+
+    private func applyRuntimeConfigurationIfNeeded() async {
+        guard !didApplyRuntimeConfiguration else { return }
+        await MLXModelCache.shared.apply(configuration: configuration.cacheConfiguration())
+
+        if let limit = configuration.memoryLimit {
+            #if arch(arm64)
+            MLX.GPU.set(memoryLimit: Int(limit.bytes))
+            #endif
         }
 
-        // Sampling parameters
-        params.temperature = config.temperature
-        params.topP = config.topP
-
-        // Repetition penalty
-        params.repetitionPenalty = config.repetitionPenalty
-
-        return params
+        didApplyRuntimeConfiguration = true
     }
 }
 
 #endif // canImport(MLX)
+
+#endif // CONDUIT_TRAIT_MLX

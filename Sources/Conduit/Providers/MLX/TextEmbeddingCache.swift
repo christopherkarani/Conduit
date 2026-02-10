@@ -3,6 +3,7 @@
 //
 // Caches text embeddings to avoid re-encoding repeated prompts.
 
+#if CONDUIT_TRAIT_MLX
 import Foundation
 // MARK: - Linux Compatibility
 // NOTE: MLX requires Metal GPU and Apple Silicon. Not available on Linux.
@@ -283,4 +284,6 @@ public actor TextEmbeddingCache {
         return totalElements * bytesPerElement
     }
 }
-#endif
+#endif // canImport(MLX)
+
+#endif // CONDUIT_TRAIT_MLX

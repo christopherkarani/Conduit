@@ -3,6 +3,7 @@
 //
 // Tests for OpenRouter/OpenAI audio input support.
 
+#if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
 import Foundation
 import Testing
 @testable import Conduit
@@ -315,3 +316,5 @@ struct OpenAIProviderAudioInputTests {
         }
     }
 }
+
+#endif // CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
