@@ -3,6 +3,7 @@
 //
 // LRU cache for diffusion models to improve performance when switching between models.
 
+#if CONDUIT_TRAIT_MLX
 import Foundation
 // MARK: - Linux Compatibility
 // NOTE: MLX and StableDiffusion require Metal GPU. Not available on Linux.
@@ -219,4 +220,6 @@ public actor ModelLRUCache {
         #endif
     }
 }
-#endif
+#endif // canImport(MLX)
+
+#endif // CONDUIT_TRAIT_MLX

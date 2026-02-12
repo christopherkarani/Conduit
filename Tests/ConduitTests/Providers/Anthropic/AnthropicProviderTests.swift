@@ -3,6 +3,7 @@
 //
 // Unit tests for Anthropic provider components.
 
+#if CONDUIT_TRAIT_ANTHROPIC
 import Testing
 import Foundation
 @testable import Conduit
@@ -694,3 +695,5 @@ struct AnthropicProviderAvailabilityTests {
         #expect(status.unavailableReason == .apiKeyMissing)
     }
 }
+
+#endif // CONDUIT_TRAIT_ANTHROPIC

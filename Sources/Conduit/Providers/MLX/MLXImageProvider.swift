@@ -3,6 +3,7 @@
 //
 // Local on-device image generation using MLX StableDiffusion.
 
+#if CONDUIT_TRAIT_MLX
 import Foundation
 // MARK: - Linux Compatibility
 // NOTE: MLX and StableDiffusion require Metal GPU. Not available on Linux.
@@ -798,4 +799,6 @@ public actor MLXImageProvider: ImageGenerator {
         #endif
     }
 }
-#endif
+#endif // canImport(MLX)
+
+#endif // CONDUIT_TRAIT_MLX

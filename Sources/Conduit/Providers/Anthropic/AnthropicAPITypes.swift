@@ -3,6 +3,7 @@
 //
 // Data Transfer Objects for Anthropic Messages API.
 
+#if CONDUIT_TRAIT_ANTHROPIC
 import Foundation
 
 // MARK: - AnthropicMessagesRequest
@@ -1078,3 +1079,5 @@ internal enum AnthropicStreamEvent: Sendable {
 }
 
 // Note: AnyCodable is now defined in Core/Types/AnyCodable.swift
+
+#endif // CONDUIT_TRAIT_ANTHROPIC

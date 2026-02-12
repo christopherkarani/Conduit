@@ -5,18 +5,6 @@ import Testing
 import XCTest
 @testable import Conduit
 
-// MARK: - Test Helpers
-
-/// Creates a URL from a string, failing the test if the URL is invalid.
-func makeTestURL(_ string: String) -> URL {
-    guard let url = URL(string: string) else {
-        Issue.record("Failed to create URL from string: \(string)")
-        return makeTestURL("https://example.com")
-    }
-    return url
-}
-
-
 /// Comprehensive test suite for HuggingFace provider components.
 ///
 /// Tests cover:

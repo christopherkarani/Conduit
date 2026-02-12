@@ -4,6 +4,7 @@
 // Integration tests for Anthropic provider with live API.
 // These tests require ANTHROPIC_API_KEY environment variable.
 
+#if CONDUIT_TRAIT_ANTHROPIC
 import Testing
 import Foundation
 @testable import Conduit
@@ -528,3 +529,5 @@ struct AnthropicIntegrationTests {
         #expect(!randomResult.text.isEmpty)
     }
 }
+
+#endif // CONDUIT_TRAIT_ANTHROPIC

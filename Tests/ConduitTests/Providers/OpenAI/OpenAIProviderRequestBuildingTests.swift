@@ -3,6 +3,7 @@
 //
 // Tests for OpenAI/OpenRouter request building details (tools + reasoning).
 
+#if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
 import Foundation
 import Testing
 @testable import Conduit
@@ -167,3 +168,5 @@ struct OpenAIProviderRequestBuildingTests {
         #expect(providerObj["data_collection"] as? String == "deny")
     }
 }
+
+#endif // CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER

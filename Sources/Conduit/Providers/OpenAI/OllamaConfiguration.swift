@@ -3,6 +3,7 @@
 //
 // Ollama-specific configuration for local inference.
 
+#if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
 import Foundation
 
 // MARK: - OllamaConfiguration
@@ -335,3 +336,5 @@ public enum OllamaServerStatus: Sendable, Hashable {
     /// Server status is unknown.
     case unknown
 }
+
+#endif // CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER

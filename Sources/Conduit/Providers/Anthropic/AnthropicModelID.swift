@@ -3,6 +3,7 @@
 //
 // Model identifiers for Anthropic Claude API.
 
+#if CONDUIT_TRAIT_ANTHROPIC
 import Foundation
 
 // MARK: - AnthropicModelID
@@ -247,3 +248,5 @@ extension AnthropicModelID: Codable {
         try container.encode(rawValue)
     }
 }
+
+#endif // CONDUIT_TRAIT_ANTHROPIC

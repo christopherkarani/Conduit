@@ -3,6 +3,7 @@
 //
 // Embedding generation functionality for OpenAIProvider.
 
+#if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
 import Foundation
 
 #if canImport(FoundationNetworking)
@@ -124,3 +125,5 @@ extension OpenAIProvider {
         }
     }
 }
+
+#endif // CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER

@@ -1,6 +1,7 @@
 // MLXConfiguration.swift
 // Conduit
 
+#if CONDUIT_TRAIT_MLX
 import Foundation
 
 // MARK: - Linux Compatibility
@@ -439,3 +440,5 @@ extension MLXConfiguration {
 }
 
 #endif // canImport(MLX)
+
+#endif // CONDUIT_TRAIT_MLX

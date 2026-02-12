@@ -3,6 +3,7 @@
 //
 // Unit tests for DALL-E image generation components.
 
+#if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
 import Testing
 import Foundation
 @testable import Conduit
@@ -306,3 +307,5 @@ struct GeneratedImageMetadataTests {
         #expect(image.format == .jpeg)
     }
 }
+
+#endif // CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER

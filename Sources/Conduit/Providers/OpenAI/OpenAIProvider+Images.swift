@@ -3,6 +3,7 @@
 //
 // Image generation functionality for OpenAIProvider using DALL-E.
 
+#if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
 import Foundation
 
 #if canImport(FoundationNetworking)
@@ -209,3 +210,5 @@ extension OpenAIProvider {
         return GeneratedImage(data: imageData, format: .png, metadata: metadata)
     }
 }
+
+#endif // CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER

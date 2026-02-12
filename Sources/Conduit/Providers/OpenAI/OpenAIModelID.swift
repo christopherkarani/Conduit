@@ -3,6 +3,7 @@
 //
 // Model identifiers for OpenAI-compatible providers.
 
+#if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
 import Foundation
 
 // MARK: - OpenAIModelID
@@ -370,3 +371,5 @@ extension OpenAIModelID: Codable {
         try container.encode(rawValue)
     }
 }
+
+#endif // CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER

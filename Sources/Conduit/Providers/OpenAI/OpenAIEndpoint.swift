@@ -3,6 +3,7 @@
 //
 // Defines the supported OpenAI-compatible API endpoints.
 
+#if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
 import Foundation
 
 // MARK: - OpenAIEndpoint
@@ -531,3 +532,5 @@ extension OpenAIEndpoint: Codable {
         }
     }
 }
+
+#endif // CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER

@@ -3,6 +3,7 @@
 //
 // Authentication types for OpenAI-compatible providers.
 
+#if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
 import Foundation
 
 #if canImport(FoundationNetworking)
@@ -387,3 +388,5 @@ extension OpenAIAuthentication {
         }
     }
 }
+
+#endif // CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER

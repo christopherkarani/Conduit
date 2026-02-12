@@ -32,6 +32,7 @@ struct LinuxCompatibilityTests {
 
     // MARK: - Cloud Provider Initialization
 
+#if CONDUIT_TRAIT_ANTHROPIC
     @Test("Anthropic provider initializes on all platforms")
     func anthropicProviderInitializes() async throws {
         let provider = AnthropicProvider(apiKey: "test-key")
@@ -44,7 +45,9 @@ struct LinuxCompatibilityTests {
         _ = await provider.isAvailable
         #endif
     }
+#endif
 
+#if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
     @Test("OpenAI provider initializes on all platforms")
     func openAIProviderInitializes() async throws {
         let provider = OpenAIProvider(apiKey: "test-key")
@@ -74,6 +77,7 @@ struct LinuxCompatibilityTests {
             Issue.record("Expected Ollama endpoint")
         }
     }
+#endif
 
     @Test("HuggingFace provider initializes on all platforms")
     func huggingFaceProviderInitializes() async throws {

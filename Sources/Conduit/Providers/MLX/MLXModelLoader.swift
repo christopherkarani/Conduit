@@ -5,6 +5,7 @@
 
 #if canImport(MLX)
 
+#if CONDUIT_TRAIT_MLX
 import Foundation
 @preconcurrency import MLX
 @preconcurrency import MLXLMCommon
@@ -348,3 +349,5 @@ extension MLXModelLoader {
 #endif // !arch(arm64)
 
 #endif // canImport(MLX)
+
+#endif // CONDUIT_TRAIT_MLX

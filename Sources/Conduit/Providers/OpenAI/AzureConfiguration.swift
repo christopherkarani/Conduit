@@ -3,6 +3,7 @@
 //
 // Azure OpenAI-specific configuration.
 
+#if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
 import Foundation
 
 // MARK: - AzureConfiguration
@@ -263,3 +264,5 @@ extension AzureConfiguration {
         public static let legacy = "2023-05-15"
     }
 }
+
+#endif // CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
