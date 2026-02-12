@@ -33,6 +33,10 @@ let package = Package(
             description: "Enable MLX on-device inference (Apple Silicon only)"
         ),
         .trait(
+            name: "CoreML",
+            description: "Enable Core ML on-device inference via swift-transformers"
+        ),
+        .trait(
             name: "HuggingFaceHub",
             description: "Enable Hugging Face Hub downloads via swift-huggingface"
         ),
@@ -55,6 +59,7 @@ let package = Package(
 
         // MARK: Hugging Face Hub (Optional)
         .package(url: "https://github.com/huggingface/swift-huggingface", branch: "main"),
+        .package(url: "https://github.com/huggingface/swift-transformers", from: "1.1.6"),
 
         // MARK: llama.cpp (Optional)
         .package(url: "https://github.com/mattt/llama.swift", .upToNextMajor(from: "2.7484.0")),
@@ -76,6 +81,7 @@ let package = Package(
                 "ConduitMacros",
                 .product(name: "OrderedCollections", package: "swift-collections"),
                 .product(name: "Logging", package: "swift-log"),
+                .product(name: "Hub", package: "swift-transformers"),
                 .product(name: "HuggingFace", package: "swift-huggingface", condition: .when(traits: ["HuggingFaceHub"])),
                 // MLX dependencies (only included when MLX trait is enabled)
                 .product(name: "MLX", package: "mlx-swift", condition: .when(traits: ["MLX"])),
@@ -83,6 +89,7 @@ let package = Package(
                 .product(name: "MLXLLM", package: "mlx-swift-lm", condition: .when(traits: ["MLX"])),
                 .product(name: "MLXVLM", package: "mlx-swift-lm", condition: .when(traits: ["MLX"])),
                 .product(name: "StableDiffusion", package: "mlx-swift-examples", condition: .when(traits: ["MLX"])),
+                .product(name: "Transformers", package: "swift-transformers", condition: .when(traits: ["CoreML"])),
                 .product(name: "LlamaSwift", package: "llama.swift", condition: .when(traits: ["Llama"])),
             ],
             swiftSettings: [
@@ -90,6 +97,7 @@ let package = Package(
                 .define("CONDUIT_TRAIT_OPENROUTER", .when(traits: ["OpenRouter"])),
                 .define("CONDUIT_TRAIT_ANTHROPIC", .when(traits: ["Anthropic"])),
                 .define("CONDUIT_TRAIT_MLX", .when(traits: ["MLX"])),
+                .define("CONDUIT_TRAIT_COREML", .when(traits: ["CoreML"])),
                 .enableExperimentalFeature("StrictConcurrency")
             ]
         ),
@@ -103,6 +111,7 @@ let package = Package(
                 .define("CONDUIT_TRAIT_OPENROUTER", .when(traits: ["OpenRouter"])),
                 .define("CONDUIT_TRAIT_ANTHROPIC", .when(traits: ["Anthropic"])),
                 .define("CONDUIT_TRAIT_MLX", .when(traits: ["MLX"])),
+                .define("CONDUIT_TRAIT_COREML", .when(traits: ["CoreML"])),
                 .enableExperimentalFeature("StrictConcurrency")
             ]
         ),

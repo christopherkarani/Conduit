@@ -267,6 +267,12 @@ public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked
     /// If `nil`, tool-call responses are treated as invalid input errors.
     public var toolExecutor: ToolExecutor?
 
+    /// Retry policy for tool execution in `send(_:)`.
+    ///
+    /// This policy is applied to each tool call in the tool loop. The default
+    /// is `.none`, preserving single-attempt behavior.
+    public var toolCallRetryPolicy: ToolExecutor.RetryPolicy = .none
+
     /// Maximum number of tool-call rounds allowed in a single `send(_:)` request.
     ///
     /// A "round" is one model response containing at least one tool call followed by
@@ -490,12 +496,24 @@ public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked
         let userMessage = Message.user(content)
 
         // Capture state and add user message under lock
-        let capturedState: (messages: [Message], config: GenerateConfig, toolExecutor: ToolExecutor?, maxToolCallRounds: Int) = withLock {
+        let capturedState: (
+            messages: [Message],
+            config: GenerateConfig,
+            toolExecutor: ToolExecutor?,
+            toolCallRetryPolicy: ToolExecutor.RetryPolicy,
+            maxToolCallRounds: Int
+        ) = withLock {
             lastError = nil
             isGenerating = true
             cancellationRequested = false
             messages.append(userMessage)
-            return (messages, config, toolExecutor, max(0, maxToolCallRounds))
+            return (
+                messages,
+                config,
+                toolExecutor,
+                toolCallRetryPolicy,
+                max(0, maxToolCallRounds)
+            )
         }
 
         // Capture model outside lock (immutable after initialization)
@@ -503,6 +521,7 @@ public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked
         let currentMessages = capturedState.messages
         let currentConfig = capturedState.config
         let currentToolExecutor = capturedState.toolExecutor
+        let currentToolCallRetryPolicy = capturedState.toolCallRetryPolicy
         let currentMaxToolCallRounds = capturedState.maxToolCallRounds
 
         do {
@@ -559,7 +578,10 @@ public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked
                     )
                 }
 
-                let toolOutputs = try await currentToolExecutor.execute(toolCalls: result.toolCalls)
+                let toolOutputs = try await currentToolExecutor.execute(
+                    toolCalls: result.toolCalls,
+                    retryPolicy: currentToolCallRetryPolicy
+                )
                 try Task.checkCancellation()
                 try throwIfCancelled()
                 for output in toolOutputs {

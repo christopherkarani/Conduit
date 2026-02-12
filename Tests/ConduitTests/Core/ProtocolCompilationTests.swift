@@ -655,16 +655,19 @@ final class ProtocolCompilationTests: XCTestCase {
 
     func testProviderTypeEnum() {
         let mlx = ProviderType.mlx
+        let coreml = ProviderType.coreml
         let llama = ProviderType.llama
         let huggingFace = ProviderType.huggingFace
         let foundationModels = ProviderType.foundationModels
 
         XCTAssertEqual(mlx.displayName, "MLX (Local)")
+        XCTAssertEqual(coreml.displayName, "Core ML (Local)")
         XCTAssertEqual(llama.displayName, "llama.cpp (Local)")
         XCTAssertEqual(huggingFace.displayName, "HuggingFace (Cloud)")
         XCTAssertEqual(foundationModels.displayName, "Apple Foundation Models")
 
         XCTAssertFalse(mlx.requiresNetwork)
+        XCTAssertFalse(coreml.requiresNetwork)
         XCTAssertFalse(llama.requiresNetwork)
         XCTAssertTrue(huggingFace.requiresNetwork)
         XCTAssertFalse(foundationModels.requiresNetwork)
@@ -672,8 +675,9 @@ final class ProtocolCompilationTests: XCTestCase {
 
     func testProviderTypeIsCaseIterable() {
         let allCases = ProviderType.allCases
-        XCTAssertEqual(allCases.count, 9)
+        XCTAssertEqual(allCases.count, 10)
         XCTAssertTrue(allCases.contains(.mlx))
+        XCTAssertTrue(allCases.contains(.coreml))
         XCTAssertTrue(allCases.contains(.llama))
         XCTAssertTrue(allCases.contains(.huggingFace))
         XCTAssertTrue(allCases.contains(.foundationModels))

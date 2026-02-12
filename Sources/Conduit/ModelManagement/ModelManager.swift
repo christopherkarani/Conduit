@@ -509,6 +509,8 @@ public actor ModelManager {
         switch model.provider {
         case .mlx:
             providerDir = "mlx"
+        case .coreml:
+            throw AIError.invalidInput("Core ML models are local .mlmodelc bundles and are not downloaded by ModelManager")
         case .llama:
             throw AIError.invalidInput("llama.cpp models are local GGUF files and are not downloaded by ModelManager")
         case .huggingFace:
@@ -636,6 +638,10 @@ extension ModelManager {
     public func estimateDownloadSize(_ model: ModelIdentifier) async -> ByteCount? {
         // Foundation Models are system-managed, no download needed
         if case .foundationModels = model {
+            return nil
+        }
+        // Core ML models are local compiled assets, no download needed
+        if case .coreml = model {
             return nil
         }
 

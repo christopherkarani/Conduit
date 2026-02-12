@@ -28,6 +28,26 @@ private struct ReasoningAccumulator {
     var content: String
 }
 
+internal struct ResponsesStreamEvent: Sendable, Equatable {
+    internal enum Kind: Sendable, Equatable {
+        case outputTextDelta
+        case toolCallCreated
+        case toolCallDelta
+        case reasoningDelta
+        case completed
+        case ignored
+    }
+
+    let kind: Kind
+    let textDelta: String?
+    let toolCallID: String?
+    let toolName: String?
+    let argumentsFragment: String?
+    let reasoningDelta: String?
+    let finishReason: FinishReason?
+    let usage: UsageStats?
+}
+
 /// Logger for OpenAI streaming operations.
 private let logger = ConduitLoggers.streaming
 
@@ -106,8 +126,14 @@ extension OpenAIProvider {
         continuation: AsyncThrowingStream<GenerationChunk, Error>.Continuation
     ) async throws {
         let apiVariant = configuration.apiVariant
-        guard apiVariant == .chatCompletions else {
-            throw unsupportedResponsesVariantError(operation: "streaming generation")
+        if apiVariant == .responses {
+            try await performResponsesStreamingGeneration(
+                messages: messages,
+                model: model,
+                config: config,
+                continuation: continuation
+            )
+            return
         }
 
         let url = configuration.endpoint.textGenerationURL(for: apiVariant)
@@ -459,6 +485,324 @@ extension OpenAIProvider {
         }
 
         continuation.finish()
+    }
+
+    internal nonisolated func decodeResponsesEventData(_ jsonStr: String) -> ResponsesStreamEvent? {
+        guard let jsonData = jsonStr.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let type = json["type"] as? String else {
+            return nil
+        }
+
+        switch type {
+        case "response.output_text.delta":
+            return ResponsesStreamEvent(
+                kind: .outputTextDelta,
+                textDelta: json["delta"] as? String,
+                toolCallID: nil,
+                toolName: nil,
+                argumentsFragment: nil,
+                reasoningDelta: nil,
+                finishReason: nil,
+                usage: nil
+            )
+
+        case "response.reasoning.delta":
+            return ResponsesStreamEvent(
+                kind: .reasoningDelta,
+                textDelta: nil,
+                toolCallID: nil,
+                toolName: nil,
+                argumentsFragment: nil,
+                reasoningDelta: json["delta"] as? String,
+                finishReason: nil,
+                usage: nil
+            )
+
+        case "response.tool_call.created", "response.tool_call.delta":
+            let toolCall = (json["tool_call"] as? [String: Any]) ?? json
+            let kind: ResponsesStreamEvent.Kind = (type == "response.tool_call.created") ? .toolCallCreated : .toolCallDelta
+            let argumentsFragment = (toolCall["arguments_delta"] as? String)
+                ?? (toolCall["delta"] as? String)
+                ?? (toolCall["arguments"] as? String)
+
+            return ResponsesStreamEvent(
+                kind: kind,
+                textDelta: nil,
+                toolCallID: (toolCall["call_id"] as? String) ?? (toolCall["id"] as? String),
+                toolName: toolCall["name"] as? String,
+                argumentsFragment: argumentsFragment,
+                reasoningDelta: nil,
+                finishReason: nil,
+                usage: nil
+            )
+
+        case "response.completed":
+            let responsePayload = json["response"] as? [String: Any]
+            let finishReasonString = (responsePayload?["finish_reason"] as? String)
+                ?? (json["finish_reason"] as? String)
+            let usagePayload = (responsePayload?["usage"] as? [String: Any])
+                ?? (json["usage"] as? [String: Any])
+
+            return ResponsesStreamEvent(
+                kind: .completed,
+                textDelta: nil,
+                toolCallID: nil,
+                toolName: nil,
+                argumentsFragment: nil,
+                reasoningDelta: nil,
+                finishReason: mapResponsesFinishReason(finishReasonString),
+                usage: parseResponsesUsage(usagePayload)
+            )
+
+        default:
+            return ResponsesStreamEvent(
+                kind: .ignored,
+                textDelta: nil,
+                toolCallID: nil,
+                toolName: nil,
+                argumentsFragment: nil,
+                reasoningDelta: nil,
+                finishReason: nil,
+                usage: nil
+            )
+        }
+    }
+
+    private struct ResponsesToolAccumulator {
+        var id: String
+        var name: String
+        var index: Int
+        var argumentsBuffer: String
+    }
+
+    private func performResponsesStreamingGeneration(
+        messages: [Message],
+        model: OpenAIModelID,
+        config: GenerateConfig,
+        continuation: AsyncThrowingStream<GenerationChunk, Error>.Continuation
+    ) async throws {
+        let url = configuration.endpoint.textGenerationURL(for: .responses)
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+
+        for (name, value) in configuration.buildHeaders() {
+            request.setValue(value, forHTTPHeaderField: name)
+        }
+
+        let body = buildRequestBody(
+            messages: messages,
+            model: model,
+            config: config,
+            stream: true,
+            variant: .responses
+        )
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (bytes, response) = try await session.asyncBytes(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AIError.networkError(URLError(.badServerResponse))
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            let maxErrorSize = 10_000
+            var errorData = Data()
+            errorData.reserveCapacity(maxErrorSize)
+
+            for try await byte in bytes {
+                guard errorData.count < maxErrorSize else {
+                    let message = String(data: errorData, encoding: .utf8)
+                    throw AIError.serverError(
+                        statusCode: httpResponse.statusCode,
+                        message: (message ?? "") + " (error message truncated)"
+                    )
+                }
+                errorData.append(byte)
+            }
+
+            let message = String(data: errorData, encoding: .utf8)
+            throw AIError.serverError(statusCode: httpResponse.statusCode, message: message)
+        }
+
+        var sseParser = ServerSentEventParser()
+        var reasoningBuffer = ""
+        var toolAccumulatorsByID: [String: ResponsesToolAccumulator] = [:]
+        var nextToolIndex = 0
+
+        func finalizeToolCalls() -> [Transcript.ToolCall] {
+            toolAccumulatorsByID.values
+                .sorted(by: { $0.index < $1.index })
+                .compactMap { acc in
+                    do {
+                        return try Transcript.ToolCall(
+                            id: acc.id,
+                            toolName: acc.name,
+                            argumentsJSON: acc.argumentsBuffer
+                        )
+                    } catch {
+                        let repairedJSON = JsonRepair.repair(acc.argumentsBuffer)
+                        guard repairedJSON != acc.argumentsBuffer else {
+                            logger.warning("Failed to parse Responses tool call '\(acc.name)': \(error.localizedDescription)")
+                            return nil
+                        }
+                        return try? Transcript.ToolCall(
+                            id: acc.id,
+                            toolName: acc.name,
+                            argumentsJSON: repairedJSON
+                        )
+                    }
+                }
+        }
+
+        func currentReasoningDetails() -> [ReasoningDetail]? {
+            guard !reasoningBuffer.isEmpty else { return nil }
+            return [
+                ReasoningDetail(
+                    id: "rd_responses",
+                    type: "reasoning.text",
+                    format: "unknown",
+                    index: 0,
+                    content: reasoningBuffer
+                )
+            ]
+        }
+
+        for try await line in bytes.lines {
+            try Task.checkCancellation()
+
+            for event in sseParser.ingestLine(line) {
+                if event.data == "[DONE]" {
+                    continuation.finish()
+                    return
+                }
+
+                guard let decoded = decodeResponsesEventData(event.data) else {
+                    continue
+                }
+
+                switch decoded.kind {
+                case .outputTextDelta:
+                    let text = decoded.textDelta ?? ""
+                    guard !text.isEmpty else { continue }
+                    continuation.yield(GenerationChunk(text: text, isComplete: false))
+
+                case .reasoningDelta:
+                    guard let fragment = decoded.reasoningDelta, !fragment.isEmpty else { continue }
+                    let newSize = reasoningBuffer.count + fragment.count
+                    if newSize > maxReasoningSize {
+                        let remaining = max(0, maxReasoningSize - reasoningBuffer.count)
+                        reasoningBuffer += String(fragment.prefix(remaining))
+                    } else {
+                        reasoningBuffer += fragment
+                    }
+
+                    continuation.yield(GenerationChunk(
+                        text: "",
+                        tokenCount: 0,
+                        isComplete: false,
+                        reasoningDetails: currentReasoningDetails()
+                    ))
+
+                case .toolCallCreated, .toolCallDelta:
+                    guard let callID = decoded.toolCallID else { continue }
+                    var accumulator = toolAccumulatorsByID[callID] ?? ResponsesToolAccumulator(
+                        id: callID,
+                        name: decoded.toolName ?? "unknown_tool",
+                        index: nextToolIndex,
+                        argumentsBuffer: ""
+                    )
+
+                    if toolAccumulatorsByID[callID] == nil {
+                        nextToolIndex += 1
+                    }
+
+                    if let name = decoded.toolName, !name.isEmpty {
+                        accumulator.name = name
+                    }
+
+                    if let argumentsFragment = decoded.argumentsFragment, !argumentsFragment.isEmpty {
+                        let newSize = accumulator.argumentsBuffer.count + argumentsFragment.count
+                        if newSize > maxToolArgumentsSize {
+                            let remaining = max(0, maxToolArgumentsSize - accumulator.argumentsBuffer.count)
+                            accumulator.argumentsBuffer += String(argumentsFragment.prefix(remaining))
+                        } else {
+                            accumulator.argumentsBuffer += argumentsFragment
+                        }
+                    }
+
+                    toolAccumulatorsByID[callID] = accumulator
+
+                    continuation.yield(GenerationChunk(
+                        text: "",
+                        tokenCount: 0,
+                        isComplete: false,
+                        partialToolCall: PartialToolCall(
+                            id: accumulator.id,
+                            toolName: accumulator.name,
+                            index: accumulator.index,
+                            argumentsFragment: accumulator.argumentsBuffer
+                        ),
+                        reasoningDetails: currentReasoningDetails()
+                    ))
+
+                case .completed:
+                    let completedToolCalls = finalizeToolCalls()
+                    let finishReason = decoded.finishReason ?? (completedToolCalls.isEmpty ? .stop : .toolCalls)
+                    continuation.yield(GenerationChunk(
+                        text: "",
+                        tokenCount: 0,
+                        isComplete: true,
+                        finishReason: finishReason,
+                        usage: decoded.usage,
+                        completedToolCalls: completedToolCalls.isEmpty ? nil : completedToolCalls,
+                        reasoningDetails: currentReasoningDetails()
+                    ))
+                    continuation.finish()
+                    return
+
+                case .ignored:
+                    continue
+                }
+            }
+        }
+
+        for event in sseParser.finish() {
+            if event.data == "[DONE]" {
+                break
+            }
+        }
+
+        continuation.finish()
+    }
+
+    private nonisolated func mapResponsesFinishReason(_ finishReason: String?) -> FinishReason? {
+        switch finishReason {
+        case "stop":
+            return .stop
+        case "length", "max_output_tokens":
+            return .maxTokens
+        case "tool_calls":
+            return .toolCalls
+        case "tool_call":
+            return .toolCall
+        case "content_filter":
+            return .contentFilter
+        case "cancelled", "canceled":
+            return .cancelled
+        default:
+            return nil
+        }
+    }
+
+    private nonisolated func parseResponsesUsage(_ usagePayload: [String: Any]?) -> UsageStats? {
+        guard let usagePayload else { return nil }
+        let inputTokens = (usagePayload["input_tokens"] as? Int)
+            ?? (usagePayload["prompt_tokens"] as? Int)
+            ?? 0
+        let outputTokens = (usagePayload["output_tokens"] as? Int)
+            ?? (usagePayload["completion_tokens"] as? Int)
+            ?? 0
+        return UsageStats(promptTokens: inputTokens, completionTokens: outputTokens)
     }
 }
 

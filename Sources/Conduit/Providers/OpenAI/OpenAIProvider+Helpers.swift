@@ -27,9 +27,6 @@ extension OpenAIProvider {
         stream: Bool
     ) async throws -> GenerationResult {
         let apiVariant = configuration.apiVariant
-        guard apiVariant == .chatCompletions else {
-            throw unsupportedResponsesVariantError(operation: "non-streaming generation")
-        }
 
         let url = configuration.endpoint.textGenerationURL(for: apiVariant)
         var request = URLRequest(url: url)
@@ -54,7 +51,7 @@ extension OpenAIProvider {
         let (data, _) = try await executeWithRetry(request: request)
 
         // Parse response
-        return try parseGenerationResponse(data: data)
+        return try parseGenerationResponse(data: data, variant: apiVariant)
     }
 
     /// Builds the request body for chat completions.
@@ -178,6 +175,11 @@ extension OpenAIProvider {
             if let parallel = config.parallelToolCalls {
                 body["parallel_tool_calls"] = parallel
             }
+
+            // Add max_tool_calls if explicitly set
+            if let maxToolCalls = config.maxToolCalls {
+                body["max_tool_calls"] = maxToolCalls
+            }
         }
 
         // Add response format if configured
@@ -227,10 +229,15 @@ extension OpenAIProvider {
         config: GenerateConfig,
         stream: Bool
     ) -> [String: Any] {
+        let serializedInput = serializeResponsesInput(messages)
         var body: [String: Any] = [
             "model": model.rawValue,
-            "input": serializeResponsesInput(messages)
+            "input": serializedInput.input
         ]
+
+        if let instructions = serializedInput.instructions, !instructions.isEmpty {
+            body["instructions"] = instructions
+        }
 
         if stream {
             body["stream"] = true
@@ -244,6 +251,36 @@ extension OpenAIProvider {
 
         if !config.stopSequences.isEmpty {
             body["stop"] = config.stopSequences
+        }
+
+        if !config.tools.isEmpty && config.toolChoice != .none {
+            body["tools"] = serializeResponsesToolDefinitions(config.tools)
+
+            switch config.toolChoice {
+            case .auto:
+                break
+            case .required:
+                body["tool_choice"] = "required"
+            case .none:
+                break
+            case .tool(let name):
+                body["tool_choice"] = [
+                    "type": "function",
+                    "name": name
+                ]
+            }
+
+            if let parallel = config.parallelToolCalls {
+                body["parallel_tool_calls"] = parallel
+            }
+
+            if let maxToolCalls = config.maxToolCalls {
+                body["max_tool_calls"] = maxToolCalls
+            }
+        }
+
+        if let reasoning = config.reasoning {
+            body["reasoning"] = serializeReasoningConfig(reasoning)
         }
 
         return body
@@ -308,57 +345,113 @@ extension OpenAIProvider {
     }
 
     private nonisolated func serializeSchema(_ schema: GenerationSchema) -> [String: Any] {
-        schema.toJSONSchema()
+        let resolved = schema.withResolvedRoot() ?? schema
+        return resolved.toJSONSchema()
+    }
+
+    private struct ResponsesSerializedInput {
+        let instructions: String?
+        let input: [[String: Any]]
     }
 
     /// Serializes messages into a Responses API compatible input format.
-    private nonisolated func serializeResponsesInput(_ messages: [Message]) -> [[String: Any]] {
-        messages.map { message in
-            let role: String = {
-                switch message.role {
-                case .user: return "user"
-                case .assistant: return "assistant"
-                case .system: return "system"
-                case .tool: return "tool"
-                }
-            }()
+    private nonisolated func serializeResponsesInput(_ messages: [Message]) -> ResponsesSerializedInput {
+        var instructions: [String] = []
+        var input: [[String: Any]] = []
+        input.reserveCapacity(messages.count)
 
-            let contentItems: [[String: Any]] = {
-                switch message.content {
-                case .text(let text):
-                    return [["type": "input_text", "text": text]]
-                case .parts(let parts):
-                    return parts.compactMap { part in
-                        switch part {
-                        case .text(let text):
-                            return ["type": "input_text", "text": text]
-                        case .image(let image):
-                            let dataURL = "data:\(image.mimeType);base64,\(image.base64Data)"
-                            return ["type": "input_image", "image_url": dataURL]
-                        case .audio(let audio):
-                            return [
-                                "type": "input_audio",
-                                "input_audio": [
-                                    "data": audio.base64Data,
-                                    "format": audio.format.rawValue
-                                ]
-                            ]
-                        }
+        for message in messages {
+            switch message.role {
+            case .system:
+                let text = message.content.textValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !text.isEmpty {
+                    instructions.append(text)
+                }
+
+            case .tool:
+                if let toolCallID = message.metadata?.custom?["tool_call_id"] {
+                    input.append([
+                        "type": "function_call_output",
+                        "call_id": toolCallID,
+                        "output": message.content.textValue
+                    ])
+                } else {
+                    input.append([
+                        "type": "message",
+                        "role": "tool",
+                        "content": serializeResponsesContent(message.content)
+                    ])
+                }
+
+            case .assistant:
+                if let toolCalls = message.metadata?.toolCalls, !toolCalls.isEmpty {
+                    for call in toolCalls {
+                        input.append([
+                            "type": "function_call",
+                            "id": call.id,
+                            "call_id": call.id,
+                            "name": call.toolName,
+                            "arguments": call.argumentsString
+                        ])
                     }
                 }
-            }()
 
-            var item: [String: Any] = [
-                "role": role,
-                "content": contentItems
-            ]
+                if !message.content.isEmpty {
+                    input.append([
+                        "type": "message",
+                        "role": "assistant",
+                        "content": serializeResponsesContent(message.content)
+                    ])
+                }
 
-            if message.role == .tool,
-               let toolCallID = message.metadata?.custom?["tool_call_id"] {
-                item["tool_call_id"] = toolCallID
+            case .user:
+                input.append([
+                    "type": "message",
+                    "role": "user",
+                    "content": serializeResponsesContent(message.content)
+                ])
             }
+        }
 
-            return item
+        let joinedInstructions = instructions.isEmpty ? nil : instructions.joined(separator: "\n\n")
+        return ResponsesSerializedInput(instructions: joinedInstructions, input: input)
+    }
+
+    private nonisolated func serializeResponsesContent(_ content: Message.Content) -> [[String: Any]] {
+        switch content {
+        case .text(let text):
+            return [["type": "input_text", "text": text]]
+        case .parts(let parts):
+            return parts.compactMap { part in
+                switch part {
+                case .text(let text):
+                    return ["type": "input_text", "text": text]
+                case .image(let image):
+                    let dataURL = "data:\(image.mimeType);base64,\(image.base64Data)"
+                    return ["type": "input_image", "image_url": dataURL]
+                case .audio(let audio):
+                    return [
+                        "type": "input_audio",
+                        "input_audio": [
+                            "data": audio.base64Data,
+                            "format": audio.format.rawValue
+                        ]
+                    ]
+                }
+            }
+        }
+    }
+
+    private nonisolated func serializeResponsesToolDefinitions(
+        _ tools: [Transcript.ToolDefinition]
+    ) -> [[String: Any]] {
+        tools.map { tool in
+            [
+                "type": "function",
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": serializeSchema(tool.parameters)
+            ]
         }
     }
 
@@ -491,7 +584,19 @@ extension OpenAIProvider {
     }
 
     /// Parses a generation response.
-    internal func parseGenerationResponse(data: Data) throws -> GenerationResult {
+    internal func parseGenerationResponse(
+        data: Data,
+        variant: OpenAIAPIVariant = .chatCompletions
+    ) throws -> GenerationResult {
+        switch variant {
+        case .chatCompletions:
+            return try parseChatCompletionsGenerationResponse(data: data)
+        case .responses:
+            return try parseResponsesGenerationResponse(data: data)
+        }
+    }
+
+    private func parseChatCompletionsGenerationResponse(data: Data) throws -> GenerationResult {
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let choices = json["choices"] as? [[String: Any]],
               let firstChoice = choices.first,
@@ -513,20 +618,7 @@ extension OpenAIProvider {
         // - "tool_calls" -> .toolCalls
         // - "content_filter" -> .contentFilter
         // - "stop" -> .stop
-        let finishReasonStr = firstChoice["finish_reason"] as? String
-        let finishReason: FinishReason
-        switch finishReasonStr {
-        case "stop":
-            finishReason = .stop
-        case "length":
-            finishReason = .maxTokens
-        case "tool_calls":
-            finishReason = .toolCalls
-        case "content_filter":
-            finishReason = .contentFilter
-        default:
-            finishReason = .stop
-        }
+        let finishReason = mapFinishReason(firstChoice["finish_reason"] as? String) ?? .stop
 
         // Parse tool calls if present
         var toolCalls: [Transcript.ToolCall] = []
@@ -556,15 +648,7 @@ extension OpenAIProvider {
         }
 
         // Parse usage if present
-        var usage: UsageStats?
-        if let usageJson = json["usage"] as? [String: Any] {
-            let promptTokens = usageJson["prompt_tokens"] as? Int ?? 0
-            let completionTokens = usageJson["completion_tokens"] as? Int ?? 0
-            usage = UsageStats(
-                promptTokens: promptTokens,
-                completionTokens: completionTokens
-            )
-        }
+        let usage = parseUsageStats(json["usage"] as? [String: Any])
 
         // Parse reasoning details if present
         let reasoningDetails = parseReasoningDetails(json: json, message: message, choice: firstChoice)
@@ -582,6 +666,191 @@ extension OpenAIProvider {
             toolCalls: toolCalls,
             reasoningDetails: reasoningDetails
         )
+    }
+
+    private func parseResponsesGenerationResponse(data: Data) throws -> GenerationResult {
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            let preview = String(data: data.prefix(500), encoding: .utf8) ?? "<binary data>"
+            throw AIError.generationFailed(underlying: SendableError(NSError(
+                domain: "OpenAIProvider",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid responses payload. Preview: \(preview)"]
+            )))
+        }
+
+        let output = json["output"] as? [[String: Any]] ?? []
+        let toolCalls = parseResponsesToolCalls(output: output)
+        let outputText = json["output_text"] as? String
+        let extractedText = extractResponsesText(output: output)
+        let text = outputText ?? extractedText ?? ""
+        let usage = parseUsageStats(json["usage"] as? [String: Any])
+
+        let finishReason: FinishReason
+        if let mapped = mapFinishReason(json["finish_reason"] as? String) {
+            finishReason = mapped
+        } else if !toolCalls.isEmpty {
+            finishReason = .toolCalls
+        } else {
+            finishReason = .stop
+        }
+
+        let reasoningDetails = parseResponsesReasoningDetails(json: json, output: output)
+        let tokenCount = usage?.completionTokens ?? 0
+
+        return GenerationResult(
+            text: text,
+            tokenCount: tokenCount,
+            generationTime: 0,
+            tokensPerSecond: 0,
+            finishReason: finishReason,
+            usage: usage,
+            toolCalls: toolCalls,
+            reasoningDetails: reasoningDetails
+        )
+    }
+
+    private func parseResponsesToolCalls(output: [[String: Any]]) -> [Transcript.ToolCall] {
+        var toolCalls: [Transcript.ToolCall] = []
+
+        for block in output {
+            guard let type = block["type"] as? String else { continue }
+
+            if type == "function_call",
+               let name = block["name"] as? String {
+                let id = (block["call_id"] as? String)
+                    ?? (block["id"] as? String)
+                    ?? UUID().uuidString
+                let arguments = block["arguments"] as? String ?? "{}"
+
+                if let toolCall = try? Transcript.ToolCall(id: id, toolName: name, argumentsJSON: arguments) {
+                    toolCalls.append(toolCall)
+                }
+                continue
+            }
+
+            if type == "message",
+               let content = block["content"] as? [[String: Any]] {
+                for item in content {
+                    guard let contentType = item["type"] as? String else { continue }
+                    guard contentType == "tool_call" || contentType == "tool_use" || contentType == "function_call" else {
+                        continue
+                    }
+
+                    let id = (item["call_id"] as? String)
+                        ?? (item["id"] as? String)
+                        ?? UUID().uuidString
+                    guard let name = item["name"] as? String else { continue }
+
+                    let argumentsString: String = {
+                        if let stringArgs = item["arguments"] as? String {
+                            return stringArgs
+                        }
+                        if let inputJSON = item["input_json"] as? [String: Any],
+                           let data = try? JSONSerialization.data(withJSONObject: inputJSON),
+                           let jsonString = String(data: data, encoding: .utf8) {
+                            return jsonString
+                        }
+                        return "{}"
+                    }()
+
+                    if let toolCall = try? Transcript.ToolCall(id: id, toolName: name, argumentsJSON: argumentsString) {
+                        toolCalls.append(toolCall)
+                    }
+                }
+            }
+        }
+
+        return toolCalls
+    }
+
+    private func extractResponsesText(output: [[String: Any]]) -> String? {
+        var parts: [String] = []
+        for block in output {
+            guard let type = block["type"] as? String, type == "message",
+                  let content = block["content"] as? [[String: Any]]
+            else { continue }
+
+            for item in content {
+                guard let contentType = item["type"] as? String, contentType == "output_text",
+                      let text = item["text"] as? String else { continue }
+                parts.append(text)
+            }
+        }
+        return parts.isEmpty ? nil : parts.joined()
+    }
+
+    private func parseResponsesReasoningDetails(
+        json: [String: Any],
+        output: [[String: Any]]
+    ) -> [ReasoningDetail] {
+        var details: [ReasoningDetail] = []
+        var index = 0
+
+        if let reasoningText = json["reasoning"] as? String, !reasoningText.isEmpty {
+            details.append(ReasoningDetail(
+                id: "rd_\(index)",
+                type: "reasoning.text",
+                format: "unknown",
+                index: index,
+                content: reasoningText
+            ))
+            index += 1
+        }
+
+        for block in output {
+            guard let type = block["type"] as? String, type == "message",
+                  let content = block["content"] as? [[String: Any]]
+            else { continue }
+
+            for item in content {
+                guard let contentType = item["type"] as? String else { continue }
+                guard contentType == "reasoning" || contentType == "reasoning_text" else { continue }
+
+                let contentText = (item["text"] as? String) ?? (item["content"] as? String)
+                details.append(ReasoningDetail(
+                    id: item["id"] as? String ?? "rd_\(index)",
+                    type: "reasoning.text",
+                    format: "unknown",
+                    index: index,
+                    content: contentText
+                ))
+                index += 1
+            }
+        }
+
+        return details
+    }
+
+    private func parseUsageStats(_ usageJson: [String: Any]?) -> UsageStats? {
+        guard let usageJson else { return nil }
+
+        let promptTokens = (usageJson["prompt_tokens"] as? Int)
+            ?? (usageJson["input_tokens"] as? Int)
+            ?? 0
+        let completionTokens = (usageJson["completion_tokens"] as? Int)
+            ?? (usageJson["output_tokens"] as? Int)
+            ?? 0
+
+        return UsageStats(promptTokens: promptTokens, completionTokens: completionTokens)
+    }
+
+    private func mapFinishReason(_ finishReason: String?) -> FinishReason? {
+        switch finishReason {
+        case "stop":
+            return .stop
+        case "length", "max_output_tokens":
+            return .maxTokens
+        case "tool_calls":
+            return .toolCalls
+        case "tool_call":
+            return .toolCall
+        case "content_filter":
+            return .contentFilter
+        case "cancelled", "canceled":
+            return .cancelled
+        default:
+            return nil
+        }
     }
 
     private func parseReasoningDetails(

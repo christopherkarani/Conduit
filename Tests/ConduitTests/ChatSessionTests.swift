@@ -221,6 +221,17 @@ enum SessionToolError: Error {
     case simulatedFailure
 }
 
+actor SessionToolAttemptRecorder {
+    private var attempts: Int = 0
+
+    func recordAttempt() -> Int {
+        attempts += 1
+        return attempts
+    }
+
+    var attemptCount: Int { attempts }
+}
+
 struct SessionEchoTool: Tool {
     @Generable
     struct Arguments {
@@ -247,6 +258,26 @@ struct SessionFailingTool: Tool {
     func call(arguments: Arguments) async throws -> String {
         _ = arguments
         throw SessionToolError.simulatedFailure
+    }
+}
+
+struct SessionFlakyRetryableTool: Tool {
+    @Generable
+    struct Arguments {
+        let input: String
+    }
+
+    let name = "session_flaky_retryable_tool"
+    let description = "Fails with retryable AI error before succeeding."
+    let failuresBeforeSuccess: Int
+    let recorder: SessionToolAttemptRecorder
+
+    func call(arguments: Arguments) async throws -> String {
+        let attempt = await recorder.recordAttempt()
+        guard attempt > failuresBeforeSuccess else {
+            throw AIError.timeout(0.01)
+        }
+        return "Recovered: \(arguments.input)"
     }
 }
 
@@ -637,6 +668,95 @@ struct ChatSessionTests {
             return
         }
         #expect(message.contains("maxToolCallRounds"))
+    }
+
+    @Test("send uses default tool retry policy with no retries")
+    func sendUsesDefaultToolRetryPolicyNoRetries() async throws {
+        let provider = MockTextProvider()
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
+        let recorder = SessionToolAttemptRecorder()
+
+        let toolCall = try Transcript.ToolCall(
+            id: "tool_retry_default",
+            toolName: "session_flaky_retryable_tool",
+            argumentsJSON: #"{"input":"Paris"}"#
+        )
+
+        await provider.setQueuedGenerationResults(
+            [
+                GenerationResult(
+                    text: "Calling tool",
+                    tokenCount: 3,
+                    generationTime: 0.1,
+                    tokensPerSecond: 30,
+                    finishReason: .toolCalls,
+                    toolCalls: [toolCall]
+                )
+            ]
+        )
+
+        session.toolExecutor = ToolExecutor(
+            tools: [SessionFlakyRetryableTool(failuresBeforeSuccess: 1, recorder: recorder)]
+        )
+
+        await #expect(throws: AIError.self) {
+            _ = try await session.send("Trigger retry default")
+        }
+
+        #expect(session.messages.isEmpty)
+        let attempts = await recorder.attemptCount
+        #expect(attempts == 1)
+    }
+
+    @Test("send retries tool calls when tool retry policy allows")
+    func sendRetriesToolCallsWhenPolicyAllows() async throws {
+        let provider = MockTextProvider()
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
+        let recorder = SessionToolAttemptRecorder()
+
+        let toolCall = try Transcript.ToolCall(
+            id: "tool_retry_allowed",
+            toolName: "session_flaky_retryable_tool",
+            argumentsJSON: #"{"input":"Paris"}"#
+        )
+
+        await provider.setQueuedGenerationResults(
+            [
+                GenerationResult(
+                    text: "Calling tool",
+                    tokenCount: 3,
+                    generationTime: 0.1,
+                    tokensPerSecond: 30,
+                    finishReason: .toolCalls,
+                    toolCalls: [toolCall]
+                ),
+                GenerationResult(
+                    text: "Final after retry",
+                    tokenCount: 4,
+                    generationTime: 0.1,
+                    tokensPerSecond: 40,
+                    finishReason: .stop
+                )
+            ]
+        )
+
+        session.toolExecutor = ToolExecutor(
+            tools: [SessionFlakyRetryableTool(failuresBeforeSuccess: 1, recorder: recorder)]
+        )
+        session.toolCallRetryPolicy = .retryableAIErrors(maxAttempts: 2)
+
+        let response = try await session.send("Trigger retry allowed")
+
+        #expect(response == "Final after retry")
+        #expect(session.messages.count == 4)
+        #expect(session.messages[2].role == .tool)
+        #expect(session.messages[2].content.textValue == "Recovered: Paris")
+
+        let attempts = await recorder.attemptCount
+        #expect(attempts == 2)
+
+        let callCount = await provider.generateCallCount
+        #expect(callCount == 2)
     }
 
     @Test("cancel stops in-flight send and rolls back turn")

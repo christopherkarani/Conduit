@@ -48,6 +48,16 @@ final class ModelIdentifierTests: XCTestCase {
         XCTAssertTrue(model.isLocal)
     }
 
+    func testCoreMLModelIdentifier() {
+        let model: ModelIdentifier = .coreml("/models/StatefulMistral7BInstructInt4.mlmodelc")
+
+        XCTAssertEqual(model.rawValue, "/models/StatefulMistral7BInstructInt4.mlmodelc")
+        XCTAssertEqual(model.displayName, "StatefulMistral7BInstructInt4.mlmodelc")
+        XCTAssertEqual(model.provider, .coreml)
+        XCTAssertFalse(model.requiresNetwork)
+        XCTAssertTrue(model.isLocal)
+    }
+
     func testModelIdentifierDescription() {
         let mlxModel: ModelIdentifier = .mlx("mlx-community/model")
         XCTAssertEqual(mlxModel.description, "[MLX (Local)] mlx-community/model")
@@ -60,6 +70,9 @@ final class ModelIdentifierTests: XCTestCase {
 
         let appleModel: ModelIdentifier = .foundationModels
         XCTAssertEqual(appleModel.description, "[Apple Foundation Models] apple-foundation-models")
+
+        let coremlModel: ModelIdentifier = .coreml("/models/sample.mlmodelc")
+        XCTAssertEqual(coremlModel.description, "[Core ML (Local)] /models/sample.mlmodelc")
     }
 
     // MARK: - Hashable Tests
@@ -155,6 +168,19 @@ final class ModelIdentifierTests: XCTestCase {
         XCTAssertEqual(decoded.rawValue, "apple-foundation-models")
     }
 
+    func testCoreMLCodableRoundTrip() throws {
+        let original: ModelIdentifier = .coreml("/models/StatefulMistral7BInstructInt4.mlmodelc")
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(original)
+
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(ModelIdentifier.self, from: data)
+
+        XCTAssertEqual(original, decoded)
+        XCTAssertEqual(decoded.rawValue, "/models/StatefulMistral7BInstructInt4.mlmodelc")
+    }
+
     func testCodableJSONStructure() throws {
         let mlxModel: ModelIdentifier = .mlx("mlx-model-id")
         let encoder = JSONEncoder()
@@ -185,6 +211,13 @@ final class ModelIdentifierTests: XCTestCase {
 
         XCTAssertTrue(appleJSON.contains("\"type\":\"foundationModels\""))
         XCTAssertFalse(appleJSON.contains("\"id\"")) // Should not have id field
+
+        let coremlModel: ModelIdentifier = .coreml("/models/coreml.mlmodelc")
+        let coremlData = try encoder.encode(coremlModel)
+        let coremlJSON = String(data: coremlData, encoding: .utf8)!
+
+        XCTAssertTrue(coremlJSON.contains("\"type\":\"coreml\""))
+        XCTAssertTrue(coremlJSON.contains("\"id\":\"\\/models\\/coreml.mlmodelc\""))
     }
 
     func testFoundationModelsCodableNoId() throws {
@@ -499,6 +532,7 @@ final class ModelIdentifierTests: XCTestCase {
 
     func testProviderTypeRequiresNetwork() {
         XCTAssertFalse(ProviderType.mlx.requiresNetwork)
+        XCTAssertFalse(ProviderType.coreml.requiresNetwork)
         XCTAssertFalse(ProviderType.llama.requiresNetwork)
         XCTAssertTrue(ProviderType.huggingFace.requiresNetwork)
         XCTAssertFalse(ProviderType.foundationModels.requiresNetwork)

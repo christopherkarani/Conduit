@@ -208,6 +208,12 @@ public struct GenerateConfig: Sendable, Codable {
     /// Default is `true` for most providers.
     public var parallelToolCalls: Bool?
 
+    /// Maximum number of tool calls allowed in a single model response.
+    ///
+    /// When set, providers that support this option (for example, OpenAI Responses)
+    /// can cap how many tool invocations the model emits before returning control.
+    public var maxToolCalls: Int?
+
     // MARK: - Response Format
 
     /// Response format for structured output.
@@ -254,6 +260,7 @@ public struct GenerateConfig: Sendable, Codable {
     ///   - tools: Tools available for the model to use (default: []).
     ///   - toolChoice: How the model should choose tools (default: .auto).
     ///   - parallelToolCalls: Whether to allow parallel tool calls (default: nil).
+    ///   - maxToolCalls: Maximum number of tool calls per response (default: nil).
     ///   - responseFormat: Response format for structured output (default: nil).
     ///   - reasoning: Configuration for reasoning mode (default: nil).
     ///
@@ -276,6 +283,7 @@ public struct GenerateConfig: Sendable, Codable {
         tools: [Transcript.ToolDefinition] = [],
         toolChoice: ToolChoice = .auto,
         parallelToolCalls: Bool? = nil,
+        maxToolCalls: Int? = nil,
         responseFormat: ResponseFormat? = nil,
         reasoning: ReasoningConfig? = nil
     ) {
@@ -296,6 +304,7 @@ public struct GenerateConfig: Sendable, Codable {
         self.tools = tools
         self.toolChoice = toolChoice
         self.parallelToolCalls = parallelToolCalls
+        self.maxToolCalls = maxToolCalls
         self.responseFormat = responseFormat
         self.reasoning = reasoning
     }
@@ -705,6 +714,16 @@ extension GenerateConfig {
     public func parallelToolCalls(_ enabled: Bool) -> GenerateConfig {
         var copy = self
         copy.parallelToolCalls = enabled
+        return copy
+    }
+
+    /// Returns a copy with the specified maximum number of tool calls.
+    ///
+    /// - Parameter value: Maximum number of tool calls allowed per response, or `nil` to unset.
+    /// - Returns: A new configuration with the updated setting.
+    public func maxToolCalls(_ value: Int?) -> GenerateConfig {
+        var copy = self
+        copy.maxToolCalls = value
         return copy
     }
 

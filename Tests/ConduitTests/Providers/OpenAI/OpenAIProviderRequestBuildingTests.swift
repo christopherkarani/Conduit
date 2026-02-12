@@ -8,6 +8,17 @@ import Foundation
 import Testing
 @testable import Conduit
 
+@Generable
+private struct RootResolvedAddress {
+    let city: String
+    let country: String
+}
+
+@Generable
+private struct RootResolvedArgs {
+    let location: RootResolvedAddress
+}
+
 @Suite("OpenAI Provider Request Building Tests")
 struct OpenAIProviderRequestBuildingTests {
 
@@ -166,6 +177,55 @@ struct OpenAIProviderRequestBuildingTests {
         #expect(providerObj["allow_fallbacks"] as? Bool == false)
         #expect(providerObj["sort"] as? String == "latency")
         #expect(providerObj["data_collection"] as? String == "deny")
+    }
+
+    @Test("Tool parameters resolve root refs before OpenAI serialization")
+    func toolParametersResolveRootRefs() async throws {
+        let provider = OpenAIProvider(configuration: .openAI(apiKey: "sk-test"))
+        let tool = Transcript.ToolDefinition(
+            name: "locate",
+            description: "Locate a city",
+            parameters: RootResolvedArgs.generationSchema
+        )
+
+        let body = provider.buildRequestBody(
+            messages: [.user("Find me a location")],
+            model: .gpt4o,
+            config: .default.tools([tool]).toolChoice(.required),
+            stream: false
+        )
+
+        let tools = try #require(body["tools"] as? [[String: Any]])
+        let firstTool = try #require(tools.first)
+        let function = try #require(firstTool["function"] as? [String: Any])
+        let parameters = try #require(function["parameters"] as? [String: Any])
+
+        #expect(parameters["type"] as? String == "object")
+    }
+
+    @Test("OpenAI request includes max_tool_calls when configured")
+    func requestIncludesMaxToolCalls() async throws {
+        let provider = OpenAIProvider(configuration: .openAI(apiKey: "sk-test"))
+        let tool = Transcript.ToolDefinition(
+            name: "locate",
+            description: "Locate a city",
+            parameters: RootResolvedArgs.generationSchema
+        )
+
+        let config = GenerateConfig.default
+            .tools([tool])
+            .toolChoice(.required)
+            .parallelToolCalls(true)
+            .maxToolCalls(2)
+
+        let body = provider.buildRequestBody(
+            messages: [.user("Find me a location")],
+            model: .gpt4o,
+            config: config,
+            stream: false
+        )
+
+        #expect(body["max_tool_calls"] as? Int == 2)
     }
 }
 

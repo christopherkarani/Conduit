@@ -116,6 +116,62 @@ struct CustomNameTool: Tool {
     }
 }
 
+/// Records tool invocation attempts for retry-policy assertions.
+actor FlakyToolAttemptRecorder {
+    private var attempts: Int = 0
+
+    func recordAttempt() -> Int {
+        attempts += 1
+        return attempts
+    }
+
+    var attemptCount: Int { attempts }
+}
+
+/// A flaky tool that fails with retryable `AIError` for a fixed number of attempts.
+struct FlakyRetryableAIErrorTool: Tool {
+    @Generable
+    struct Arguments {
+        let input: String
+    }
+
+    let name = "flaky_retryable_ai_error_tool"
+    let description = "Fails with AIError.timeout before succeeding"
+    let failuresBeforeSuccess: Int
+    let recorder: FlakyToolAttemptRecorder
+
+    func call(arguments: Arguments) async throws -> String {
+        let attempt = await recorder.recordAttempt()
+        guard attempt > failuresBeforeSuccess else {
+            throw AIError.timeout(0.01)
+        }
+        return "Recovered: \(arguments.input)"
+    }
+}
+
+/// A flaky tool that fails with non-AI errors for a fixed number of attempts.
+struct FlakyNonAIErrorTool: Tool {
+    @Generable
+    struct Arguments {
+        let input: String
+    }
+
+    struct NonAIError: Error, Sendable {}
+
+    let name = "flaky_non_ai_error_tool"
+    let description = "Fails with non-AI errors before succeeding"
+    let failuresBeforeSuccess: Int
+    let recorder: FlakyToolAttemptRecorder
+
+    func call(arguments: Arguments) async throws -> String {
+        let attempt = await recorder.recordAttempt()
+        guard attempt > failuresBeforeSuccess else {
+            throw NonAIError()
+        }
+        return "Recovered non-ai: \(arguments.input)"
+    }
+}
+
 // MARK: - Test Suite
 
 @Suite("ToolExecutor Tests")
@@ -479,6 +535,23 @@ struct ToolExecutorTests {
             }
         }
 
+        @Test("Missing tool can emit non-fatal tool output when configured")
+        func missingToolCanEmitOutput() async throws {
+            let executor = ToolExecutor(missingToolPolicy: .emitToolOutput)
+            await executor.register(MockTool())
+
+            let toolCall = try Transcript.ToolCall(
+                id: "call_missing",
+                toolName: "missing_tool",
+                argumentsJSON: #"{}"#
+            )
+
+            let output = try await executor.execute(toolCall: toolCall)
+            #expect(output.id == "call_missing")
+            #expect(output.toolName == "missing_tool")
+            #expect(output.text == "Tool not found: missing_tool")
+        }
+
         @Test("Proper error propagation from tool call")
         func properErrorPropagation() async throws {
             let executor = ToolExecutor()
@@ -506,6 +579,100 @@ struct ToolExecutorTests {
     }
 
     // MARK: - Unregistration Tests
+
+    @Suite("Retry Policy")
+    struct RetryPolicyTests {
+        @Test("Default execute remains single attempt without retries")
+        func defaultExecuteRemainsSingleAttempt() async throws {
+            let recorder = FlakyToolAttemptRecorder()
+            let executor = ToolExecutor(
+                tools: [FlakyRetryableAIErrorTool(failuresBeforeSuccess: 1, recorder: recorder)]
+            )
+
+            let toolCall = try Transcript.ToolCall(
+                id: "retry_default",
+                toolName: "flaky_retryable_ai_error_tool",
+                argumentsJSON: #"{"input":"default"}"#
+            )
+
+            await #expect(throws: AIError.self) {
+                _ = try await executor.execute(toolCall: toolCall)
+            }
+
+            let attempts = await recorder.attemptCount
+            #expect(attempts == 1)
+        }
+
+        @Test("Retry policy retries retryable AI errors until success")
+        func retryPolicyRetriesRetryableAIErrors() async throws {
+            let recorder = FlakyToolAttemptRecorder()
+            let executor = ToolExecutor(
+                tools: [FlakyRetryableAIErrorTool(failuresBeforeSuccess: 1, recorder: recorder)]
+            )
+
+            let toolCall = try Transcript.ToolCall(
+                id: "retry_ai_error",
+                toolName: "flaky_retryable_ai_error_tool",
+                argumentsJSON: #"{"input":"value"}"#
+            )
+
+            let output = try await executor.execute(
+                toolCall: toolCall,
+                retryPolicy: .retryableAIErrors(maxAttempts: 2)
+            )
+            #expect(output.text == "Recovered: value")
+
+            let attempts = await recorder.attemptCount
+            #expect(attempts == 2)
+        }
+
+        @Test("Retryable AI policy does not retry non-AI errors")
+        func retryableAIPolicyDoesNotRetryNonAIError() async throws {
+            let recorder = FlakyToolAttemptRecorder()
+            let executor = ToolExecutor(
+                tools: [FlakyNonAIErrorTool(failuresBeforeSuccess: 1, recorder: recorder)]
+            )
+
+            let toolCall = try Transcript.ToolCall(
+                id: "retry_non_ai",
+                toolName: "flaky_non_ai_error_tool",
+                argumentsJSON: #"{"input":"value"}"#
+            )
+
+            await #expect(throws: FlakyNonAIErrorTool.NonAIError.self) {
+                _ = try await executor.execute(
+                    toolCall: toolCall,
+                    retryPolicy: .retryableAIErrors(maxAttempts: 2)
+                )
+            }
+
+            let attempts = await recorder.attemptCount
+            #expect(attempts == 1)
+        }
+
+        @Test("All-failures policy retries non-AI errors")
+        func allFailuresPolicyRetriesNonAIError() async throws {
+            let recorder = FlakyToolAttemptRecorder()
+            let executor = ToolExecutor(
+                tools: [FlakyNonAIErrorTool(failuresBeforeSuccess: 1, recorder: recorder)]
+            )
+
+            let toolCall = try Transcript.ToolCall(
+                id: "retry_all_failures",
+                toolName: "flaky_non_ai_error_tool",
+                argumentsJSON: #"{"input":"value"}"#
+            )
+
+            let output = try await executor.execute(
+                toolCall: toolCall,
+                retryPolicy: .allFailures(maxAttempts: 2)
+            )
+            #expect(output.text == "Recovered non-ai: value")
+
+            let attempts = await recorder.attemptCount
+            #expect(attempts == 2)
+        }
+    }
 
     @Suite("Unregistration")
     struct UnregistrationTests {

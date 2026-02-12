@@ -202,6 +202,12 @@ struct OpenAIToolRequestBuildingTests {
             #expect(config.parallelToolCalls == nil)
         }
 
+        @Test("GenerateConfig has maxToolCalls property")
+        func maxToolCallsProperty() {
+            let config = GenerateConfig.default
+            #expect(config.maxToolCalls == nil)
+        }
+
         @Test("GenerateConfig fluent API for parallelToolCalls")
         func fluentAPIParallelToolCalls() {
             let schema = EmptyArgs.generationSchema
@@ -214,6 +220,18 @@ struct OpenAIToolRequestBuildingTests {
             #expect(config.parallelToolCalls == false)
         }
 
+        @Test("GenerateConfig fluent API for maxToolCalls")
+        func fluentAPIMaxToolCalls() {
+            let schema = EmptyArgs.generationSchema
+            let tool = Transcript.ToolDefinition(name: "test", description: "Test", parameters: schema)
+
+            let config = GenerateConfig.default
+                .tools([tool])
+                .maxToolCalls(2)
+
+            #expect(config.maxToolCalls == 2)
+        }
+
         @Test("GenerateConfig tools preserved in config copy")
         func toolsPreservedInCopy() {
             let schema = EmptyArgs.generationSchema
@@ -223,6 +241,7 @@ struct OpenAIToolRequestBuildingTests {
                 .tools([tool])
                 .toolChoice(.auto)
                 .parallelToolCalls(true)
+                .maxToolCalls(3)
                 .temperature(0.5)
 
             let modified = config.maxTokens(1000)
@@ -230,6 +249,7 @@ struct OpenAIToolRequestBuildingTests {
             #expect(modified.tools.count == 1)
             #expect(modified.toolChoice == .auto)
             #expect(modified.parallelToolCalls == true)
+            #expect(modified.maxToolCalls == 3)
             #expect(modified.temperature == 0.5)
             #expect(modified.maxTokens == 1000)
         }
@@ -243,6 +263,7 @@ struct OpenAIToolRequestBuildingTests {
                 .tools([tool])
                 .toolChoice(.required)
                 .parallelToolCalls(false)
+                .maxToolCalls(4)
 
             let encoded = try JSONEncoder().encode(config)
             let decoded = try JSONDecoder().decode(GenerateConfig.self, from: encoded)
@@ -251,6 +272,7 @@ struct OpenAIToolRequestBuildingTests {
             #expect(decoded.tools.first?.name == "weather")
             #expect(decoded.toolChoice == .required)
             #expect(decoded.parallelToolCalls == false)
+            #expect(decoded.maxToolCalls == 4)
         }
     }
 
