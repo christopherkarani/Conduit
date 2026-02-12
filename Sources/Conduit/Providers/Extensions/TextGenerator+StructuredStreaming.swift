@@ -57,6 +57,7 @@ extension TextGenerator {
                 var accumulated = ""
                 accumulated.reserveCapacity(4096)
                 var lastParsedContent: GeneratedContent?
+                let partialDecoder = PartialJSONDecoder()
 
                 // Maximum buffer size limit (1MB)
                 let maxAccumulatedSize = 1_000_000
@@ -72,12 +73,17 @@ extension TextGenerator {
                         }
                         accumulated += chunk
 
-                        // Only attempt parse when we see potential JSON structure closures
-                        let shouldAttemptParse = chunk.contains("}") || chunk.contains("]") || chunk.contains("\"")
+                        // Only attempt parse when chunk likely changes JSON parseability.
+                        let shouldAttemptParse = chunk.rangeOfCharacter(
+                            from: CharacterSet(charactersIn: "{}[]\":,0123456789tfn-")
+                        ) != nil
                         guard shouldAttemptParse else { continue }
 
-                        // Try to parse the accumulated JSON
-                        if let content = try? GeneratedContent(json: accumulated) {
+                        // Try strict parse first, then partial decode/repair fallback.
+                        if let content = Self.parseStreamingContent(
+                            from: accumulated,
+                            partialDecoder: partialDecoder
+                        ) {
                             do {
                                 let partial = try T.PartiallyGenerated(content)
                                 // Only yield if meaningfully different from last
@@ -92,16 +98,22 @@ extension TextGenerator {
                     }
 
                     // Final parse attempt with complete content
-                    if let content = try? GeneratedContent(json: accumulated) {
+                    if let content = Self.parseStreamingContent(
+                        from: accumulated,
+                        partialDecoder: partialDecoder
+                    ) {
                         do {
                             let partial = try T.PartiallyGenerated(content)
-                            if lastParsedContent == nil {
+                            if lastParsedContent != content {
                                 continuation.yield(.init(content: partial, rawContent: content))
                             }
                         } catch {
                             continuation.finish(throwing: StreamingError.conversionFailed(error))
                             return
                         }
+                    } else if lastParsedContent == nil && !accumulated.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        continuation.finish(throwing: StreamingError.parseFailed("Unable to parse streamed JSON"))
+                        return
                     }
 
                     continuation.finish()
@@ -116,6 +128,37 @@ extension TextGenerator {
         }
 
         return StreamingResult(structuredStream)
+    }
+
+    /// Parses streaming JSON with strict, partial, and repair fallbacks.
+    private static func parseStreamingContent(
+        from json: String,
+        partialDecoder: PartialJSONDecoder
+    ) -> GeneratedContent? {
+        // Prefer strict JSON parse to avoid unnecessary repair/completion artifacts.
+        if let strict = parseStrictStreamingJSON(json) {
+            return strict
+        }
+
+        // Try partial decoding into a dynamic JSON value for incomplete fragments.
+        if let data = json.data(using: .utf8),
+           let decoded = try? partialDecoder.decode(AnyCodable.self, from: data),
+           let content = try? GeneratedContent.fromJSONValue(decoded.value.anyValue) {
+            return content
+        }
+
+        // Fall back to JSON repair for malformed fragments (trailing commas, cut strings).
+        return JsonRepair.tryParse(json)
+    }
+
+    /// Strict JSON parse helper used before fallback paths.
+    private static func parseStrictStreamingJSON(_ json: String) -> GeneratedContent? {
+        guard let data = json.data(using: .utf8),
+              let value = try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed]),
+              let content = try? GeneratedContent.fromJSONValue(value) else {
+            return nil
+        }
+        return content
     }
 
     /// Streams a structured response with messages context.

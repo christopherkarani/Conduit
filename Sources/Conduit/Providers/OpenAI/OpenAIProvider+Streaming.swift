@@ -105,7 +105,12 @@ extension OpenAIProvider {
         config: GenerateConfig,
         continuation: AsyncThrowingStream<GenerationChunk, Error>.Continuation
     ) async throws {
-        let url = configuration.endpoint.chatCompletionsURL
+        let apiVariant = configuration.apiVariant
+        guard apiVariant == .chatCompletions else {
+            throw unsupportedResponsesVariantError(operation: "streaming generation")
+        }
+
+        let url = configuration.endpoint.textGenerationURL(for: apiVariant)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
 
@@ -115,7 +120,13 @@ extension OpenAIProvider {
         }
 
         // Build request body with streaming
-        let body = buildRequestBody(messages: messages, model: model, config: config, stream: true)
+        let body = buildRequestBody(
+            messages: messages,
+            model: model,
+            config: config,
+            stream: true,
+            variant: apiVariant
+        )
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         // Execute streaming request (cross-platform)

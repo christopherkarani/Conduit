@@ -68,6 +68,30 @@ struct MLXConfigurationGenerateParametersApplicationTests {
     }
 }
 
+@Suite("MLXConfiguration Application - Runtime Memory Limit")
+struct MLXConfigurationRuntimeMemoryLimitTests {
+
+    @Test("nil memoryLimit restores captured system default")
+    func testNilMemoryLimitUsesSystemDefault() async {
+        let resolved = MLXRuntimeMemoryLimit.resolved(
+            memoryLimit: nil,
+            systemDefault: 1234
+        )
+
+        #expect(resolved == 1234)
+    }
+
+    @Test("configured memoryLimit overrides system default")
+    func testConfiguredMemoryLimitOverridesSystemDefault() async {
+        let resolved = MLXRuntimeMemoryLimit.resolved(
+            memoryLimit: .gigabytes(4),
+            systemDefault: 1234
+        )
+
+        #expect(resolved == Int(ByteCount.gigabytes(4).bytes))
+    }
+}
+
 @Suite("MLXConfiguration Application - Model Cache")
 struct MLXConfigurationModelCacheApplicationTests {
 
@@ -103,4 +127,3 @@ struct MLXConfigurationApplicationTests {
     }
 }
 #endif
-

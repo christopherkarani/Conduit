@@ -383,6 +383,57 @@ public struct GenerateConfig: Sendable, Codable {
     )
 }
 
+// MARK: - GenerationOptions Bridge
+
+extension GenerateConfig {
+
+    /// Creates a runtime generation config from prompt-level `GenerationOptions`.
+    ///
+    /// This bridge keeps defaults from `base` and applies explicitly provided
+    /// option values on top, including sampling strategy and token limits.
+    ///
+    /// - Parameters:
+    ///   - options: Prompt-level generation options.
+    ///   - responseFormat: Optional response format to carry into runtime config.
+    ///   - base: Base runtime config to preserve existing defaults/overrides.
+    public init(
+        options: GenerationOptions,
+        responseFormat: ResponseFormat? = nil,
+        base: GenerateConfig = .default
+    ) {
+        var config = base
+
+        if let temperature = options.temperature {
+            config = config.temperature(Float(temperature))
+        }
+
+        if let maximumResponseTokens = options.maximumResponseTokens {
+            config = config.maxTokens(maximumResponseTokens)
+        }
+
+        if let sampling = options.sampling {
+            switch sampling.mode {
+            case .greedy:
+                // Preserve greedy intent across providers by disabling top-p/top-k
+                // and forcing temperature to 0.
+                config = config.temperature(0).topP(0).topK(nil).seed(nil)
+            case .topK(let k, seed: let seed):
+                let topK = k > 0 ? k : nil
+                // top-k and top-p are alternative sampling controls.
+                config = config.topP(0).topK(topK).seed(seed)
+            case .nucleus(let threshold, seed: let seed):
+                config = config.topP(Float(threshold)).topK(nil).seed(seed)
+            }
+        }
+
+        if let responseFormat {
+            config = config.responseFormat(responseFormat)
+        }
+
+        self = config
+    }
+}
+
 // MARK: - Fluent API
 
 extension GenerateConfig {
@@ -804,7 +855,8 @@ public enum ServiceTier: String, Sendable, Hashable, Codable {
 ///
 /// ## Provider Support
 /// - **OpenAI/OpenRouter**: Full support for all modes
-/// - **Anthropic**: Use `@Generable` macro instead
+/// - **Anthropic**: Structured modes are enforced through deterministic
+///   system instructions (no native response-format validation)
 public enum ResponseFormat: Sendable, Codable {
 
     /// Plain text output (default).

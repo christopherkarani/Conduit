@@ -66,3 +66,19 @@ public protocol CustomGenerationOptions: Equatable, Sendable {}
 extension Never: CustomGenerationOptions {}
 extension Dictionary: CustomGenerationOptions where Key == String, Value == JSONValue {}
 
+// MARK: - GenerateConfig Bridge
+
+extension GenerationOptions {
+    /// Converts prompt-level options into provider runtime generation config.
+    ///
+    /// - Parameters:
+    ///   - responseFormat: Optional response format to carry into the runtime config.
+    ///   - base: Base config to preserve non-option defaults.
+    /// - Returns: A `GenerateConfig` populated from these options.
+    public func toGenerateConfig(
+        responseFormat: ResponseFormat? = nil,
+        base: GenerateConfig = .default
+    ) -> GenerateConfig {
+        GenerateConfig(options: self, responseFormat: responseFormat, base: base)
+    }
+}

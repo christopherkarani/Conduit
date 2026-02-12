@@ -13,7 +13,7 @@ import Foundation
 /// ## Overview
 ///
 /// The `TextGenerator` protocol provides a unified interface for text generation
-/// across different AI providers (MLX, HuggingFace, Apple Foundation Models).
+/// across different AI providers (MLX, llama.cpp, HuggingFace, Apple Foundation Models).
 /// It supports both simple string prompts and structured conversations with
 /// message history.
 ///

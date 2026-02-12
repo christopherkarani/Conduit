@@ -3,6 +3,7 @@
 //
 // A unified Swift SDK for LLM inference across multiple providers:
 // - MLX: Local inference on Apple Silicon (offline, privacy-preserving)
+// - llama.cpp: Native local GGUF inference via LlamaSwift (offline, portable)
 // - HuggingFace: Cloud inference via HF Inference API (online, model variety)
 // - Anthropic: Claude API for advanced reasoning and tool use
 // - OpenAI: GPT models and DALL-E image generation
@@ -53,11 +54,12 @@ import Foundation
 // Errors
 // TODO: @_exported import when implemented
 // - AIError
-// - ProviderError
+// - UnavailabilityReason
 
 // Providers
 // TODO: @_exported import when implemented
 // - MLXProvider
+// - LlamaProvider
 // - HuggingFaceProvider
 
 // MARK: - Anthropic Provider

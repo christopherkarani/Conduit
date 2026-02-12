@@ -655,22 +655,26 @@ final class ProtocolCompilationTests: XCTestCase {
 
     func testProviderTypeEnum() {
         let mlx = ProviderType.mlx
+        let llama = ProviderType.llama
         let huggingFace = ProviderType.huggingFace
         let foundationModels = ProviderType.foundationModels
 
         XCTAssertEqual(mlx.displayName, "MLX (Local)")
+        XCTAssertEqual(llama.displayName, "llama.cpp (Local)")
         XCTAssertEqual(huggingFace.displayName, "HuggingFace (Cloud)")
         XCTAssertEqual(foundationModels.displayName, "Apple Foundation Models")
 
         XCTAssertFalse(mlx.requiresNetwork)
+        XCTAssertFalse(llama.requiresNetwork)
         XCTAssertTrue(huggingFace.requiresNetwork)
         XCTAssertFalse(foundationModels.requiresNetwork)
     }
 
     func testProviderTypeIsCaseIterable() {
         let allCases = ProviderType.allCases
-        XCTAssertEqual(allCases.count, 8)
+        XCTAssertEqual(allCases.count, 9)
         XCTAssertTrue(allCases.contains(.mlx))
+        XCTAssertTrue(allCases.contains(.llama))
         XCTAssertTrue(allCases.contains(.huggingFace))
         XCTAssertTrue(allCases.contains(.foundationModels))
         XCTAssertTrue(allCases.contains(.openAI))

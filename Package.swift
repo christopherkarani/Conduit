@@ -36,6 +36,10 @@ let package = Package(
             name: "HuggingFaceHub",
             description: "Enable Hugging Face Hub downloads via swift-huggingface"
         ),
+        .trait(
+            name: "Llama",
+            description: "Enable llama.cpp local inference via llama.swift"
+        ),
         .default(enabledTraits: []),
     ],
     dependencies: [
@@ -51,6 +55,9 @@ let package = Package(
 
         // MARK: Hugging Face Hub (Optional)
         .package(url: "https://github.com/huggingface/swift-huggingface", branch: "main"),
+
+        // MARK: llama.cpp (Optional)
+        .package(url: "https://github.com/mattt/llama.swift", .upToNextMajor(from: "2.7484.0")),
     ],
     targets: [
         .macro(
@@ -76,6 +83,7 @@ let package = Package(
                 .product(name: "MLXLLM", package: "mlx-swift-lm", condition: .when(traits: ["MLX"])),
                 .product(name: "MLXVLM", package: "mlx-swift-lm", condition: .when(traits: ["MLX"])),
                 .product(name: "StableDiffusion", package: "mlx-swift-examples", condition: .when(traits: ["MLX"])),
+                .product(name: "LlamaSwift", package: "llama.swift", condition: .when(traits: ["Llama"])),
             ],
             swiftSettings: [
                 .define("CONDUIT_TRAIT_OPENAI", .when(traits: ["OpenAI"])),

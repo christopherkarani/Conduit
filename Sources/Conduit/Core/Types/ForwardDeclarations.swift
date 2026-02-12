@@ -53,6 +53,12 @@ public enum ProviderType: String, Sendable, Codable, CaseIterable {
     /// Best for: Privacy-sensitive applications, offline use, Apple Silicon Macs.
     case mlx
 
+    /// llama.cpp local inference.
+    ///
+    /// Runs GGUF models locally via llama.cpp through LlamaSwift.
+    /// Best for: Cross-model local GGUF inference, offline portability.
+    case llama
+
     /// HuggingFace Inference API (cloud).
     ///
     /// Connects to HuggingFace's hosted inference endpoints.
@@ -100,6 +106,8 @@ public enum ProviderType: String, Sendable, Codable, CaseIterable {
         switch self {
         case .mlx:
             return "MLX (Local)"
+        case .llama:
+            return "llama.cpp (Local)"
         case .huggingFace:
             return "HuggingFace (Cloud)"
         case .foundationModels:
@@ -123,7 +131,7 @@ public enum ProviderType: String, Sendable, Codable, CaseIterable {
     /// can operate offline.
     public var requiresNetwork: Bool {
         switch self {
-        case .mlx, .foundationModels, .ollama:
+        case .mlx, .llama, .foundationModels, .ollama:
             return false
         case .huggingFace, .openAI, .openRouter, .anthropic, .azure:
             return true

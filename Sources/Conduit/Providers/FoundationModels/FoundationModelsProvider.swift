@@ -267,10 +267,12 @@ public actor FoundationModelsProvider: AIProvider, TextGenerator {
             options.maximumResponseTokens = maxTokens
         }
 
-        if config.topP > 0, config.topP <= 1 {
-            options.sampling = .random(probabilityThreshold: Double(config.topP))
-        } else if let topK = config.topK, topK > 0 {
-            options.sampling = .random(top: topK)
+        if let topK = config.topK, topK > 0 {
+            options.sampling = .random(top: topK, seed: config.seed)
+        } else if config.topP > 0, config.topP <= 1 {
+            options.sampling = .random(probabilityThreshold: Double(config.topP), seed: config.seed)
+        } else if config.temperature == 0 {
+            options.sampling = .greedy
         }
 
         return options

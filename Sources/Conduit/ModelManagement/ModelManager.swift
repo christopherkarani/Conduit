@@ -51,6 +51,7 @@ import Hub
 /// - HuggingFace models: `~/Library/Caches/Conduit/Models/huggingface/{repo-name}/`
 ///
 /// Apple Foundation Models are system-managed and cannot be downloaded.
+/// llama.cpp models are local GGUF files and are not managed by ModelManager.
 ///
 /// ## Thread Safety
 ///
@@ -508,6 +509,8 @@ public actor ModelManager {
         switch model.provider {
         case .mlx:
             providerDir = "mlx"
+        case .llama:
+            throw AIError.invalidInput("llama.cpp models are local GGUF files and are not downloaded by ModelManager")
         case .huggingFace:
             providerDir = "huggingface"
         case .foundationModels:

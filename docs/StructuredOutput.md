@@ -145,7 +145,7 @@ struct Product {
 ```swift
 @Generable
 struct User {
-    @Guide("Username (3-20 characters)", .minLength(3), .maxLength(20))
+    @Guide("Username in lowercase letters, numbers, and underscores", .pattern("^[a-z0-9_]+$"))
     let username: String
 
     @Guide("User's age", .range(0...150))
@@ -176,8 +176,6 @@ let date: String
 |------------|-------------|---------|
 | `.pattern(_:)` | Regex pattern | `.pattern("^[A-Z]{2}\\d{4}$")` |
 | `.anyOf(_:)` | Enum values | `.anyOf(["red", "green", "blue"])` |
-| `.minLength(_:)` | Minimum length | `.minLength(3)` |
-| `.maxLength(_:)` | Maximum length | `.maxLength(100)` |
 | `.constant(_:)` | Fixed value | `.constant("v2")` |
 
 ```swift
@@ -189,7 +187,7 @@ struct Ticket {
     @Guide("Priority level", .anyOf(["low", "medium", "high", "critical"]))
     let priority: String
 
-    @Guide("Description", .minLength(10), .maxLength(500))
+    @Guide("Schema version marker", .constant("v2"))
     let description: String
 }
 ```
@@ -601,7 +599,7 @@ let info = try await provider.generate(
 ```swift
 @Generable
 struct Summary {
-    @Guide("One-line summary", .maxLength(100))
+    @Guide("One-line summary up to 100 characters", .pattern("^.{1,100}$"))
     let headline: String
 
     @Guide("Key points", .minimumCount(3), .maximumCount(5))

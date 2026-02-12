@@ -157,7 +157,7 @@ import Foundation
 /// ```
 ///
 /// - Note: This protocol is part of Conduit's core abstraction layer,
-///   enabling unified access to MLX, HuggingFace, and Apple Foundation Models.
+///   enabling unified access to MLX, llama.cpp, HuggingFace, and Apple Foundation Models.
 public protocol AIProvider<Response>: Actor, Sendable {
 
     // MARK: - Associated Types

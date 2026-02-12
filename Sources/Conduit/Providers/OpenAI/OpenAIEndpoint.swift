@@ -256,6 +256,35 @@ public enum OpenAIEndpoint: Sendable, Hashable {
         }
     }
 
+    /// The responses endpoint URL.
+    ///
+    /// For Azure, this includes deployment name and API version.
+    public var responsesURL: URL {
+        switch self {
+        case .azure(_, let deployment, let apiVersion):
+            return baseURL
+                .appendingPathComponent("deployments")
+                .appendingPathComponent(deployment)
+                .appendingPathComponent("responses")
+                .appending(queryItems: [URLQueryItem(name: "api-version", value: apiVersion)])
+        default:
+            return baseURL.appendingPathComponent("responses")
+        }
+    }
+
+    /// Returns the text-generation URL for the selected API variant.
+    ///
+    /// - Parameter variant: API surface variant.
+    /// - Returns: URL for the selected generation endpoint.
+    public func textGenerationURL(for variant: OpenAIAPIVariant) -> URL {
+        switch variant {
+        case .chatCompletions:
+            return chatCompletionsURL
+        case .responses:
+            return responsesURL
+        }
+    }
+
     /// The embeddings endpoint URL.
     ///
     /// For Azure, this includes the deployment name and API version.
