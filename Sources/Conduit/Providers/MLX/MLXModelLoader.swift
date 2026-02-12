@@ -98,6 +98,8 @@ internal actor MLXModelLoader {
             throw AIError.invalidInput("MLXModelLoader only supports .mlx() model identifiers")
         }
 
+        applyRuntimeConfiguration()
+
         // Check cache first
         if let cached = await MLXModelCache.shared.get(modelId) {
             // Set as current model
@@ -158,6 +160,16 @@ internal actor MLXModelLoader {
         }
     }
     #endif
+
+    /// Applies global MLX runtime settings from the loader configuration.
+    ///
+    /// MLX GPU memory limits are global process-level settings, so this is
+    /// applied opportunistically before model loading.
+    private func applyRuntimeConfiguration() {
+        if let memoryLimit = configuration.memoryLimit {
+            MLX.GPU.set(memoryLimit: Int(clamping: memoryLimit.bytes))
+        }
+    }
 
     /// Unloads a specific model from memory.
     ///

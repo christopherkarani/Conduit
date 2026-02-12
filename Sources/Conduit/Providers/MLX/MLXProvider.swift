@@ -801,6 +801,11 @@ extension MLXProvider {
     private func createGenerateParameters(from config: GenerateConfig) -> GenerateParameters {
         var params = GenerateParameters()
 
+        // Provider-level MLX tuning
+        params.prefillStepSize = configuration.prefillStepSize
+        params.maxKVSize = configuration.kvCacheLimit
+        params.kvBits = configuration.useQuantizedKVCache ? configuration.kvQuantizationBits : nil
+
         // Token limits
         if let maxTokens = config.maxTokens {
             params.maxTokens = maxTokens
