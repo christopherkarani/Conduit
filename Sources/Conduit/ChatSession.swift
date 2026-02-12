@@ -260,6 +260,21 @@ public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked
     /// Can be modified between calls to `send(_:)` or `stream(_:)`.
     public var config: GenerateConfig
 
+    /// Optional tool executor used for tool-call continuation in `send(_:)`.
+    ///
+    /// When set, `send(_:)` will execute `GenerationResult.toolCalls` and continue
+    /// generation by appending tool output messages until the model returns no tool calls.
+    /// If `nil`, tool-call responses are treated as invalid input errors.
+    public var toolExecutor: ToolExecutor?
+
+    /// Maximum number of tool-call rounds allowed in a single `send(_:)` request.
+    ///
+    /// A "round" is one model response containing at least one tool call followed by
+    /// executing those calls. This bounds continuation loops and prevents runaway cycles.
+    ///
+    /// Values less than zero are treated as zero during execution.
+    public var maxToolCallRounds: Int = 8
+
     /// The most recent error that occurred during generation.
     ///
     /// Reset to `nil` at the start of each new generation attempt.
@@ -267,6 +282,12 @@ public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked
 
     /// The current generation task for cancellation support.
     private var generationTask: Task<Void, Never>?
+
+    /// Cancellation flag used by non-streaming send loops.
+    ///
+    /// `cancel()` can be invoked from a different task than `send(_:)`, so
+    /// `send(_:)` polls this flag between awaits to stop promptly.
+    private var cancellationRequested: Bool = false
 
     /// Lock for thread-safe access to mutable state.
     private let lock = NSLock()
@@ -394,6 +415,13 @@ public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked
         return try body()
     }
 
+    /// Throws `AIError.cancelled` when cancellation has been requested.
+    private func throwIfCancelled() throws {
+        if withLock({ cancellationRequested }) {
+            throw AIError.cancelled
+        }
+    }
+
     // MARK: - System Prompt
 
     /// Sets or replaces the system prompt.
@@ -462,44 +490,95 @@ public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked
         let userMessage = Message.user(content)
 
         // Capture state and add user message under lock
-        let currentMessages: [Message] = withLock {
+        let capturedState: (messages: [Message], config: GenerateConfig, toolExecutor: ToolExecutor?, maxToolCallRounds: Int) = withLock {
             lastError = nil
             isGenerating = true
+            cancellationRequested = false
             messages.append(userMessage)
-            return messages
+            return (messages, config, toolExecutor, max(0, maxToolCallRounds))
         }
 
-        // Capture model and config outside of lock for async operation
+        // Capture model outside lock (immutable after initialization)
         let currentModel = model
-        let currentConfig = config
+        let currentMessages = capturedState.messages
+        let currentConfig = capturedState.config
+        let currentToolExecutor = capturedState.toolExecutor
+        let currentMaxToolCallRounds = capturedState.maxToolCallRounds
 
         do {
-            // Perform generation outside of lock
-            let result = try await provider.generate(
-                messages: currentMessages,
-                model: currentModel,
-                config: currentConfig
-            )
+            var loopMessages = currentMessages
+            var turnMessages: [Message] = []
+            var toolRoundCount = 0
+            var finalResponseText = ""
 
-            // Create assistant message with metadata
-            let assistantMessage = Message(
-                role: .assistant,
-                content: .text(result.text),
-                metadata: MessageMetadata(
-                    tokenCount: result.tokenCount,
-                    generationTime: result.generationTime,
-                    model: currentModel.rawValue,
-                    tokensPerSecond: result.tokensPerSecond
+            while true {
+                try Task.checkCancellation()
+                try throwIfCancelled()
+
+                // Perform generation outside of lock
+                let result = try await provider.generate(
+                    messages: loopMessages,
+                    model: currentModel,
+                    config: currentConfig
                 )
-            )
+
+                try Task.checkCancellation()
+                try throwIfCancelled()
+
+                // Preserve tool call metadata on assistant messages for providers
+                // that require prior assistant tool-call blocks in history.
+                let assistantMessage = Message(
+                    role: .assistant,
+                    content: .text(result.text),
+                    metadata: MessageMetadata(
+                        tokenCount: result.tokenCount,
+                        generationTime: result.generationTime,
+                        model: currentModel.rawValue,
+                        tokensPerSecond: result.tokensPerSecond,
+                        toolCalls: result.toolCalls.isEmpty ? nil : result.toolCalls
+                    )
+                )
+
+                turnMessages.append(assistantMessage)
+                loopMessages.append(assistantMessage)
+
+                guard !result.toolCalls.isEmpty else {
+                    finalResponseText = result.text
+                    break
+                }
+
+                guard toolRoundCount < currentMaxToolCallRounds else {
+                    throw AIError.invalidInput(
+                        "Tool-call loop exceeded maxToolCallRounds (\(currentMaxToolCallRounds))."
+                    )
+                }
+
+                guard let currentToolExecutor else {
+                    throw AIError.invalidInput(
+                        "Tool calls were requested but ChatSession.toolExecutor is nil."
+                    )
+                }
+
+                let toolOutputs = try await currentToolExecutor.execute(toolCalls: result.toolCalls)
+                try Task.checkCancellation()
+                try throwIfCancelled()
+                for output in toolOutputs {
+                    let toolMessage = Message.toolOutput(output)
+                    turnMessages.append(toolMessage)
+                    loopMessages.append(toolMessage)
+                }
+
+                toolRoundCount += 1
+            }
 
             // Update state under lock
             withLock {
-                messages.append(assistantMessage)
+                messages.append(contentsOf: turnMessages)
                 isGenerating = false
+                cancellationRequested = false
             }
 
-            return result.text
+            return finalResponseText
 
         } catch {
             // On error, remove user message and store error
@@ -510,6 +589,7 @@ public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked
                 }
                 lastError = error
                 isGenerating = false
+                cancellationRequested = false
             }
 
             throw error
@@ -559,6 +639,7 @@ public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked
         let currentMessages: [Message] = withLock {
             lastError = nil
             isGenerating = true
+            cancellationRequested = false
             messages.append(userMessage)
             return messages
         }
@@ -778,6 +859,7 @@ public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked
         let task: Task<Void, Never>? = withLock {
             let currentTask = generationTask
             generationTask = nil
+            cancellationRequested = true
             return currentTask
         }
 

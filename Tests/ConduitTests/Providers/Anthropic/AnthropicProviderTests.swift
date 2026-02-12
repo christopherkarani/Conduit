@@ -10,6 +10,20 @@ import Foundation
 
 // MARK: - Test Helpers
 
+@Generable
+private struct AnthropicStructuredOutputFixture {
+    let city: String
+    let temperature: Int
+}
+
+private struct AnthropicNoopTool: Tool {
+    let name = "anthropic_noop_tool"
+    let description = "No-op test tool."
+
+    func call(arguments: GeneratedContent) async throws -> String {
+        "ok"
+    }
+}
 
 
 // MARK: - Configuration Tests
@@ -359,6 +373,67 @@ struct AnthropicRequestBuildingTests {
         #expect(request.thinking != nil)
         #expect(request.thinking?.type == "enabled")
         #expect(request.thinking?.budget_tokens == 1024)
+    }
+
+    @Test("jsonObject responseFormat adds deterministic JSON instruction")
+    func jsonObjectResponseFormatInstruction() async {
+        let provider = AnthropicProvider(apiKey: "sk-ant-test")
+        let messages = [Message.user("Return a JSON object")]
+        let config = GenerateConfig.default.responseFormat(.jsonObject)
+
+        let request = await provider.buildRequestBody(
+            messages: messages,
+            model: .claudeSonnet45,
+            config: config
+        )
+
+        #expect(request.system != nil)
+        #expect(request.system?.contains("Return only valid JSON") == true)
+        #expect(request.system?.contains("Do not wrap JSON in markdown") == true)
+    }
+
+    @Test("jsonSchema responseFormat appends schema instruction and preserves system prompt")
+    func jsonSchemaResponseFormatInstruction() async {
+        let provider = AnthropicProvider(apiKey: "sk-ant-test")
+        let messages = [
+            Message.system("You are a weather assistant."),
+            Message.user("Give weather as structured data.")
+        ]
+        let config = GenerateConfig.default.responseFormat(
+            .jsonSchema(
+                name: "AnthropicStructuredOutputFixture",
+                schema: AnthropicStructuredOutputFixture.generationSchema
+            )
+        )
+
+        let request = await provider.buildRequestBody(
+            messages: messages,
+            model: .claudeSonnet45,
+            config: config
+        )
+
+        #expect(request.system?.contains("You are a weather assistant.") == true)
+        #expect(request.system?.contains("Return only valid JSON") == true)
+        #expect(request.system?.contains("AnthropicStructuredOutputFixture") == true)
+        #expect(request.system?.contains("\"properties\"") == true)
+    }
+
+    @Test("responseFormat instruction is not injected when tools are enabled")
+    func responseFormatWithToolsDoesNotInjectJSONOnlyInstruction() async {
+        let provider = AnthropicProvider(apiKey: "sk-ant-test")
+        let messages = [Message.user("Use tool if needed.")]
+        let config = GenerateConfig.default
+            .tools([AnthropicNoopTool()])
+            .responseFormat(.jsonObject)
+
+        let request = await provider.buildRequestBody(
+            messages: messages,
+            model: .claudeSonnet45,
+            config: config
+        )
+
+        #expect(request.tools != nil)
+        #expect(request.system?.contains("Return only valid JSON") != true)
     }
 
     @Test("Tool outputs are encoded as tool_result blocks")

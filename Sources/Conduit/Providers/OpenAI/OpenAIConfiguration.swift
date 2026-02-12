@@ -8,6 +8,15 @@ import Foundation
 
 // MARK: - OpenAIConfiguration
 
+/// Text-generation API surface variant for OpenAI-compatible providers.
+public enum OpenAIAPIVariant: String, Sendable, Hashable, Codable {
+    /// OpenAI Chat Completions API (`/chat/completions`).
+    case chatCompletions
+
+    /// OpenAI Responses API (`/responses`).
+    case responses
+}
+
 /// Configuration for OpenAI-compatible API providers.
 ///
 /// `OpenAIConfiguration` provides unified configuration for multiple OpenAI-compatible
@@ -78,6 +87,12 @@ public struct OpenAIConfiguration: Sendable, Hashable {
     /// Determines how API requests are authenticated.
     /// Default: `.auto` (checks environment variables)
     public var authentication: OpenAIAuthentication
+
+    /// Text generation API variant.
+    ///
+    /// Controls whether generation requests target `/chat/completions` or `/responses`.
+    /// Default: `.chatCompletions` for backward compatibility.
+    public var apiVariant: OpenAIAPIVariant
 
     // MARK: - Version
 
@@ -151,6 +166,7 @@ public struct OpenAIConfiguration: Sendable, Hashable {
     /// - Parameters:
     ///   - endpoint: The API endpoint. Default: `.openAI`
     ///   - authentication: Authentication configuration. Default: `.auto`
+    ///   - apiVariant: Text generation API variant. Default: `.chatCompletions`
     ///   - timeout: Request timeout in seconds. Default: 60.0
     ///   - maxRetries: Maximum retry attempts. Default: 3
     ///   - retryConfig: Retry behavior configuration. Default: `.default`
@@ -163,6 +179,7 @@ public struct OpenAIConfiguration: Sendable, Hashable {
     public init(
         endpoint: OpenAIEndpoint = .openAI,
         authentication: OpenAIAuthentication = .auto,
+        apiVariant: OpenAIAPIVariant = .chatCompletions,
         timeout: TimeInterval = 60.0,
         maxRetries: Int = 3,
         retryConfig: RetryConfiguration = .default,
@@ -175,6 +192,7 @@ public struct OpenAIConfiguration: Sendable, Hashable {
     ) {
         self.endpoint = endpoint
         self.authentication = authentication
+        self.apiVariant = apiVariant
         self.timeout = max(0, timeout)
         self.maxRetries = max(0, maxRetries)
         self.retryConfig = retryConfig
@@ -350,6 +368,16 @@ extension OpenAIConfiguration {
     public func authentication(_ auth: OpenAIAuthentication) -> OpenAIConfiguration {
         var copy = self
         copy.authentication = auth
+        return copy
+    }
+
+    /// Returns a copy with the specified text-generation API variant.
+    ///
+    /// - Parameter variant: The API variant.
+    /// - Returns: A new configuration with the updated API variant.
+    public func apiVariant(_ variant: OpenAIAPIVariant) -> OpenAIConfiguration {
+        var copy = self
+        copy.apiVariant = variant
         return copy
     }
 
@@ -579,6 +607,7 @@ extension OpenAIConfiguration: Codable {
 
     private enum CodingKeys: String, CodingKey {
         case endpoint
+        case apiVariant
         case timeout
         case maxRetries
         case retryConfig
@@ -595,6 +624,7 @@ extension OpenAIConfiguration: Codable {
 
         self.endpoint = try container.decode(OpenAIEndpoint.self, forKey: .endpoint)
         self.authentication = .auto  // Always use auto for decoded configs
+        self.apiVariant = try container.decodeIfPresent(OpenAIAPIVariant.self, forKey: .apiVariant) ?? .chatCompletions
         self.timeout = try container.decode(TimeInterval.self, forKey: .timeout)
         self.maxRetries = try container.decode(Int.self, forKey: .maxRetries)
         self.retryConfig = try container.decode(RetryConfiguration.self, forKey: .retryConfig)
@@ -610,6 +640,7 @@ extension OpenAIConfiguration: Codable {
         var container = encoder.container(keyedBy: CodingKeys.self)
 
         try container.encode(endpoint, forKey: .endpoint)
+        try container.encode(apiVariant, forKey: .apiVariant)
         // authentication is not encoded for security
         try container.encode(timeout, forKey: .timeout)
         try container.encode(maxRetries, forKey: .maxRetries)

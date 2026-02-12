@@ -656,7 +656,12 @@ extension GenerationSchema {
             self.name = name
             self.isOptional = false
 
-            let (node, deps) = Self.buildNode(for: Value.self, description: description, guides: guides)
+            let (node, deps) = Self.buildNode(
+                for: Value.self,
+                propertyName: name,
+                description: description,
+                guides: guides
+            )
             self.node = node
             self.deps = deps
         }
@@ -678,7 +683,12 @@ extension GenerationSchema {
             self.name = name
             self.isOptional = true
 
-            let (node, deps) = Self.buildNode(for: Value.self, description: description, guides: guides)
+            let (node, deps) = Self.buildNode(
+                for: Value.self,
+                propertyName: name,
+                description: description,
+                guides: guides
+            )
             self.node = node
             self.deps = deps
         }
@@ -699,7 +709,13 @@ extension GenerationSchema {
         ) {
             self.name = name
             self.isOptional = false
-            self.node = .string(StringNode(description: description, pattern: nil, enumChoices: nil))
+            let pattern: String?
+            if #available(macOS 15.0, iOS 18.0, visionOS 2.0, *) {
+                pattern = guides.compactMap { $0._literalPattern }.last
+            } else {
+                pattern = nil
+            }
+            self.node = .string(StringNode(description: description, pattern: pattern, enumChoices: nil))
             self.deps = [:]
         }
 
@@ -719,41 +735,204 @@ extension GenerationSchema {
         ) {
             self.name = name
             self.isOptional = true
-            self.node = .string(StringNode(description: description, pattern: nil, enumChoices: nil))
+            let pattern: String?
+            if #available(macOS 15.0, iOS 18.0, visionOS 2.0, *) {
+                pattern = guides.compactMap { $0._literalPattern }.last
+            } else {
+                pattern = nil
+            }
+            self.node = .string(StringNode(description: description, pattern: pattern, enumChoices: nil))
             self.deps = [:]
         }
 
         private static func buildNode<Value: Generable>(
             for type: Value.Type,
+            propertyName: String,
             description: String?,
             guides: [GenerationGuide<Value>]
         ) -> (Node, [String: Node]) {
-            // Check if it's a primitive type
             if type == Bool.self {
                 return (.boolean, [:])
             } else if type == String.self {
-                return (.string(StringNode(description: description, pattern: nil, enumChoices: nil)), [:])
+                let base = Node.string(StringNode(description: description, pattern: nil, enumChoices: nil))
+                return (applyGuides(guides, to: base), [:])
             } else if type == Int.self {
-                return (
-                    .number(NumberNode(description: description, minimum: nil, maximum: nil, integerOnly: true)), [:]
+                let base = Node.number(
+                    NumberNode(description: description, minimum: nil, maximum: nil, integerOnly: true)
                 )
+                return (applyGuides(guides, to: base), [:])
             } else if type == Float.self || type == Double.self || type == Decimal.self {
-                return (
-                    .number(NumberNode(description: description, minimum: nil, maximum: nil, integerOnly: false)), [:]
+                let base = Node.number(
+                    NumberNode(description: description, minimum: nil, maximum: nil, integerOnly: false)
                 )
+                return (applyGuides(guides, to: base), [:])
             } else {
                 // Complex type - use its schema
                 let schema = Value.generationSchema
                 let typeName = String(reflecting: Value.self)
 
                 var deps = schema.defs
-                if case .ref(_) = schema.root {
-                    // Already a ref
-                } else {
-                    deps[typeName] = schema.root
-                }
+                if case .ref(let referencedType) = schema.root {
+                    guard !guides.isEmpty else {
+                        return (.ref(referencedType), deps)
+                    }
 
-                return (.ref(typeName), deps)
+                    if let referenced = deps[referencedType] {
+                        let guidedTypeName = guidedDefName(
+                            referencedType: referencedType,
+                            propertyName: propertyName,
+                            guides: guides
+                        )
+                        deps[guidedTypeName] = applyGuides(guides, to: referenced)
+                        return (.ref(guidedTypeName), deps)
+                    }
+                    return (.ref(referencedType), deps)
+                } else {
+                    guard !guides.isEmpty else {
+                        deps[typeName] = schema.root
+                        return (.ref(typeName), deps)
+                    }
+
+                    let guidedTypeName = guidedDefName(
+                        referencedType: typeName,
+                        propertyName: propertyName,
+                        guides: guides
+                    )
+                    deps[guidedTypeName] = applyGuides(guides, to: schema.root)
+                    return (.ref(guidedTypeName), deps)
+                }
+            }
+        }
+
+        private static func guidedDefName<Value>(
+            referencedType: String,
+            propertyName: String,
+            guides: [GenerationGuide<Value>]
+        ) -> String {
+            let signature = guideSignature(guides)
+            return "\(referencedType)__guided__\(propertyName)__\(signature)"
+        }
+
+        private static func guideSignature<Value>(_ guides: [GenerationGuide<Value>]) -> String {
+            var accumulator = "guides:"
+            for guide in guides {
+                accumulator.append(serialize(guide.constraint))
+                accumulator.append("|")
+            }
+            let hash = fnv1a64(accumulator)
+            return String(hash, radix: 16, uppercase: false)
+        }
+
+        private static func serialize(_ constraint: _GenerationGuideConstraint) -> String {
+            switch constraint {
+            case .unsupported:
+                return "unsupported"
+            case .stringPattern(let pattern):
+                return "stringPattern(\(pattern))"
+            case .stringAnyOf(let values):
+                return "stringAnyOf(\(values.joined(separator: ",")))"
+            case .stringConstant(let value):
+                return "stringConstant(\(value))"
+            case .numberMinimum(let value):
+                return "numberMinimum(\(value))"
+            case .numberMaximum(let value):
+                return "numberMaximum(\(value))"
+            case .numberRange(let minimum, let maximum):
+                return "numberRange(\(minimum),\(maximum))"
+            case .arrayMinimumCount(let count):
+                return "arrayMinimumCount(\(count))"
+            case .arrayMaximumCount(let count):
+                return "arrayMaximumCount(\(count))"
+            case .arrayCount(let count):
+                return "arrayCount(\(count))"
+            case .arrayCountRange(let minimum, let maximum):
+                return "arrayCountRange(\(minimum),\(maximum))"
+            case .arrayElement(let nested):
+                return "arrayElement(\(serialize(nested)))"
+            }
+        }
+
+        private static func fnv1a64(_ string: String) -> UInt64 {
+            let prime: UInt64 = 1_099_511_628_211
+            var hash: UInt64 = 14_695_981_039_346_656_037
+            for byte in string.utf8 {
+                hash ^= UInt64(byte)
+                hash &*= prime
+            }
+            return hash
+        }
+
+        private static func applyGuides<Value>(
+            _ guides: [GenerationGuide<Value>],
+            to node: Node
+        ) -> Node {
+            guides.reduce(node) { partial, guide in
+                applyConstraint(guide.constraint, to: partial)
+            }
+        }
+
+        private static func applyConstraint(_ constraint: _GenerationGuideConstraint, to node: Node) -> Node {
+            switch constraint {
+            case .unsupported:
+                return node
+
+            case .stringPattern(let pattern):
+                guard case .string(var stringNode) = node else { return node }
+                stringNode.pattern = pattern
+                return .string(stringNode)
+
+            case .stringAnyOf(let values):
+                guard case .string(var stringNode) = node else { return node }
+                stringNode.enumChoices = values
+                return .string(stringNode)
+
+            case .stringConstant(let value):
+                guard case .string(var stringNode) = node else { return node }
+                stringNode.enumChoices = [value]
+                return .string(stringNode)
+
+            case .numberMinimum(let value):
+                guard case .number(var numberNode) = node else { return node }
+                numberNode.minimum = value
+                return .number(numberNode)
+
+            case .numberMaximum(let value):
+                guard case .number(var numberNode) = node else { return node }
+                numberNode.maximum = value
+                return .number(numberNode)
+
+            case .numberRange(let minimum, let maximum):
+                guard case .number(var numberNode) = node else { return node }
+                numberNode.minimum = minimum
+                numberNode.maximum = maximum
+                return .number(numberNode)
+
+            case .arrayMinimumCount(let count):
+                guard case .array(var arrayNode) = node else { return node }
+                arrayNode.minItems = count
+                return .array(arrayNode)
+
+            case .arrayMaximumCount(let count):
+                guard case .array(var arrayNode) = node else { return node }
+                arrayNode.maxItems = count
+                return .array(arrayNode)
+
+            case .arrayCount(let count):
+                guard case .array(var arrayNode) = node else { return node }
+                arrayNode.minItems = count
+                arrayNode.maxItems = count
+                return .array(arrayNode)
+
+            case .arrayCountRange(let minimum, let maximum):
+                guard case .array(var arrayNode) = node else { return node }
+                arrayNode.minItems = minimum
+                arrayNode.maxItems = maximum
+                return .array(arrayNode)
+
+            case .arrayElement(let elementConstraint):
+                guard case .array(var arrayNode) = node else { return node }
+                arrayNode.items = applyConstraint(elementConstraint, to: arrayNode.items)
+                return .array(arrayNode)
             }
         }
     }

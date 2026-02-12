@@ -167,9 +167,8 @@ internal actor MLXModelLoader {
     /// MLX GPU memory limits are global process-level settings, so this is
     /// applied opportunistically before model loading.
     private func applyRuntimeConfiguration() {
-        if let memoryLimit = configuration.memoryLimit {
-            MLX.GPU.set(memoryLimit: Int(clamping: memoryLimit.bytes))
-        }
+        let resolvedLimit = MLXRuntimeMemoryLimit.resolved(from: configuration)
+        MLX.GPU.set(memoryLimit: resolvedLimit)
     }
 
     /// Unloads a specific model from memory.

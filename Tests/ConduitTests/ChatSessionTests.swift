@@ -29,6 +29,15 @@ actor MockTextProvider: AIProvider, @preconcurrency TextGenerator {
     /// Number of times generate was called.
     private var _generateCallCount: Int = 0
 
+    /// Queue of generation results to return in order.
+    private var _queuedGenerationResults: [GenerationResult] = []
+
+    /// All message arrays received by each generate call.
+    private var _receivedMessagesByGenerateCall: [[Message]] = []
+
+    /// Optional artificial delay per generate call for cancellation tests.
+    private var _generationDelayNanos: UInt64 = 0
+
     // MARK: - Accessors for Test Assertions
 
     var responseToReturn: String {
@@ -51,6 +60,19 @@ actor MockTextProvider: AIProvider, @preconcurrency TextGenerator {
         set { _generateCallCount = newValue }
     }
 
+    var receivedMessagesByGenerateCall: [[Message]] {
+        get { _receivedMessagesByGenerateCall }
+        set { _receivedMessagesByGenerateCall = newValue }
+    }
+
+    func setQueuedGenerationResults(_ results: [GenerationResult]) {
+        _queuedGenerationResults = results
+    }
+
+    func setGenerationDelay(nanoseconds: UInt64) {
+        _generationDelayNanos = nanoseconds
+    }
+
     // MARK: - AIProvider
 
     var isAvailable: Bool { true }
@@ -66,9 +88,18 @@ actor MockTextProvider: AIProvider, @preconcurrency TextGenerator {
     ) async throws -> GenerationResult {
         _generateCallCount += 1
         _lastReceivedMessages = messages
+        _receivedMessagesByGenerateCall.append(messages)
+
+        if _generationDelayNanos > 0 {
+            try await Task.sleep(nanoseconds: _generationDelayNanos)
+        }
 
         if _shouldThrowError {
             throw MockError.simulatedFailure
+        }
+
+        if !_queuedGenerationResults.isEmpty {
+            return _queuedGenerationResults.removeFirst()
         }
 
         return GenerationResult(
@@ -175,12 +206,48 @@ actor MockTextProvider: AIProvider, @preconcurrency TextGenerator {
         _shouldThrowError = false
         _lastReceivedMessages = []
         _generateCallCount = 0
+        _generationDelayNanos = 0
+        _queuedGenerationResults = []
+        _receivedMessagesByGenerateCall = []
     }
 }
 
 /// Errors for mock testing.
 enum MockError: Error {
     case simulatedFailure
+}
+
+enum SessionToolError: Error {
+    case simulatedFailure
+}
+
+struct SessionEchoTool: Tool {
+    @Generable
+    struct Arguments {
+        let input: String
+    }
+
+    let name = "session_echo_tool"
+    let description = "Echoes the input for chat session loop testing."
+
+    func call(arguments: Arguments) async throws -> String {
+        "Echo: \(arguments.input)"
+    }
+}
+
+struct SessionFailingTool: Tool {
+    @Generable
+    struct Arguments {
+        let input: String
+    }
+
+    let name = "session_failing_tool"
+    let description = "Always fails for chat session tool loop rollback testing."
+
+    func call(arguments: Arguments) async throws -> String {
+        _ = arguments
+        throw SessionToolError.simulatedFailure
+    }
 }
 
 struct CustomModelID: ModelIdentifying {
@@ -396,6 +463,207 @@ struct ChatSessionTests {
         #expect(received.count == 2)
         #expect(received[0].role == .system)
         #expect(received[1].role == .user)
+    }
+
+    @Test("send with no tool calls remains single-pass")
+    func sendNoToolCallsRemainsSinglePass() async throws {
+        let provider = MockTextProvider()
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
+
+        session.toolExecutor = ToolExecutor(tools: [SessionEchoTool()])
+        let response = try await session.send("Hello")
+
+        #expect(response == "Mock response")
+        #expect(session.messages.count == 2)
+        #expect(session.messages.contains(where: { $0.role == .tool }) == false)
+
+        let callCount = await provider.generateCallCount
+        #expect(callCount == 1)
+    }
+
+    @Test("send executes tool calls then continues to final answer")
+    func sendExecutesToolCallsThenContinues() async throws {
+        let provider = MockTextProvider()
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
+
+        let toolCall = try Transcript.ToolCall(
+            id: "tool_call_1",
+            toolName: "session_echo_tool",
+            argumentsJSON: #"{"input":"Paris"}"#
+        )
+
+        await provider.setQueuedGenerationResults(
+            [
+                GenerationResult(
+                    text: "Calling tool",
+                    tokenCount: 3,
+                    generationTime: 0.1,
+                    tokensPerSecond: 30,
+                    finishReason: .toolCalls,
+                    toolCalls: [toolCall]
+                ),
+                GenerationResult(
+                    text: "Weather is Echo: Paris",
+                    tokenCount: 4,
+                    generationTime: 0.1,
+                    tokensPerSecond: 40,
+                    finishReason: .stop
+                )
+            ]
+        )
+
+        session.toolExecutor = ToolExecutor(tools: [SessionEchoTool()])
+
+        let response = try await session.send("What's the weather?")
+
+        #expect(response == "Weather is Echo: Paris")
+        #expect(session.messages.count == 4)
+        #expect(session.messages[0].role == .user)
+        #expect(session.messages[1].role == .assistant)
+        #expect(session.messages[1].metadata?.toolCalls?.count == 1)
+        #expect(session.messages[2].role == .tool)
+        #expect(session.messages[2].content.textValue == "Echo: Paris")
+        #expect(session.messages[3].role == .assistant)
+        #expect(session.messages[3].content.textValue == "Weather is Echo: Paris")
+
+        let callCount = await provider.generateCallCount
+        #expect(callCount == 2)
+
+        let receivedByCall = await provider.receivedMessagesByGenerateCall
+        #expect(receivedByCall.count == 2)
+        #expect(receivedByCall[1].contains(where: { $0.role == .tool && $0.content.textValue == "Echo: Paris" }))
+        #expect(
+            receivedByCall[1].contains(
+                where: { $0.role == .assistant && ($0.metadata?.toolCalls?.isEmpty == false) }
+            )
+        )
+    }
+
+    @Test("send rolls back when tool execution fails")
+    func sendRollsBackWhenToolExecutionFails() async throws {
+        let provider = MockTextProvider()
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
+
+        let toolCall = try Transcript.ToolCall(
+            id: "tool_call_fail",
+            toolName: "session_failing_tool",
+            argumentsJSON: #"{"input":"fail"}"#
+        )
+
+        await provider.setQueuedGenerationResults(
+            [
+                GenerationResult(
+                    text: "Calling failing tool",
+                    tokenCount: 3,
+                    generationTime: 0.1,
+                    tokensPerSecond: 30,
+                    finishReason: .toolCalls,
+                    toolCalls: [toolCall]
+                )
+            ]
+        )
+
+        session.toolExecutor = ToolExecutor(tools: [SessionFailingTool()])
+
+        await #expect(throws: SessionToolError.self) {
+            _ = try await session.send("Run failing tool")
+        }
+
+        #expect(session.messages.isEmpty)
+        #expect(session.isGenerating == false)
+        #expect(session.lastError != nil)
+
+        let callCount = await provider.generateCallCount
+        #expect(callCount == 1)
+    }
+
+    @Test("send throws when tool loop exceeds max rounds")
+    func sendThrowsWhenToolLoopExceedsMaxRounds() async throws {
+        let provider = MockTextProvider()
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
+
+        let firstToolCall = try Transcript.ToolCall(
+            id: "tool_loop_1",
+            toolName: "session_echo_tool",
+            argumentsJSON: #"{"input":"one"}"#
+        )
+        let secondToolCall = try Transcript.ToolCall(
+            id: "tool_loop_2",
+            toolName: "session_echo_tool",
+            argumentsJSON: #"{"input":"two"}"#
+        )
+
+        await provider.setQueuedGenerationResults(
+            [
+                GenerationResult(
+                    text: "First tool request",
+                    tokenCount: 3,
+                    generationTime: 0.1,
+                    tokensPerSecond: 30,
+                    finishReason: .toolCalls,
+                    toolCalls: [firstToolCall]
+                ),
+                GenerationResult(
+                    text: "Second tool request",
+                    tokenCount: 3,
+                    generationTime: 0.1,
+                    tokensPerSecond: 30,
+                    finishReason: .toolCalls,
+                    toolCalls: [secondToolCall]
+                )
+            ]
+        )
+
+        session.toolExecutor = ToolExecutor(tools: [SessionEchoTool()])
+        session.maxToolCallRounds = 1
+
+        await #expect(throws: AIError.self) {
+            _ = try await session.send("Start loop")
+        }
+
+        #expect(session.messages.isEmpty)
+        #expect(session.isGenerating == false)
+        #expect(session.lastError != nil)
+
+        let callCount = await provider.generateCallCount
+        #expect(callCount == 2)
+
+        guard let aiError = session.lastError as? AIError else {
+            Issue.record("Expected AIError for loop limit failure")
+            return
+        }
+        guard case .invalidInput(let message) = aiError else {
+            Issue.record("Expected AIError.invalidInput for loop limit failure")
+            return
+        }
+        #expect(message.contains("maxToolCallRounds"))
+    }
+
+    @Test("cancel stops in-flight send and rolls back turn")
+    func cancelStopsInFlightSend() async throws {
+        let provider = MockTextProvider()
+        await provider.setGenerationDelay(nanoseconds: 200_000_000)
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
+
+        let sendTask = Task { try await session.send("Long request") }
+        try await Task.sleep(nanoseconds: 30_000_000)
+        await session.cancel()
+
+        await #expect(throws: AIError.self) {
+            _ = try await sendTask.value
+        }
+
+        #expect(session.messages.isEmpty)
+        #expect(session.isGenerating == false)
+
+        guard let aiError = session.lastError as? AIError else {
+            Issue.record("Expected AIError.cancelled after cancellation")
+            return
+        }
+        guard case .cancelled = aiError else {
+            Issue.record("Expected AIError.cancelled after cancellation")
+            return
+        }
     }
 
     // MARK: - Clear History Tests

@@ -16,6 +16,9 @@ import Foundation
 /// // Local MLX model
 /// let localModel: ModelIdentifier = .mlx("mlx-community/Llama-3.2-1B-Instruct-4bit")
 ///
+/// // Local llama.cpp GGUF model
+/// let ggufModel: ModelIdentifier = .llama("/models/Llama-3.2-3B-Instruct-Q4_K_M.gguf")
+///
 /// // Cloud HuggingFace model
 /// let cloudModel: ModelIdentifier = .huggingFace("meta-llama/Llama-3.1-70B-Instruct")
 ///
@@ -27,6 +30,7 @@ import Foundation
 ///
 /// ModelIdentifier encodes to JSON with the following structure:
 /// - MLX models: `{"type": "mlx", "id": "mlx-community/model-name"}`
+/// - llama.cpp models: `{"type": "llama", "id": "/path/to/model.gguf"}`
 /// - HuggingFace models: `{"type": "huggingFace", "id": "org/model-name"}`
 /// - Foundation models: `{"type": "foundationModels"}` (no id field)
 ///
@@ -42,6 +46,11 @@ public enum ModelIdentifier: ModelIdentifying, Codable {
     ///
     /// - Parameter id: The HuggingFace repository ID (e.g., "mlx-community/Llama-3.2-1B-Instruct-4bit")
     case mlx(String)
+
+    /// A local GGUF model to be run directly with llama.cpp.
+    ///
+    /// - Parameter path: Absolute or relative path to the `.gguf` model file.
+    case llama(String)
 
     /// A model to be run via HuggingFace Inference API.
     ///
@@ -64,6 +73,8 @@ public enum ModelIdentifier: ModelIdentifying, Codable {
         switch self {
         case .mlx(let id):
             return id
+        case .llama(let path):
+            return path
         case .huggingFace(let id):
             return id
         case .foundationModels:
@@ -80,6 +91,9 @@ public enum ModelIdentifier: ModelIdentifying, Codable {
         switch self {
         case .mlx(let id):
             return id.components(separatedBy: "/").last ?? id
+        case .llama(let path):
+            let fileName = URL(fileURLWithPath: path).lastPathComponent
+            return fileName.isEmpty ? path : fileName
         case .huggingFace(let id):
             return id.components(separatedBy: "/").last ?? id
         case .foundationModels:
@@ -94,6 +108,8 @@ public enum ModelIdentifier: ModelIdentifying, Codable {
         switch self {
         case .mlx:
             return .mlx
+        case .llama:
+            return .llama
         case .huggingFace:
             return .huggingFace
         case .foundationModels:
@@ -109,6 +125,7 @@ public enum ModelIdentifier: ModelIdentifying, Codable {
     ///
     /// ## Examples
     /// - `"[MLX (Local)] mlx-community/Llama-3.2-1B-Instruct-4bit"`
+    /// - `"[llama.cpp (Local)] /models/Llama-3.2-3B-Instruct-Q4_K_M.gguf"`
     /// - `"[HuggingFace (Cloud)] meta-llama/Llama-3.1-70B-Instruct"`
     /// - `"[Apple Foundation Models] apple-foundation-models"`
     public var description: String {
@@ -124,6 +141,7 @@ public enum ModelIdentifier: ModelIdentifying, Codable {
 
     private enum ModelType: String, Codable {
         case mlx
+        case llama
         case huggingFace
         case foundationModels
     }
@@ -135,6 +153,7 @@ public enum ModelIdentifier: ModelIdentifying, Codable {
     ///
     /// ## Expected JSON Structure
     /// - MLX: `{"type": "mlx", "id": "model-id"}`
+    /// - llama.cpp: `{"type": "llama", "id": "/path/to/model.gguf"}`
     /// - HuggingFace: `{"type": "huggingFace", "id": "model-id"}`
     /// - Foundation Models: `{"type": "foundationModels"}` (no id field required)
     public init(from decoder: Decoder) throws {
@@ -145,6 +164,10 @@ public enum ModelIdentifier: ModelIdentifying, Codable {
         case .mlx:
             let id = try container.decode(String.self, forKey: .id)
             self = .mlx(id)
+
+        case .llama:
+            let path = try container.decode(String.self, forKey: .id)
+            self = .llama(path)
 
         case .huggingFace:
             let id = try container.decode(String.self, forKey: .id)
@@ -162,6 +185,7 @@ public enum ModelIdentifier: ModelIdentifying, Codable {
     ///
     /// ## Generated JSON Structure
     /// - MLX: `{"type": "mlx", "id": "model-id"}`
+    /// - llama.cpp: `{"type": "llama", "id": "/path/to/model.gguf"}`
     /// - HuggingFace: `{"type": "huggingFace", "id": "model-id"}`
     /// - Foundation Models: `{"type": "foundationModels"}` (no id field)
     public func encode(to encoder: Encoder) throws {
@@ -171,6 +195,10 @@ public enum ModelIdentifier: ModelIdentifying, Codable {
         case .mlx(let id):
             try container.encode(ModelType.mlx, forKey: .type)
             try container.encode(id, forKey: .id)
+
+        case .llama(let path):
+            try container.encode(ModelType.llama, forKey: .type)
+            try container.encode(path, forKey: .id)
 
         case .huggingFace(let id):
             try container.encode(ModelType.huggingFace, forKey: .type)
@@ -189,7 +217,7 @@ extension ModelIdentifier {
     /// Whether this model requires network connectivity.
     ///
     /// Delegates to the provider's `requiresNetwork` property.
-    /// - MLX and Foundation Models: `false` (offline capable)
+    /// - MLX, llama.cpp, and Foundation Models: `false` (offline capable)
     /// - HuggingFace: `true` (requires internet connection)
     public var requiresNetwork: Bool {
         provider.requiresNetwork
@@ -198,7 +226,7 @@ extension ModelIdentifier {
     /// Whether this model runs locally without network access.
     ///
     /// Inverse of `requiresNetwork`.
-    /// - MLX and Foundation Models: `true` (local inference)
+    /// - MLX, llama.cpp, and Foundation Models: `true` (local inference)
     /// - HuggingFace: `false` (cloud inference)
     public var isLocal: Bool {
         !requiresNetwork

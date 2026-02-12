@@ -28,6 +28,16 @@ final class ModelIdentifierTests: XCTestCase {
         XCTAssertFalse(model.isLocal)
     }
 
+    func testLlamaModelIdentifier() {
+        let model: ModelIdentifier = .llama("/models/Llama-3.2-3B-Instruct-Q4_K_M.gguf")
+
+        XCTAssertEqual(model.rawValue, "/models/Llama-3.2-3B-Instruct-Q4_K_M.gguf")
+        XCTAssertEqual(model.displayName, "Llama-3.2-3B-Instruct-Q4_K_M.gguf")
+        XCTAssertEqual(model.provider, .llama)
+        XCTAssertFalse(model.requiresNetwork)
+        XCTAssertTrue(model.isLocal)
+    }
+
     func testFoundationModelsIdentifier() {
         let model: ModelIdentifier = .foundationModels
 
@@ -44,6 +54,9 @@ final class ModelIdentifierTests: XCTestCase {
 
         let hfModel: ModelIdentifier = .huggingFace("org/model")
         XCTAssertEqual(hfModel.description, "[HuggingFace (Cloud)] org/model")
+
+        let llamaModel: ModelIdentifier = .llama("/models/demo.gguf")
+        XCTAssertEqual(llamaModel.description, "[llama.cpp (Local)] /models/demo.gguf")
 
         let appleModel: ModelIdentifier = .foundationModels
         XCTAssertEqual(appleModel.description, "[Apple Foundation Models] apple-foundation-models")
@@ -116,6 +129,19 @@ final class ModelIdentifierTests: XCTestCase {
         XCTAssertEqual(decoded.rawValue, "meta-llama/test-model")
     }
 
+    func testLlamaCodableRoundTrip() throws {
+        let original: ModelIdentifier = .llama("/models/test-model.gguf")
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(original)
+
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(ModelIdentifier.self, from: data)
+
+        XCTAssertEqual(original, decoded)
+        XCTAssertEqual(decoded.rawValue, "/models/test-model.gguf")
+    }
+
     func testFoundationModelsCodableRoundTrip() throws {
         let original: ModelIdentifier = .foundationModels
 
@@ -145,6 +171,13 @@ final class ModelIdentifierTests: XCTestCase {
 
         XCTAssertTrue(hfJSON.contains("\"type\":\"huggingFace\""))
         XCTAssertTrue(hfJSON.contains("\"id\":\"hf-model-id\""))
+
+        let llamaModel: ModelIdentifier = .llama("/models/llama.gguf")
+        let llamaData = try encoder.encode(llamaModel)
+        let llamaJSON = String(data: llamaData, encoding: .utf8)!
+
+        XCTAssertTrue(llamaJSON.contains("\"type\":\"llama\""))
+        XCTAssertTrue(llamaJSON.contains("\"id\":\"\\/models\\/llama.gguf\""))
 
         let appleModel: ModelIdentifier = .foundationModels
         let appleData = try encoder.encode(appleModel)
@@ -466,6 +499,7 @@ final class ModelIdentifierTests: XCTestCase {
 
     func testProviderTypeRequiresNetwork() {
         XCTAssertFalse(ProviderType.mlx.requiresNetwork)
+        XCTAssertFalse(ProviderType.llama.requiresNetwork)
         XCTAssertTrue(ProviderType.huggingFace.requiresNetwork)
         XCTAssertFalse(ProviderType.foundationModels.requiresNetwork)
     }

@@ -834,11 +834,10 @@ extension MLXProvider {
         guard !didApplyRuntimeConfiguration else { return }
         await MLXModelCache.shared.apply(configuration: configuration.cacheConfiguration())
 
-        if let limit = configuration.memoryLimit {
-            #if arch(arm64)
-            MLX.GPU.set(memoryLimit: Int(limit.bytes))
-            #endif
-        }
+        #if arch(arm64)
+        let resolvedLimit = MLXRuntimeMemoryLimit.resolved(from: configuration)
+        MLX.GPU.set(memoryLimit: resolvedLimit)
+        #endif
 
         didApplyRuntimeConfiguration = true
     }

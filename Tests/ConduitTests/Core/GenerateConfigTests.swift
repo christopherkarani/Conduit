@@ -4,6 +4,11 @@
 import XCTest
 @testable import Conduit
 
+@Generable
+private struct PromptBridgeFixture {
+    let answer: String
+}
+
 /// Comprehensive test suite for GenerateConfig.
 ///
 /// Tests cover:
@@ -319,5 +324,120 @@ final class GenerateConfigTests: XCTestCase {
         XCTAssertNotEqual(config1.stopSequences, config2.stopSequences)
     }
 
+    // MARK: - GenerationOptions Bridge Tests
+
+    func testInitFromGenerationOptionsMapsTemperatureAndMaximumResponseTokens() {
+        let options = GenerationOptions(
+            sampling: nil,
+            temperature: 0.35,
+            maximumResponseTokens: 321
+        )
+
+        let config = GenerateConfig(options: options)
+
+        XCTAssertEqual(config.temperature, 0.35, accuracy: 0.001)
+        XCTAssertEqual(config.maxTokens, 321)
+        XCTAssertEqual(config.topP, GenerateConfig.default.topP, accuracy: 0.001)
+        XCTAssertNil(config.topK)
+    }
+
+    func testInitFromGenerationOptionsMapsTopKSamplingAndSeed() {
+        let options = GenerationOptions(
+            sampling: .random(top: 24, seed: 99),
+            temperature: 0.5,
+            maximumResponseTokens: nil
+        )
+
+        let config = GenerateConfig(options: options)
+
+        XCTAssertEqual(config.topK, 24)
+        XCTAssertEqual(config.topP, 0.0, accuracy: 0.001)
+        XCTAssertEqual(config.seed, 99)
+        XCTAssertEqual(config.temperature, 0.5, accuracy: 0.001)
+    }
+
+    func testInitFromGenerationOptionsMapsNucleusSamplingAndSeed() {
+        let options = GenerationOptions(
+            sampling: .random(probabilityThreshold: 0.42, seed: 77),
+            temperature: nil,
+            maximumResponseTokens: nil
+        )
+
+        let config = GenerateConfig(options: options)
+
+        XCTAssertEqual(config.topP, 0.42, accuracy: 0.001)
+        XCTAssertNil(config.topK)
+        XCTAssertEqual(config.seed, 77)
+    }
+
+    func testInitFromGenerationOptionsGreedySetsDeterministicConfig() {
+        let options = GenerationOptions(
+            sampling: .greedy,
+            temperature: 0.8,
+            maximumResponseTokens: nil
+        )
+
+        let config = GenerateConfig(options: options)
+
+        XCTAssertEqual(config.temperature, 0.0, accuracy: 0.001)
+        XCTAssertEqual(config.topP, 0.0, accuracy: 0.001)
+        XCTAssertNil(config.topK)
+    }
+
+    func testInitFromGenerationOptionsCanSetResponseFormat() {
+        let options = GenerationOptions(maximumResponseTokens: 100)
+
+        let config = GenerateConfig(options: options, responseFormat: .jsonObject)
+
+        if case .jsonObject? = config.responseFormat {
+            // Expected
+        } else {
+            XCTFail("Expected jsonObject response format")
+        }
+    }
+
+    func testGenerationOptionsToGenerateConfigUsesBridge() {
+        let options = GenerationOptions(
+            sampling: .random(probabilityThreshold: 0.61, seed: 88),
+            temperature: 0.2,
+            maximumResponseTokens: 444
+        )
+
+        let config = options.toGenerateConfig(responseFormat: .jsonObject)
+
+        XCTAssertEqual(config.maxTokens, 444)
+        XCTAssertEqual(config.temperature, 0.2, accuracy: 0.001)
+        XCTAssertEqual(config.topP, 0.61, accuracy: 0.001)
+        XCTAssertEqual(config.seed, 88)
+        if case .jsonObject? = config.responseFormat {
+            // Expected
+        } else {
+            XCTFail("Expected jsonObject response format")
+        }
+    }
+
+    func testTranscriptPromptGenerateConfigBridgesOptionsAndResponseFormat() {
+        let prompt = Transcript.Prompt(
+            segments: [.text(.init(content: "Hello"))],
+            options: GenerationOptions(
+                sampling: .random(top: 12, seed: 1234),
+                temperature: 0.4,
+                maximumResponseTokens: 222
+            ),
+            responseFormat: Transcript.ResponseFormat(type: PromptBridgeFixture.self)
+        )
+
+        let config = prompt.generateConfig
+
+        XCTAssertEqual(config.maxTokens, 222)
+        XCTAssertEqual(config.temperature, 0.4, accuracy: 0.001)
+        XCTAssertEqual(config.topK, 12)
+        XCTAssertEqual(config.seed, 1234)
+        if case .jsonSchema(_, let schema)? = config.responseFormat {
+            XCTAssertTrue(schema.debugDescription.contains("object"))
+        } else {
+            XCTFail("Expected prompt response format to bridge to generate config")
+        }
+    }
+
 }
-    

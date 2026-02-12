@@ -270,11 +270,41 @@ public struct Transcript: Sendable, Equatable, Codable {
             self.options = options
             self.responseFormat = responseFormat
         }
+
+        /// Runtime generation config bridged from prompt-level options.
+        public var generateConfig: GenerateConfig {
+            var config = options.toGenerateConfig()
+            if let responseFormat {
+                config = config.responseFormat(
+                    .jsonSchema(name: responseFormat.name, schema: responseFormat.generationSchema)
+                )
+            }
+            return config
+        }
+
+        /// Runtime generation config bridged from prompt-level options over a base config.
+        ///
+        /// - Parameter base: Base config whose non-bridge values are preserved.
+        /// - Returns: A merged runtime config.
+        public func generateConfig(base: GenerateConfig) -> GenerateConfig {
+            var config = options.toGenerateConfig(base: base)
+            if let responseFormat {
+                config = config.responseFormat(
+                    .jsonSchema(name: responseFormat.name, schema: responseFormat.generationSchema)
+                )
+            }
+            return config
+        }
     }
 
     /// Specifies a response format that the model must conform its output to.
     public struct ResponseFormat: Sendable, Codable {
         private let schema: GenerationSchema
+
+        /// The generation schema backing this response format.
+        var generationSchema: GenerationSchema {
+            schema
+        }
 
         /// A name associated with the response format.
         public var name: String {

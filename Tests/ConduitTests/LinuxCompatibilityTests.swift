@@ -91,6 +91,13 @@ struct LinuxCompatibilityTests {
         #endif
     }
 
+    @Test("Llama provider initializes on all platforms")
+    func llamaProviderInitializes() async throws {
+        let provider = LlamaProvider()
+        #expect(type(of: provider) == LlamaProvider.self)
+        _ = await provider.isAvailable
+    }
+
     // MARK: - Core Types
 
     @Test("DeviceCapabilities detects system info")

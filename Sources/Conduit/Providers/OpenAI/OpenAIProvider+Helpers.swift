@@ -26,7 +26,12 @@ extension OpenAIProvider {
         config: GenerateConfig,
         stream: Bool
     ) async throws -> GenerationResult {
-        let url = configuration.endpoint.chatCompletionsURL
+        let apiVariant = configuration.apiVariant
+        guard apiVariant == .chatCompletions else {
+            throw unsupportedResponsesVariantError(operation: "non-streaming generation")
+        }
+
+        let url = configuration.endpoint.textGenerationURL(for: apiVariant)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
 
@@ -36,7 +41,13 @@ extension OpenAIProvider {
         }
 
         // Build request body
-        let body = buildRequestBody(messages: messages, model: model, config: config, stream: stream)
+        let body = buildRequestBody(
+            messages: messages,
+            model: model,
+            config: config,
+            stream: stream,
+            variant: apiVariant
+        )
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         // Execute request with retry
@@ -51,8 +62,13 @@ extension OpenAIProvider {
         messages: [Message],
         model: OpenAIModelID,
         config: GenerateConfig,
-        stream: Bool
+        stream: Bool,
+        variant: OpenAIAPIVariant = .chatCompletions
     ) -> [String: Any] {
+        if variant == .responses {
+            return buildResponsesRequestBody(messages: messages, model: model, config: config, stream: stream)
+        }
+
         // Warn about potential model/endpoint mismatch for OpenRouter
         if case .openRouter = configuration.endpoint,
            !model.rawValue.contains("/") {
@@ -202,6 +218,37 @@ extension OpenAIProvider {
         return body
     }
 
+    /// Builds a request body for OpenAI Responses API.
+    ///
+    /// Note: full response parsing/execution is intentionally guarded elsewhere for now.
+    private nonisolated func buildResponsesRequestBody(
+        messages: [Message],
+        model: OpenAIModelID,
+        config: GenerateConfig,
+        stream: Bool
+    ) -> [String: Any] {
+        var body: [String: Any] = [
+            "model": model.rawValue,
+            "input": serializeResponsesInput(messages)
+        ]
+
+        if stream {
+            body["stream"] = true
+        }
+
+        if let maxTokens = config.maxTokens {
+            body["max_output_tokens"] = maxTokens
+        }
+        body["temperature"] = config.temperature
+        body["top_p"] = config.topP
+
+        if !config.stopSequences.isEmpty {
+            body["stop"] = config.stopSequences
+        }
+
+        return body
+    }
+
     // MARK: - Content Serialization
 
     /// Serializes message content to OpenAI/OpenRouter format.
@@ -262,6 +309,63 @@ extension OpenAIProvider {
 
     private nonisolated func serializeSchema(_ schema: GenerationSchema) -> [String: Any] {
         schema.toJSONSchema()
+    }
+
+    /// Serializes messages into a Responses API compatible input format.
+    private nonisolated func serializeResponsesInput(_ messages: [Message]) -> [[String: Any]] {
+        messages.map { message in
+            let role: String = {
+                switch message.role {
+                case .user: return "user"
+                case .assistant: return "assistant"
+                case .system: return "system"
+                case .tool: return "tool"
+                }
+            }()
+
+            let contentItems: [[String: Any]] = {
+                switch message.content {
+                case .text(let text):
+                    return [["type": "input_text", "text": text]]
+                case .parts(let parts):
+                    return parts.compactMap { part in
+                        switch part {
+                        case .text(let text):
+                            return ["type": "input_text", "text": text]
+                        case .image(let image):
+                            let dataURL = "data:\(image.mimeType);base64,\(image.base64Data)"
+                            return ["type": "input_image", "image_url": dataURL]
+                        case .audio(let audio):
+                            return [
+                                "type": "input_audio",
+                                "input_audio": [
+                                    "data": audio.base64Data,
+                                    "format": audio.format.rawValue
+                                ]
+                            ]
+                        }
+                    }
+                }
+            }()
+
+            var item: [String: Any] = [
+                "role": role,
+                "content": contentItems
+            ]
+
+            if message.role == .tool,
+               let toolCallID = message.metadata?.custom?["tool_call_id"] {
+                item["tool_call_id"] = toolCallID
+            }
+
+            return item
+        }
+    }
+
+    nonisolated func unsupportedResponsesVariantError(operation: String) -> AIError {
+        .providerUnavailable(reason: .unknown(
+            "OpenAI API variant 'responses' is not fully supported for \(operation). Use '.chatCompletions'."
+        ))
     }
 
     /// Serializes response format configuration.

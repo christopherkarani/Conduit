@@ -2,25 +2,65 @@ import struct Foundation.Decimal
 import class Foundation.NSDecimalNumber
 
 /// Guides that control how values are generated.
-public struct GenerationGuide<Value> {}
+indirect enum _GenerationGuideConstraint: Sendable {
+    case unsupported
+    case stringPattern(String)
+    case stringAnyOf([String])
+    case stringConstant(String)
+    case numberMinimum(Double)
+    case numberMaximum(Double)
+    case numberRange(minimum: Double, maximum: Double)
+    case arrayMinimumCount(Int)
+    case arrayMaximumCount(Int)
+    case arrayCount(Int)
+    case arrayCountRange(minimum: Int, maximum: Int)
+    case arrayElement(_GenerationGuideConstraint)
+}
+
+public struct GenerationGuide<Value>: Sendable {
+    let constraint: _GenerationGuideConstraint
+
+    /// Creates a no-op guide.
+    ///
+    /// This preserves source compatibility for callers that construct guide
+    /// values dynamically and append them conditionally.
+    public init() {
+        self.constraint = .unsupported
+    }
+
+    init(constraint: _GenerationGuideConstraint) {
+        self.constraint = constraint
+    }
+}
 
 // MARK: - String Guides
 
 extension GenerationGuide where Value == String {
 
+    /// Enforces that the string follows the pattern.
+    public static func pattern(_ pattern: String) -> GenerationGuide<String> {
+        GenerationGuide<String>(constraint: .stringPattern(pattern))
+    }
+
     /// Enforces that the string be precisely the given value.
     public static func constant(_ value: String) -> GenerationGuide<String> {
-        GenerationGuide<String>()
+        GenerationGuide<String>(constraint: .stringConstant(value))
     }
 
     /// Enforces that the string be one of the provided values.
     public static func anyOf(_ values: [String]) -> GenerationGuide<String> {
-        GenerationGuide<String>()
+        precondition(!values.isEmpty, "GenerationGuide.anyOf must contain at least one value")
+        return GenerationGuide<String>(constraint: .stringAnyOf(values))
     }
 
     /// Enforces that the string follows the pattern.
     public static func pattern<Output>(_ regex: Regex<Output>) -> GenerationGuide<String> {
-        GenerationGuide<String>()
+        if #available(macOS 15.0, iOS 18.0, visionOS 2.0, *) {
+            if let pattern = regex._literalPattern {
+                return GenerationGuide<String>(constraint: .stringPattern(pattern))
+            }
+        }
+        return GenerationGuide<String>(constraint: .unsupported)
     }
 }
 
@@ -45,7 +85,7 @@ extension GenerationGuide where Value == Int {
     /// }
     /// ```
     public static func minimum(_ value: Int) -> GenerationGuide<Int> {
-        GenerationGuide<Int>()
+        GenerationGuide<Int>(constraint: .numberMinimum(Double(value)))
     }
 
     /// Enforces a maximum value.
@@ -65,7 +105,7 @@ extension GenerationGuide where Value == Int {
     /// }
     /// ```
     public static func maximum(_ value: Int) -> GenerationGuide<Int> {
-        GenerationGuide<Int>()
+        GenerationGuide<Int>(constraint: .numberMaximum(Double(value)))
     }
 
     /// Enforces values fall within a range.
@@ -85,7 +125,9 @@ extension GenerationGuide where Value == Int {
     /// }
     /// ```
     public static func range(_ range: ClosedRange<Int>) -> GenerationGuide<Int> {
-        GenerationGuide<Int>()
+        GenerationGuide<Int>(
+            constraint: .numberRange(minimum: Double(range.lowerBound), maximum: Double(range.upperBound))
+        )
     }
 }
 
@@ -97,19 +139,21 @@ extension GenerationGuide where Value == Float {
     ///
     /// The bounds are inclusive.
     public static func minimum(_ value: Float) -> GenerationGuide<Float> {
-        GenerationGuide<Float>()
+        GenerationGuide<Float>(constraint: .numberMinimum(Double(value)))
     }
 
     /// Enforces a maximum value.
     ///
     /// The bounds are inclusive.
     public static func maximum(_ value: Float) -> GenerationGuide<Float> {
-        GenerationGuide<Float>()
+        GenerationGuide<Float>(constraint: .numberMaximum(Double(value)))
     }
 
     /// Enforces values fall within a range.
     public static func range(_ range: ClosedRange<Float>) -> GenerationGuide<Float> {
-        GenerationGuide<Float>()
+        GenerationGuide<Float>(
+            constraint: .numberRange(minimum: Double(range.lowerBound), maximum: Double(range.upperBound))
+        )
     }
 }
 
@@ -121,19 +165,28 @@ extension GenerationGuide where Value == Decimal {
     ///
     /// The bounds are inclusive.
     public static func minimum(_ value: Decimal) -> GenerationGuide<Decimal> {
-        GenerationGuide<Decimal>()
+        GenerationGuide<Decimal>(
+            constraint: .numberMinimum(NSDecimalNumber(decimal: value).doubleValue)
+        )
     }
 
     /// Enforces a maximum value.
     ///
     /// The bounds are inclusive.
     public static func maximum(_ value: Decimal) -> GenerationGuide<Decimal> {
-        GenerationGuide<Decimal>()
+        GenerationGuide<Decimal>(
+            constraint: .numberMaximum(NSDecimalNumber(decimal: value).doubleValue)
+        )
     }
 
     /// Enforces values fall within a range.
     public static func range(_ range: ClosedRange<Decimal>) -> GenerationGuide<Decimal> {
-        GenerationGuide<Decimal>()
+        GenerationGuide<Decimal>(
+            constraint: .numberRange(
+                minimum: NSDecimalNumber(decimal: range.lowerBound).doubleValue,
+                maximum: NSDecimalNumber(decimal: range.upperBound).doubleValue
+            )
+        )
     }
 }
 
@@ -144,18 +197,20 @@ extension GenerationGuide where Value == Double {
     /// Enforces a minimum value.
     /// The bounds are inclusive.
     public static func minimum(_ value: Double) -> GenerationGuide<Double> {
-        GenerationGuide<Double>()
+        GenerationGuide<Double>(constraint: .numberMinimum(value))
     }
 
     /// Enforces a maximum value.
     /// The bounds are inclusive.
     public static func maximum(_ value: Double) -> GenerationGuide<Double> {
-        GenerationGuide<Double>()
+        GenerationGuide<Double>(constraint: .numberMaximum(value))
     }
 
     /// Enforces values fall within a range.
     public static func range(_ range: ClosedRange<Double>) -> GenerationGuide<Double> {
-        GenerationGuide<Double>()
+        GenerationGuide<Double>(
+            constraint: .numberRange(minimum: range.lowerBound, maximum: range.upperBound)
+        )
     }
 }
 
@@ -168,7 +223,8 @@ extension GenerationGuide {
     /// The bounds are inclusive.
     public static func minimumCount<Element>(_ count: Int) -> GenerationGuide<[Element]>
     where Value == [Element] {
-        GenerationGuide<[Element]>()
+        precondition(count >= 0, "GenerationGuide.minimumCount cannot be negative")
+        return GenerationGuide<[Element]>(constraint: .arrayMinimumCount(count))
     }
 
     /// Enforces a maximum number of elements in the array.
@@ -176,19 +232,24 @@ extension GenerationGuide {
     /// The bounds are inclusive.
     public static func maximumCount<Element>(_ count: Int) -> GenerationGuide<[Element]>
     where Value == [Element] {
-        GenerationGuide<[Element]>()
+        precondition(count >= 0, "GenerationGuide.maximumCount cannot be negative")
+        return GenerationGuide<[Element]>(constraint: .arrayMaximumCount(count))
     }
 
     /// Enforces that the number of elements in the array fall within a closed range.
     public static func count<Element>(_ range: ClosedRange<Int>) -> GenerationGuide<[Element]>
     where Value == [Element] {
-        GenerationGuide<[Element]>()
+        precondition(range.lowerBound >= 0, "GenerationGuide.count range cannot be negative")
+        return GenerationGuide<[Element]>(
+            constraint: .arrayCountRange(minimum: range.lowerBound, maximum: range.upperBound)
+        )
     }
 
     /// Enforces that the array has exactly a certain number elements.
     public static func count<Element>(_ count: Int) -> GenerationGuide<[Element]>
     where Value == [Element] {
-        GenerationGuide<[Element]>()
+        precondition(count >= 0, "GenerationGuide.count cannot be negative")
+        return GenerationGuide<[Element]>(constraint: .arrayCount(count))
     }
 
     /// Enforces a guide on the elements within the array.
@@ -196,7 +257,7 @@ extension GenerationGuide {
         [Element]
     >
     where Value == [Element] {
-        GenerationGuide<[Element]>()
+        GenerationGuide<[Element]>(constraint: .arrayElement(guide.constraint))
     }
 }
 
@@ -210,7 +271,7 @@ extension GenerationGuide where Value == [Never] {
     ///
     /// - Warning: This overload is only used for macro expansion. Don't call `GenerationGuide<[Never]>.minimumCount(_:)` on your own.
     public static func minimumCount(_ count: Int) -> GenerationGuide<Value> {
-        GenerationGuide<Value>()
+        GenerationGuide<Value>(constraint: .arrayMinimumCount(count))
     }
 
     /// Enforces a maximum number of elements in the array.
@@ -219,20 +280,22 @@ extension GenerationGuide where Value == [Never] {
     ///
     /// - Warning: This overload is only used for macro expansion. Don't call `GenerationGuide<[Never]>.maximumCount(_:)` on your own.
     public static func maximumCount(_ count: Int) -> GenerationGuide<Value> {
-        GenerationGuide<Value>()
+        GenerationGuide<Value>(constraint: .arrayMaximumCount(count))
     }
 
     /// Enforces that the number of elements in the array fall within a closed range.
     ///
     /// - Warning: This overload is only used for macro expansion. Don't call `GenerationGuide<[Never]>.count(_:)` on your own.
     public static func count(_ range: ClosedRange<Int>) -> GenerationGuide<Value> {
-        GenerationGuide<Value>()
+        GenerationGuide<Value>(
+            constraint: .arrayCountRange(minimum: range.lowerBound, maximum: range.upperBound)
+        )
     }
 
     /// Enforces that the array has exactly a certain number elements.
     ///
     /// - Warning: This overload is only used for macro expansion. Don't call `GenerationGuide<[Never]>.count(_:)` on your own.
     public static func count(_ count: Int) -> GenerationGuide<Value> {
-        GenerationGuide<Value>()
+        GenerationGuide<Value>(constraint: .arrayCount(count))
     }
 }

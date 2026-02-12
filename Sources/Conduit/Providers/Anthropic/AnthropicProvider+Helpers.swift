@@ -78,8 +78,17 @@ extension AnthropicProvider {
         config: GenerateConfig,
         stream: Bool = false
     ) -> AnthropicMessagesRequest {
+        // Convert tools early so structured-output prompt policy can account for tool usage.
+        let (toolDefinitions, toolChoiceRequest) = convertToolsConfig(config)
+        let toolsEnabled = toolDefinitions != nil && toolChoiceRequest != nil
+
         // Extract system message (first system role message)
         let systemPrompt = messages.first(where: { $0.role == .system })?.content.textValue
+        let effectiveSystemPrompt = mergedSystemPrompt(
+            baseSystemPrompt: systemPrompt,
+            responseFormat: config.responseFormat,
+            toolsEnabled: toolsEnabled
+        )
 
         // Filter out system messages, convert to API format
         let apiMessages = messages.compactMap { msg -> AnthropicMessagesRequest.MessageContent? in
@@ -207,14 +216,11 @@ extension AnthropicProvider {
             AnthropicMessagesRequest.Metadata(userId: $0)
         }
 
-        // Convert tools if provided and toolChoice is not .none
-        let (toolDefinitions, toolChoiceRequest) = convertToolsConfig(config)
-
         return AnthropicMessagesRequest(
             model: model.rawValue,
             messages: apiMessages,
             maxTokens: config.maxTokens ?? 1024,
-            system: systemPrompt,
+            system: effectiveSystemPrompt,
             temperature: config.temperature >= 0 ? Double(config.temperature) : nil,
             topP: (config.topP > 0 && config.topP <= 1) ? Double(config.topP) : nil,
             topK: config.topK,
@@ -226,6 +232,58 @@ extension AnthropicProvider {
             tools: toolDefinitions,
             toolChoice: toolChoiceRequest
         )
+    }
+
+    /// Appends deterministic structured-output instructions for response format.
+    private nonisolated func mergedSystemPrompt(
+        baseSystemPrompt: String?,
+        responseFormat: ResponseFormat?,
+        toolsEnabled: Bool
+    ) -> String? {
+        // Anthropic tool use emits tool_use blocks, so forcing pure JSON-only output
+        // while tools are enabled creates contradictory instructions.
+        if toolsEnabled, responseFormat != nil {
+            return baseSystemPrompt
+        }
+
+        guard let responseFormat,
+              let formatInstruction = responseFormatInstruction(responseFormat)
+        else {
+            return baseSystemPrompt
+        }
+
+        guard let baseSystemPrompt, !baseSystemPrompt.isEmpty else {
+            return formatInstruction
+        }
+
+        return "\(baseSystemPrompt)\n\n\(formatInstruction)"
+    }
+
+    /// Converts unified response format into Anthropic-compatible instructions.
+    ///
+    /// Anthropic does not expose OpenAI-style native response_format controls
+    /// in the messages API, so we enforce structured output with explicit
+    /// deterministic instructions in the system prompt.
+    private nonisolated func responseFormatInstruction(_ format: ResponseFormat) -> String? {
+        switch format {
+        case .text:
+            return nil
+        case .jsonObject:
+            return """
+            Return only valid JSON as a single top-level object.
+            Do not wrap JSON in markdown code fences.
+            Do not include commentary before or after the JSON.
+            """
+        case .jsonSchema(let name, let schema):
+            let schemaJSON = schema.toJSONString(prettyPrinted: true)
+            return """
+            Return only valid JSON matching the schema named "\(name)".
+            Do not wrap JSON in markdown code fences.
+            Do not include commentary before or after the JSON.
+            Schema:
+            \(schemaJSON)
+            """
+        }
     }
 
     /// Converts Conduit tool configuration to Anthropic's API format.
