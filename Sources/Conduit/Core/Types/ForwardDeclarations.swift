@@ -107,6 +107,12 @@ public enum ProviderType: String, Sendable, Codable, CaseIterable {
     /// Best for: Long context tasks, reasoning, coding.
     case kimi
 
+    /// MiniMax API (cloud).
+    ///
+    /// Connects to MiniMax's M2 models with 128K+ context.
+    /// Best for: Coding, agentic workflows, cost-effective inference.
+    case minimax
+
     /// Azure OpenAI Service (cloud).
     ///
     /// Microsoft's enterprise OpenAI deployment.
@@ -136,6 +142,8 @@ public enum ProviderType: String, Sendable, Codable, CaseIterable {
             return "Anthropic"
         case .kimi:
             return "Kimi"
+        case .minimax:
+            return "MiniMax"
         case .azure:
             return "Azure OpenAI"
         }
@@ -149,7 +157,7 @@ public enum ProviderType: String, Sendable, Codable, CaseIterable {
         switch self {
         case .mlx, .coreml, .llama, .foundationModels, .ollama:
             return false
-        case .huggingFace, .openAI, .openRouter, .anthropic, .kimi, .azure:
+        case .huggingFace, .openAI, .openRouter, .anthropic, .kimi, .azure, .minimax:
             return true
         }
     }

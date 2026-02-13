@@ -33,6 +33,10 @@ let package = Package(
             description: "Enable Moonshot Kimi provider support (OpenAI-compatible)"
         ),
         .trait(
+            name: "MiniMax",
+            description: "Enable MiniMax provider support (OpenAI-compatible)"
+        ),
+        .trait(
             name: "MLX",
             description: "Enable MLX on-device inference (Apple Silicon only)"
         ),
@@ -101,6 +105,7 @@ let package = Package(
                 .define("CONDUIT_TRAIT_OPENROUTER", .when(traits: ["OpenRouter"])),
                 .define("CONDUIT_TRAIT_ANTHROPIC", .when(traits: ["Anthropic"])),
                 .define("CONDUIT_TRAIT_KIMI", .when(traits: ["Kimi"])),
+                .define("CONDUIT_TRAIT_MINIMAX", .when(traits: ["MiniMax"])),
                 .define("CONDUIT_TRAIT_MLX", .when(traits: ["MLX"])),
                 .define("CONDUIT_TRAIT_COREML", .when(traits: ["CoreML"])),
                 .enableExperimentalFeature("StrictConcurrency")
@@ -116,6 +121,7 @@ let package = Package(
                 .define("CONDUIT_TRAIT_OPENROUTER", .when(traits: ["OpenRouter"])),
                 .define("CONDUIT_TRAIT_ANTHROPIC", .when(traits: ["Anthropic"])),
                 .define("CONDUIT_TRAIT_KIMI", .when(traits: ["Kimi"])),
+                .define("CONDUIT_TRAIT_MINIMAX", .when(traits: ["MiniMax"])),
                 .define("CONDUIT_TRAIT_MLX", .when(traits: ["MLX"])),
                 .define("CONDUIT_TRAIT_COREML", .when(traits: ["CoreML"])),
                 .enableExperimentalFeature("StrictConcurrency")
