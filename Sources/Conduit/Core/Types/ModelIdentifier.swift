@@ -72,6 +72,12 @@ public enum ModelIdentifier: ModelIdentifying, Codable {
     /// as Apple manages the model automatically.
     case foundationModels
 
+    /// Moonshot Kimi API models (cloud).
+    ///
+    /// Kimi models feature 256K context windows and strong reasoning.
+    /// - Parameter id: The Kimi model ID (e.g., "kimi-k2-5")
+    case kimi(String)
+
     // MARK: - ModelIdentifying
 
     /// The raw string identifier for this model.
@@ -90,6 +96,8 @@ public enum ModelIdentifier: ModelIdentifying, Codable {
             return id
         case .foundationModels:
             return "apple-foundation-models"
+        case .kimi(let id):
+            return id
         }
     }
 
@@ -112,6 +120,8 @@ public enum ModelIdentifier: ModelIdentifying, Codable {
             return id.components(separatedBy: "/").last ?? id
         case .foundationModels:
             return "Apple Intelligence"
+        case .kimi(let id):
+            return id
         }
     }
 
@@ -130,6 +140,8 @@ public enum ModelIdentifier: ModelIdentifying, Codable {
             return .huggingFace
         case .foundationModels:
             return .foundationModels
+        case .kimi:
+            return .kimi
         }
     }
 
@@ -161,6 +173,7 @@ public enum ModelIdentifier: ModelIdentifying, Codable {
         case coreml
         case huggingFace
         case foundationModels
+        case kimi
     }
 
     /// Decodes a ModelIdentifier from a JSON decoder.
@@ -197,6 +210,10 @@ public enum ModelIdentifier: ModelIdentifying, Codable {
 
         case .foundationModels:
             self = .foundationModels
+
+        case .kimi:
+            let id = try container.decode(String.self, forKey: .id)
+            self = .kimi(id)
         }
     }
 
@@ -233,6 +250,10 @@ public enum ModelIdentifier: ModelIdentifying, Codable {
 
         case .foundationModels:
             try container.encode(ModelType.foundationModels, forKey: .type)
+
+        case .kimi(let id):
+            try container.encode(ModelType.kimi, forKey: .type)
+            try container.encode(id, forKey: .id)
         }
     }
 }
@@ -364,4 +385,21 @@ public extension ModelIdentifier {
     ///
     /// Ideal for: Privacy-sensitive apps, system integration (iOS 26+, no API key needed)
     static let apple = ModelIdentifier.foundationModels
+
+    // MARK: - Kimi Cloud Models
+
+    /// Kimi K2.5 - Latest flagship with advanced reasoning
+    ///
+    /// Ideal for: Complex reasoning, coding, long context (256K tokens, requires API key)
+    static let kimiK2_5 = ModelIdentifier.kimi("kimi-k2-5")
+
+    /// Kimi K2 - General-purpose model
+    ///
+    /// Ideal for: General tasks, good performance (256K tokens, requires API key)
+    static let kimiK2 = ModelIdentifier.kimi("kimi-k2")
+
+    /// Kimi K1.5 - Long context specialist
+    ///
+    /// Ideal for: Document analysis, summarization (256K tokens, requires API key)
+    static let kimiK1_5 = ModelIdentifier.kimi("kimi-k1-5")
 }
