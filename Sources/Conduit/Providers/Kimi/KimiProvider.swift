@@ -73,7 +73,8 @@ public actor KimiProvider: AIProvider, TextGenerator {
         let openAIConfig = OpenAIConfiguration(
             endpoint: .custom(configuration.baseURL),
             authentication: .bearer(configuration.authentication.apiKey ?? ""),
-            timeout: configuration.timeout
+            timeout: configuration.timeout,
+            maxRetries: configuration.maxRetries
         )
         self.internalProvider = OpenAIProvider(configuration: openAIConfig)
     }
