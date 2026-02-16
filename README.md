@@ -43,20 +43,20 @@ Conduit gives you a single Swift-native API that can target Anthropic, OpenRoute
 
 ## Features
 
-| Capability | MLX | HuggingFace | Anthropic | OpenAI | Foundation Models |
-|:-----------|:---:|:-----------:|:---------:|:------:|:-----------------:|
-| Text Generation | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Streaming | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Structured Output | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Tool Calling | — | — | ✓ | ✓ | — |
-| Vision | — | — | ✓ | ✓ | — |
-| Extended Thinking | — | — | ✓ | — | — |
-| Embeddings | — | ✓ | — | ✓ | — |
-| Transcription | — | ✓ | — | ✓ | — |
-| Image Generation | — | ✓ | — | ✓ | — |
-| Token Counting | ✓ | — | — | ✓* | — |
-| Offline | ✓ | — | — | —** | ✓ |
-| Privacy | ✓ | — | — | —** | ✓ |
+| Capability | MLX | HuggingFace | Anthropic | Kimi | OpenAI | Foundation Models |
+|:-----------|:---:|:-----------:|:---------:|:----:|:------:|:-----------------:|
+| Text Generation | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Streaming | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Structured Output | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Tool Calling | — | — | ✓ | — | ✓ | — |
+| Vision | — | — | ✓ | — | ✓ | — |
+| Extended Thinking | — | — | ✓ | — | — | — |
+| Embeddings | — | ✓ | — | — | ✓ | — |
+| Transcription | — | ✓ | — | — | ✓ | — |
+| Image Generation | — | ✓ | — | — | ✓ | — |
+| Token Counting | ✓ | — | — | — | ✓* | — |
+| Offline | ✓ | — | — | — | —** | ✓ |
+| Privacy | ✓ | — | — | — | —** | ✓ |
 
 *Estimated token counting
 **Offline/privacy available when using Ollama local endpoint
@@ -89,10 +89,10 @@ dependencies: [
 
 | Platform | Status | Available Providers |
 |:---------|:------:|:--------------------|
-| macOS 14+ | **Full** | MLX, Anthropic, OpenAI, HuggingFace, Foundation Models |
-| iOS 17+ | **Full** | MLX, Anthropic, OpenAI, HuggingFace, Foundation Models |
-| visionOS 1+ | **Full** | MLX, Anthropic, OpenAI, HuggingFace, Foundation Models |
-| **Linux** | **Partial** | Anthropic, OpenAI, HuggingFace |
+| macOS 14+ | **Full** | MLX, Anthropic, Kimi, OpenAI, HuggingFace, Foundation Models |
+| iOS 17+ | **Full** | MLX, Anthropic, Kimi, OpenAI, HuggingFace, Foundation Models |
+| visionOS 1+ | **Full** | MLX, Anthropic, Kimi, OpenAI, HuggingFace, Foundation Models |
+| **Linux** | **Partial** | Anthropic, Kimi, OpenAI, HuggingFace |
 
 ### Building on Linux
 
@@ -385,6 +385,66 @@ let result = try await provider.generate(
 ```
 
 Get your API key at: https://console.anthropic.com/
+
+### Kimi Provider
+
+Conduit includes dedicated support for Moonshot's Kimi models via the Kimi API.
+
+**Best for:** Long context tasks (256K tokens), coding, reasoning, document analysis
+
+**Setup:**
+```bash
+export MOONSHOT_API_KEY=sk-moonshot-...
+```
+
+```swift
+import Conduit
+
+// Simple generation
+let provider = KimiProvider(apiKey: "sk-moonshot-...")
+let response = try await provider.generate(
+    "Explain async/await in Swift",
+    model: .kimiK2_5,
+    config: .default
+)
+
+// Streaming
+for try await chunk in provider.stream(
+    "Write a Swift function to parse JSON",
+    model: .kimiK2_5,
+    config: .default
+) {
+    print(chunk, terminator: "")
+}
+```
+
+**Available Models:**
+
+| Model | ID | Context | Best For |
+|-------|----|---------|----------|
+| Kimi K2.5 | `.kimiK2_5` | 256K | Complex reasoning, coding |
+| Kimi K2 | `.kimiK2` | 256K | General purpose |
+| Kimi K1.5 | `.kimiK1_5` | 256K | Long context, documents |
+
+**Features:**
+
+- **256K Context Window**: All Kimi models support 256K tokens
+- Text generation (streaming and non-streaming)
+- Multi-turn conversations
+- Environment variable support (`MOONSHOT_API_KEY`)
+- OpenAI-compatible API (via `KimiProvider`)
+
+**Configuration:**
+
+```swift
+let config = KimiConfiguration.standard(apiKey: "sk-moonshot-...")
+    .timeout(180)        // Longer timeout for large contexts
+    .maxRetries(5)       // More retries for reliability
+
+let provider = KimiProvider(configuration: config)
+```
+
+Get your API key at: https://platform.moonshot.cn/
 
 ### OpenAI Provider
 

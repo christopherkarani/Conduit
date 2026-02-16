@@ -525,6 +525,10 @@ public actor ModelManager {
             throw AIError.invalidInput("Ollama models must be managed via Ollama CLI")
         case .anthropic:
             throw AIError.invalidInput("Anthropic models cannot be downloaded - they are cloud-only")
+        case .kimi:
+            throw AIError.invalidInput("Kimi models cannot be downloaded - they are cloud-only")
+        case .minimax:
+            throw AIError.invalidInput("MiniMax models cannot be downloaded - they are cloud-only")
         case .azure:
             throw AIError.invalidInput("Azure OpenAI models cannot be downloaded - they are cloud-only")
         }

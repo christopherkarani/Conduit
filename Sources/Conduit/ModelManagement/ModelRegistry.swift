@@ -468,6 +468,47 @@ public enum ModelRegistry {
             isRecommended: true,
             parameters: nil,
             quantization: nil
+        ),
+
+        // MARK: Kimi Cloud Models (3)
+
+        ModelInfo(
+            identifier: .kimiK2_5,
+            name: "Kimi K2.5",
+            description: "Moonshot's flagship model with advanced reasoning and 256K context window",
+            size: .large,
+            diskSize: nil,
+            contextWindow: 256000,
+            capabilities: [.textGeneration, .codeGeneration, .reasoning],
+            isRecommended: true,
+            parameters: nil,
+            quantization: nil
+        ),
+
+        ModelInfo(
+            identifier: .kimiK2,
+            name: "Kimi K2",
+            description: "General-purpose model with strong performance across diverse tasks",
+            size: .large,
+            diskSize: nil,
+            contextWindow: 256000,
+            capabilities: [.textGeneration, .codeGeneration],
+            isRecommended: false,
+            parameters: nil,
+            quantization: nil
+        ),
+
+        ModelInfo(
+            identifier: .kimiK1_5,
+            name: "Kimi K1.5",
+            description: "Long context specialist optimized for document analysis and summarization",
+            size: .large,
+            diskSize: nil,
+            contextWindow: 256000,
+            capabilities: [.textGeneration, .reasoning],
+            isRecommended: false,
+            parameters: nil,
+            quantization: nil
         )
     ]
 

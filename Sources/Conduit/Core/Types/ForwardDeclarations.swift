@@ -101,6 +101,18 @@ public enum ProviderType: String, Sendable, Codable, CaseIterable {
     /// Best for: Access to Claude 3/4 models, advanced reasoning.
     case anthropic
 
+    /// Moonshot Kimi API (cloud).
+    ///
+    /// Connects to Moonshot's Kimi models with 256K context.
+    /// Best for: Long context tasks, reasoning, coding.
+    case kimi
+
+    /// MiniMax API (cloud).
+    ///
+    /// Connects to MiniMax's M2 models with 128K+ context.
+    /// Best for: Coding, agentic workflows, cost-effective inference.
+    case minimax
+
     /// Azure OpenAI Service (cloud).
     ///
     /// Microsoft's enterprise OpenAI deployment.
@@ -128,6 +140,10 @@ public enum ProviderType: String, Sendable, Codable, CaseIterable {
             return "Ollama (Local)"
         case .anthropic:
             return "Anthropic"
+        case .kimi:
+            return "Kimi"
+        case .minimax:
+            return "MiniMax"
         case .azure:
             return "Azure OpenAI"
         }
@@ -141,7 +157,7 @@ public enum ProviderType: String, Sendable, Codable, CaseIterable {
         switch self {
         case .mlx, .coreml, .llama, .foundationModels, .ollama:
             return false
-        case .huggingFace, .openAI, .openRouter, .anthropic, .azure:
+        case .huggingFace, .openAI, .openRouter, .anthropic, .kimi, .azure, .minimax:
             return true
         }
     }
