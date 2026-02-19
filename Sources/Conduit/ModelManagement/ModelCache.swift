@@ -192,7 +192,8 @@ public actor ModelCache {
     /// Checks if a model is cached.
     ///
     /// This is a fast lookup that only checks the in-memory cache.
-    /// It does not verify that the files still exist on disk.
+    /// It validates that the files still exist on disk and prunes
+    /// stale entries if the OS has evicted the cache.
     ///
     /// - Parameter model: The model identifier to check.
     /// - Returns: `true` if the model is in the cache, `false` otherwise.
@@ -206,7 +207,10 @@ public actor ModelCache {
     /// }
     /// ```
     public func isCached(_ model: ModelIdentifier) -> Bool {
-        cache[model] != nil
+        guard let info = cache[model] else {
+            return false
+        }
+        return validateCachedEntry(info)
     }
 
     /// Gets the cached model info for a model.
@@ -226,7 +230,10 @@ public actor ModelCache {
     /// }
     /// ```
     public func info(for model: ModelIdentifier) -> CachedModelInfo? {
-        cache[model]
+        guard let info = cache[model] else {
+            return nil
+        }
+        return validateCachedEntry(info) ? info : nil
     }
 
     /// Gets the local file path for a cached model.
@@ -245,7 +252,23 @@ public actor ModelCache {
     /// }
     /// ```
     public func localPath(for model: ModelIdentifier) -> URL? {
-        cache[model]?.path
+        guard let info = cache[model] else {
+            return nil
+        }
+        return validateCachedEntry(info) ? info.path : nil
+    }
+
+    /// Validates a cached entry exists on disk and prunes stale metadata.
+    ///
+    /// Returns `true` when the cache entry still exists on disk.
+    private func validateCachedEntry(_ info: CachedModelInfo) -> Bool {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: info.path.path) else {
+            cache.removeValue(forKey: info.identifier)
+            try? saveMetadata()
+            return false
+        }
+        return true
     }
 
     /// Returns the total size of all cached models.

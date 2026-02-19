@@ -347,12 +347,18 @@ extension OpenAIProvider {
 
                     // Create partial tool call for streaming updates
                     if let acc = toolCallAccumulators[index] {
-                        partialToolCall = PartialToolCall(
-                            id: acc.id,
-                            toolName: acc.name,
-                            index: index,
-                            argumentsFragment: acc.argumentsBuffer
-                        )
+                        do {
+                            partialToolCall = try PartialToolCall(
+                                id: acc.id,
+                                toolName: acc.name,
+                                index: index,
+                                argumentsFragment: acc.argumentsBuffer
+                            )
+                        } catch {
+                            logger.warning(
+                                "Skipping partial tool call '\(acc.name)' at index \(index): \(error.localizedDescription)"
+                            )
+                        }
                     }
                 }
             }
@@ -732,18 +738,24 @@ extension OpenAIProvider {
 
                     toolAccumulatorsByID[callID] = accumulator
 
-                    continuation.yield(GenerationChunk(
-                        text: "",
-                        tokenCount: 0,
-                        isComplete: false,
-                        partialToolCall: PartialToolCall(
-                            id: accumulator.id,
-                            toolName: accumulator.name,
-                            index: accumulator.index,
-                            argumentsFragment: accumulator.argumentsBuffer
-                        ),
-                        reasoningDetails: currentReasoningDetails()
-                    ))
+                    if let partialToolCall = try? PartialToolCall(
+                        id: accumulator.id,
+                        toolName: accumulator.name,
+                        index: accumulator.index,
+                        argumentsFragment: accumulator.argumentsBuffer
+                    ) {
+                        continuation.yield(GenerationChunk(
+                            text: "",
+                            tokenCount: 0,
+                            isComplete: false,
+                            partialToolCall: partialToolCall,
+                            reasoningDetails: currentReasoningDetails()
+                        ))
+                    } else {
+                        logger.warning(
+                            "Skipping partial tool call '\(accumulator.name)' at index \(accumulator.index) due to invalid data."
+                        )
+                    }
 
                 case .completed:
                     let completedToolCalls = finalizeToolCalls()

@@ -104,16 +104,19 @@ public struct PartialToolCall: Sendable, Hashable {
     ///   - index: Index of this tool call in the response. Must be in range `0...maxToolCallIndex`.
     ///   - argumentsFragment: Current accumulated arguments JSON fragment.
     ///
-    /// - Precondition: `id` must not be empty.
-    /// - Precondition: `toolName` must not be empty.
-    /// - Precondition: `index` must be in range `0...maxToolCallIndex` (0...100).
-    public init(id: String, toolName: String, index: Int, argumentsFragment: String) {
-        precondition(!id.isEmpty, "PartialToolCall id must not be empty")
-        precondition(!toolName.isEmpty, "PartialToolCall toolName must not be empty")
-        precondition(
-            (0...maxToolCallIndex).contains(index),
-            "PartialToolCall index must be in range 0...\(maxToolCallIndex), got \(index)"
-        )
+    /// - Throws: `AIError.invalidInput` when inputs are invalid.
+    public init(id: String, toolName: String, index: Int, argumentsFragment: String) throws {
+        guard !id.isEmpty else {
+            throw AIError.invalidInput("PartialToolCall id must not be empty")
+        }
+        guard !toolName.isEmpty else {
+            throw AIError.invalidInput("PartialToolCall toolName must not be empty")
+        }
+        guard (0...maxToolCallIndex).contains(index) else {
+            throw AIError.invalidInput(
+                "PartialToolCall index must be in range 0...\(maxToolCallIndex), got \(index)"
+            )
+        }
 
         self.id = id
         self.toolName = toolName
