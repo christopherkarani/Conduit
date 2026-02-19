@@ -104,20 +104,15 @@ public struct PartialToolCall: Sendable, Hashable {
     ///   - index: Index of this tool call in the response. Must be in range `0...maxToolCallIndex`.
     ///   - argumentsFragment: Current accumulated arguments JSON fragment.
     ///
-    /// - Precondition: `id` must not be empty.
-    /// - Precondition: `toolName` must not be empty.
-    /// - Precondition: `index` must be in range `0...maxToolCallIndex` (0...100).
+    /// - Note: Invalid values are sanitized to preserve non-crashing behavior when parsing
+    ///   untrusted provider streaming data:
+    ///   - Empty `id` becomes `"unknown_tool_call"`
+    ///   - Empty `toolName` becomes `"unknown_tool"`
+    ///   - `index` is clamped to `0...maxToolCallIndex`
     public init(id: String, toolName: String, index: Int, argumentsFragment: String) {
-        precondition(!id.isEmpty, "PartialToolCall id must not be empty")
-        precondition(!toolName.isEmpty, "PartialToolCall toolName must not be empty")
-        precondition(
-            (0...maxToolCallIndex).contains(index),
-            "PartialToolCall index must be in range 0...\(maxToolCallIndex), got \(index)"
-        )
-
-        self.id = id
-        self.toolName = toolName
-        self.index = index
+        self.id = id.isEmpty ? "unknown_tool_call" : id
+        self.toolName = toolName.isEmpty ? "unknown_tool" : toolName
+        self.index = min(max(index, 0), maxToolCallIndex)
         self.argumentsFragment = argumentsFragment
     }
 }

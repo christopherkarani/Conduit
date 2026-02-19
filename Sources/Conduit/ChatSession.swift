@@ -746,6 +746,11 @@ public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked
                     task.cancel()
                 }
                 guard let strongSelf = self else { return }
+                if case .cancelled = termination {
+                    Task {
+                        await strongSelf.provider.cancelGeneration()
+                    }
+                }
                 strongSelf.withLock {
                     strongSelf.generationTask = nil
                 }
