@@ -324,7 +324,9 @@ public enum JsonRepair {
     private enum JsonContext { case object, array, unknown }
 
     private static func findContext(_ chars: [Character], upTo idx: Int) -> JsonContext {
-        var depth = 0
+        guard !chars.isEmpty, idx >= 0 else { return .unknown }
+
+        var bracketStack: [Character] = []
         var inString = false
         var escapeNext = false
 
@@ -349,46 +351,30 @@ public enum JsonRepair {
             case "\"":
                 inString = true
             case "{":
-                depth += 1
+                bracketStack.append("{")
             case "}":
-                depth -= 1
+                if bracketStack.last == "{" {
+                    bracketStack.removeLast()
+                }
             case "[":
-                depth += 1
+                bracketStack.append("[")
             case "]":
-                depth -= 1
+                if bracketStack.last == "[" {
+                    bracketStack.removeLast()
+                }
             default:
                 break
             }
         }
 
-        // Now scan backwards from idx to find the most recent unmatched opener
-        var bracketStack: [Character] = []
-        inString = false
-        escapeNext = false
-
-        for i in (0...idx).reversed() {
-            let char = chars[i]
-
-            // Handle string detection (simplified - scan forward to know if in string)
-            // Actually, for simplicity, let's just look for the nearest unmatched [ or {
-            if char == "]" || char == "}" {
-                bracketStack.append(char)
-            } else if char == "[" {
-                if let last = bracketStack.last, last == "]" {
-                    bracketStack.removeLast()
-                } else {
-                    return .array
-                }
-            } else if char == "{" {
-                if let last = bracketStack.last, last == "}" {
-                    bracketStack.removeLast()
-                } else {
-                    return .object
-                }
-            }
+        switch bracketStack.last {
+        case "{":
+            return .object
+        case "[":
+            return .array
+        default:
+            return .unknown
         }
-
-        return .unknown
     }
 
     /// Removes trailing commas before closing brackets/braces in already-closed JSON.

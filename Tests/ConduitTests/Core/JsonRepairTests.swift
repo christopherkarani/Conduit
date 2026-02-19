@@ -222,6 +222,14 @@ struct JsonRepairTests {
 
             #expect(repaired == #"[{"name": "Alice"}, {"name": "Bob"}]"#)
         }
+
+        @Test("Trailing string in array is preserved when earlier value contains braces")
+        func arrayContextWithBraceCharactersInStrings() {
+            let incomplete = #"["{", "ok""#
+            let repaired = JsonRepair.repair(incomplete)
+
+            #expect(repaired == #"["{", "ok"]"#)
+        }
     }
 
     // MARK: - Edge Cases
