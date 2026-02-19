@@ -5,6 +5,7 @@
 // for completing and decoding partial JSON during streaming.
 
 import Foundation
+import ConduitCore
 
 // MARK: - Errors
 
@@ -52,6 +53,30 @@ public final class JSONCompleter {
     public func complete(_ json: String) throws -> String {
         guard !json.isEmpty else { return "" }
 
+        // Try C implementation first for performance
+        // C outputs the FULL completed string (input truncated at completion point + suffix)
+        let utf8 = Array(json.utf8)
+        let capacity = utf8.count + 256
+        var output = [CChar](repeating: 0, count: capacity)
+
+        let result = utf8.withUnsafeBufferPointer { inputBuf in
+            output.withUnsafeMutableBufferPointer { outputBuf in
+                conduit_json_complete(
+                    inputBuf.baseAddress.map { UnsafeRawPointer($0).assumingMemoryBound(to: CChar.self) },
+                    inputBuf.count,
+                    outputBuf.baseAddress,
+                    outputBuf.count,
+                    Int32(maximumDepth)
+                )
+            }
+        }
+
+        if result >= 0 {
+            if result == 0 { return json } // Already complete
+            return String(cString: output)
+        }
+
+        // Fallback to Swift implementation for edge cases
         if let completion = try completion(for: json, from: json.startIndex) {
             return String(json[..<completion.endIndex]) + completion.string
         }

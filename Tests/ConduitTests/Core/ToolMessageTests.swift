@@ -12,9 +12,10 @@ struct ToolMessageTests {
 
     @Test("ToolCall argumentsString returns JSON")
     func toolCallArgumentsString() {
-        let content = GeneratedContent.object([
-            "location": .string("San Francisco")
-        ])
+        let content = GeneratedContent(kind: .structure(
+            properties: ["location": GeneratedContent(kind: .string("San Francisco"))],
+            orderedKeys: ["location"]
+        ))
         let call = Transcript.ToolCall(
             id: "call-1",
             toolName: "get_weather",
@@ -27,9 +28,10 @@ struct ToolMessageTests {
 
     @Test("ToolCall argumentsData returns valid data")
     func toolCallArgumentsData() throws {
-        let content = GeneratedContent.object([
-            "query": .string("test")
-        ])
+        let content = GeneratedContent(kind: .structure(
+            properties: ["query": GeneratedContent(kind: .string("test"))],
+            orderedKeys: ["query"]
+        ))
         let call = Transcript.ToolCall(
             id: "call-1",
             toolName: "search",
@@ -63,7 +65,7 @@ struct ToolMessageTests {
         let call = Transcript.ToolCall(
             id: "call-42",
             toolName: "calculator",
-            arguments: GeneratedContent.null
+            arguments: GeneratedContent(kind: .null)
         )
 
         let output = Transcript.ToolOutput(
@@ -99,7 +101,7 @@ struct ToolMessageTests {
         let call = Transcript.ToolCall(
             id: "call-1",
             toolName: "search",
-            arguments: GeneratedContent.null
+            arguments: GeneratedContent(kind: .null)
         )
 
         let message = Message.toolOutput(call: call, content: "Found 5 results")
@@ -113,9 +115,9 @@ struct ToolMessageTests {
     @Test("call(named:) finds tool call by name")
     func callNamed() {
         let calls = [
-            Transcript.ToolCall(id: "1", toolName: "weather", arguments: GeneratedContent.null),
-            Transcript.ToolCall(id: "2", toolName: "search", arguments: GeneratedContent.null),
-            Transcript.ToolCall(id: "3", toolName: "calculator", arguments: GeneratedContent.null)
+            Transcript.ToolCall(id: "1", toolName: "weather", arguments: GeneratedContent(kind: .null)),
+            Transcript.ToolCall(id: "2", toolName: "search", arguments: GeneratedContent(kind: .null)),
+            Transcript.ToolCall(id: "3", toolName: "calculator", arguments: GeneratedContent(kind: .null))
         ]
 
         let found = calls.call(named: "search")
@@ -125,7 +127,7 @@ struct ToolMessageTests {
     @Test("call(named:) returns nil when not found")
     func callNamedNotFound() {
         let calls = [
-            Transcript.ToolCall(id: "1", toolName: "weather", arguments: GeneratedContent.null)
+            Transcript.ToolCall(id: "1", toolName: "weather", arguments: GeneratedContent(kind: .null))
         ]
 
         let found = calls.call(named: "nonexistent")
@@ -135,9 +137,9 @@ struct ToolMessageTests {
     @Test("calls(named:) filters multiple matches")
     func callsNamed() {
         let calls = [
-            Transcript.ToolCall(id: "1", toolName: "search", arguments: GeneratedContent.null),
-            Transcript.ToolCall(id: "2", toolName: "weather", arguments: GeneratedContent.null),
-            Transcript.ToolCall(id: "3", toolName: "search", arguments: GeneratedContent.null)
+            Transcript.ToolCall(id: "1", toolName: "search", arguments: GeneratedContent(kind: .null)),
+            Transcript.ToolCall(id: "2", toolName: "weather", arguments: GeneratedContent(kind: .null)),
+            Transcript.ToolCall(id: "3", toolName: "search", arguments: GeneratedContent(kind: .null))
         ]
 
         let found = calls.calls(named: "search")
@@ -147,7 +149,7 @@ struct ToolMessageTests {
     @Test("calls(named:) returns empty when no matches")
     func callsNamedEmpty() {
         let calls = [
-            Transcript.ToolCall(id: "1", toolName: "weather", arguments: GeneratedContent.null)
+            Transcript.ToolCall(id: "1", toolName: "weather", arguments: GeneratedContent(kind: .null))
         ]
 
         let found = calls.calls(named: "nonexistent")

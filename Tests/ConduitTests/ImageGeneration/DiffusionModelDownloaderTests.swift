@@ -3,7 +3,7 @@
 //
 // This file requires the MLX trait (Hub) to be enabled.
 
-#if canImport(Hub)
+#if CONDUIT_TRAIT_MLX
 
 import Foundation
 import Testing
@@ -773,4 +773,4 @@ struct DiffusionModelDownloaderTests {
     }
 }
 
-#endif // canImport(Hub)
+#endif // CONDUIT_TRAIT_MLX

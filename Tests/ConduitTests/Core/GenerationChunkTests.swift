@@ -104,7 +104,7 @@ struct GenerationChunkTests {
         let toolCall = Transcript.ToolCall(
             id: "call-1",
             toolName: "weather",
-            arguments: GeneratedContent.null
+            arguments: GeneratedContent(kind: .null)
         )
         let chunk = GenerationChunk(text: "", completedToolCalls: [toolCall])
         #expect(chunk.hasToolCallUpdates)
