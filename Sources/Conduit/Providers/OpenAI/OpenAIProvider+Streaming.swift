@@ -347,12 +347,19 @@ extension OpenAIProvider {
 
                     // Create partial tool call for streaming updates
                     if let acc = toolCallAccumulators[index] {
-                        partialToolCall = PartialToolCall(
-                            id: acc.id,
+                        if let validated = PartialToolCall(
+                            validating: acc.id,
                             toolName: acc.name,
                             index: index,
                             argumentsFragment: acc.argumentsBuffer
-                        )
+                        ) {
+                            partialToolCall = validated
+                        } else {
+                            logger.warning(
+                                "Skipping tool call with invalid metadata: id='\(acc.id)', name='\(acc.name)', index=\(index)"
+                            )
+                            toolCallAccumulators.removeValue(forKey: index)
+                        }
                     }
                 }
             }
