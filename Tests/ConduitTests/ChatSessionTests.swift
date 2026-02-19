@@ -821,6 +821,9 @@ struct ChatSessionTests {
         try await Task.sleep(nanoseconds: 30_000_000)
         consumer.cancel()
         _ = await consumer.result
+        // Yield to the cooperative scheduler so the fire-and-forget
+        // cancelGeneration() Task has a chance to run before we assert.
+        await Task.yield()
 
         let cancelCount = await provider.cancelCallCount
         #expect(cancelCount >= 1)
