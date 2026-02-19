@@ -273,10 +273,16 @@ public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked
     /// is `.none`, preserving single-attempt behavior.
     public var toolCallRetryPolicy: ToolExecutor.RetryPolicy = .none
 
-    /// Maximum number of tool-call rounds allowed in a single `send(_:)` request.
+    /// Maximum number of tool-call rounds allowed in a single `send(_:)` or `stream(_:)` request.
     ///
     /// A "round" is one model response containing at least one tool call followed by
     /// executing those calls. This bounds continuation loops and prevents runaway cycles.
+    ///
+    /// The limit is checked **before** executing each round:
+    /// - `maxToolCallRounds = 0`: no tool calls are executed; the first tool-call response
+    ///   throws `AIError.invalidInput` immediately without running any tools.
+    /// - `maxToolCallRounds = N` (N > 0): exactly **N** rounds are permitted. The (N+1)th
+    ///   tool-call response throws `AIError.invalidInput`.
     ///
     /// Values less than zero are treated as zero during execution.
     public var maxToolCallRounds: Int = 8

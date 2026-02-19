@@ -186,7 +186,11 @@ public actor ModelCache {
     /// }
     /// ```
     public func allCachedModels() -> [CachedModelInfo] {
-        cache.values.sorted { $0.lastAccessedAt > $1.lastAccessedAt }
+        // Take a snapshot before validation to avoid mutating `cache` while iterating its values.
+        let infos = Array(cache.values)
+        return infos
+            .filter { validateCachedEntry($0) }
+            .sorted { $0.lastAccessedAt > $1.lastAccessedAt }
     }
 
     /// Checks if a model is cached.

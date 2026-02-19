@@ -694,42 +694,38 @@ extension ModelManager {
         let speedCalculator = SpeedCalculator()
         var speedTask: Task<Void, Never>?
         var speedContinuation: AsyncStream<DownloadProgress>.Continuation?
-        var speedContinuationRef: AsyncStream<DownloadProgress>.Continuation?
 
         if let progress {
             let speedStream = AsyncStream<DownloadProgress> { continuation in
                 speedContinuation = continuation
             }
-            speedContinuationRef = speedContinuation
-            let continuationSnapshot = speedContinuationRef
             speedTask = Task {
                 for await update in speedStream {
                     await speedCalculator.addSample(bytes: update.bytesDownloaded)
+                    var updated = update
                     if let speed = await speedCalculator.averageSpeed() {
-                        var updated = update
                         updated.bytesPerSecond = speed
-
                         if let total = updated.totalBytes, speed > 0 {
                             let remaining = total - updated.bytesDownloaded
                             updated.estimatedTimeRemaining = TimeInterval(remaining) / speed
                         }
-
-                        progress(updated)
                     }
+                    // Always fire the callback once per tick (with or without speed info)
+                    progress(updated)
                 }
-                continuationSnapshot?.finish()
             }
         }
 
-        let speedContinuationSnapshot = speedContinuationRef
+        // Capture continuation for use in the @Sendable enrichedProgress closure below
+        let capturedContinuation = speedContinuation
 
         defer {
-            speedContinuationSnapshot?.finish()
+            capturedContinuation?.finish()
             speedTask?.cancel()
         }
 
-        // Wrap progress callback with size and speed enrichment
-        let enrichedProgress: (@Sendable (DownloadProgress) -> Void)? = progress.map { callback in
+        // Wrap progress callback with estimated size enrichment before feeding the speed stream
+        let enrichedProgress: (@Sendable (DownloadProgress) -> Void)? = progress.map { _ in
             { @Sendable (downloadProgress: DownloadProgress) in
                 var enriched = downloadProgress
 
@@ -738,9 +734,8 @@ extension ModelManager {
                     enriched.totalBytes = estimatedSize?.bytes
                 }
 
-                // Call callback immediately with basic progress
-                callback(enriched)
-                speedContinuationSnapshot?.yield(enriched)
+                // Feed the speed stream, which calls the user callback exactly once per event
+                capturedContinuation?.yield(enriched)
             }
         }
 
