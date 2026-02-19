@@ -742,13 +742,14 @@ public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked
 
             // Handle stream cancellation
             continuation.onTermination = { @Sendable [weak self] termination in
-                if case .cancelled = termination {
-                    task.cancel()
+                guard case .cancelled = termination else {
+                    self?.withLock { self?.generationTask = nil }
+                    return
                 }
+                task.cancel()
                 guard let strongSelf = self else { return }
-                strongSelf.withLock {
-                    strongSelf.generationTask = nil
-                }
+                strongSelf.withLock { strongSelf.generationTask = nil }
+                Task { await strongSelf.provider.cancelGeneration() }
             }
         }
     }

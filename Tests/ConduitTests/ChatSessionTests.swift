@@ -38,6 +38,12 @@ actor MockTextProvider: AIProvider, @preconcurrency TextGenerator {
     /// Optional artificial delay per generate call for cancellation tests.
     private var _generationDelayNanos: UInt64 = 0
 
+    /// Optional artificial delay per streamed chunk for cancellation tests.
+    private var _streamChunkDelayNanos: UInt64 = 0
+
+    /// Number of times cancelGeneration was called.
+    private var _cancelCallCount: Int = 0
+
     // MARK: - Accessors for Test Assertions
 
     var responseToReturn: String {
@@ -60,6 +66,11 @@ actor MockTextProvider: AIProvider, @preconcurrency TextGenerator {
         set { _generateCallCount = newValue }
     }
 
+    var cancelCallCount: Int {
+        get { _cancelCallCount }
+        set { _cancelCallCount = newValue }
+    }
+
     var receivedMessagesByGenerateCall: [[Message]] {
         get { _receivedMessagesByGenerateCall }
         set { _receivedMessagesByGenerateCall = newValue }
@@ -71,6 +82,10 @@ actor MockTextProvider: AIProvider, @preconcurrency TextGenerator {
 
     func setGenerationDelay(nanoseconds: UInt64) {
         _generationDelayNanos = nanoseconds
+    }
+
+    func setStreamChunkDelay(nanoseconds: UInt64) {
+        _streamChunkDelayNanos = nanoseconds
     }
 
     // MARK: - AIProvider
@@ -119,6 +134,7 @@ actor MockTextProvider: AIProvider, @preconcurrency TextGenerator {
         _lastReceivedMessages = messages
         let responseText = _responseToReturn
         let throwError = _shouldThrowError
+        let streamChunkDelay = _streamChunkDelayNanos
 
         return AsyncThrowingStream { continuation in
             if throwError {
@@ -129,6 +145,9 @@ actor MockTextProvider: AIProvider, @preconcurrency TextGenerator {
             let words = responseText.split(separator: " ")
             Task {
                 for (index, word) in words.enumerated() {
+                    if streamChunkDelay > 0 {
+                        try? await Task.sleep(nanoseconds: streamChunkDelay)
+                    }
                     let isLast = index == words.count - 1
                     let chunk = GenerationChunk(
                         text: String(word) + (isLast ? "" : " "),
@@ -144,7 +163,7 @@ actor MockTextProvider: AIProvider, @preconcurrency TextGenerator {
     }
 
     func cancelGeneration() async {
-        // No-op for tests
+        _cancelCallCount += 1
     }
 
     // MARK: - TextGenerator Protocol Methods
@@ -207,6 +226,8 @@ actor MockTextProvider: AIProvider, @preconcurrency TextGenerator {
         _lastReceivedMessages = []
         _generateCallCount = 0
         _generationDelayNanos = 0
+        _streamChunkDelayNanos = 0
+        _cancelCallCount = 0
         _queuedGenerationResults = []
         _receivedMessagesByGenerateCall = []
     }
@@ -784,6 +805,28 @@ struct ChatSessionTests {
             Issue.record("Expected AIError.cancelled after cancellation")
             return
         }
+    }
+
+    @Test("stream cancellation propagates to provider cancelGeneration")
+    func streamCancellationPropagatesToProvider() async throws {
+        let provider = MockTextProvider()
+        await provider.setStreamChunkDelay(nanoseconds: 200_000_000)
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
+
+        let consumer = Task {
+            for try await _ in session.stream("Stream slowly") {
+            }
+        }
+
+        try await Task.sleep(nanoseconds: 30_000_000)
+        consumer.cancel()
+        _ = await consumer.result
+        // Yield to the cooperative scheduler so the fire-and-forget
+        // cancelGeneration() Task has a chance to run before we assert.
+        await Task.yield()
+
+        let cancelCount = await provider.cancelCallCount
+        #expect(cancelCount >= 1)
     }
 
     // MARK: - Clear History Tests
