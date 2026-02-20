@@ -227,7 +227,9 @@ void conduit_sse_ingest_line(
                 valid = false;
             }
         }
-        if (valid && ms > 0) {
+        // Per WHATWG SSE spec §9.2.6, retry:0 is valid and should set the
+        // reconnection time to 0 ms. The previous guard `ms > 0` violated the spec.
+        if (valid) {
             parser->reconnection_time = ms;
             parser->current_retry = ms;
         }

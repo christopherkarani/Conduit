@@ -55,14 +55,16 @@ public final class JSONCompleter {
 
         // Try C implementation first for performance
         // C outputs the FULL completed string (input truncated at completion point + suffix)
-        let utf8 = Array(json.utf8)
+        // Use [CChar] directly to avoid reinterpreting [UInt8] as CChar via assumingMemoryBound,
+        // which is technically undefined behaviour in Swift's strict memory model.
+        let utf8: [CChar] = json.utf8.map { CChar(bitPattern: $0) }
         let capacity = utf8.count + 256
         var output = [CChar](repeating: 0, count: capacity)
 
         let result = utf8.withUnsafeBufferPointer { inputBuf in
             output.withUnsafeMutableBufferPointer { outputBuf in
                 conduit_json_complete(
-                    inputBuf.baseAddress.map { UnsafeRawPointer($0).assumingMemoryBound(to: CChar.self) },
+                    inputBuf.baseAddress,
                     inputBuf.count,
                     outputBuf.baseAddress,
                     outputBuf.count,

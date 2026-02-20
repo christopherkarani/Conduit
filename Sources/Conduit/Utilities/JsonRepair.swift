@@ -78,14 +78,16 @@ public enum JsonRepair {
     /// - Parameter json: The potentially incomplete JSON string
     /// - Returns: A repaired JSON string that should be valid JSON
     public static func repair(_ json: String, maximumDepth: Int = 64) -> String {
-        let utf8 = Array(json.utf8)
+        // Use [CChar] directly to avoid reinterpreting [UInt8] as CChar via assumingMemoryBound,
+        // which is technically undefined behaviour in Swift's strict memory model.
+        let utf8: [CChar] = json.utf8.map { CChar(bitPattern: $0) }
         let capacity = utf8.count + maximumDepth + 128 // Room for closing brackets + suffix
         var output = [CChar](repeating: 0, count: capacity)
 
         let result = utf8.withUnsafeBufferPointer { inputBuf in
             output.withUnsafeMutableBufferPointer { outputBuf in
                 conduit_json_repair(
-                    inputBuf.baseAddress.map { UnsafeRawPointer($0).assumingMemoryBound(to: CChar.self) },
+                    inputBuf.baseAddress,
                     inputBuf.count,
                     outputBuf.baseAddress,
                     outputBuf.count,
@@ -343,7 +345,10 @@ public enum JsonRepair {
     private enum JsonContext { case object, array, unknown }
 
     private static func findContext(_ chars: [Character], upTo idx: Int) -> JsonContext {
-        var depth = 0
+        // Forward scan with string-awareness to find the innermost unmatched bracket.
+        // A backward scan without string tracking would miscount brackets inside string
+        // literals (e.g. {"key": "[value"} — the '[' inside the string is not an opener).
+        var bracketStack: [Character] = []
         var inString = false
         var escapeNext = false
 
@@ -368,46 +373,20 @@ public enum JsonRepair {
             case "\"":
                 inString = true
             case "{":
-                depth += 1
+                bracketStack.append("{")
             case "}":
-                depth -= 1
+                if bracketStack.last == "{" { bracketStack.removeLast() }
             case "[":
-                depth += 1
+                bracketStack.append("[")
             case "]":
-                depth -= 1
+                if bracketStack.last == "[" { bracketStack.removeLast() }
             default:
                 break
             }
         }
 
-        // Now scan backwards from idx to find the most recent unmatched opener
-        var bracketStack: [Character] = []
-        inString = false
-        escapeNext = false
-
-        for i in (0...idx).reversed() {
-            let char = chars[i]
-
-            // Handle string detection (simplified - scan forward to know if in string)
-            // Actually, for simplicity, let's just look for the nearest unmatched [ or {
-            if char == "]" || char == "}" {
-                bracketStack.append(char)
-            } else if char == "[" {
-                if let last = bracketStack.last, last == "]" {
-                    bracketStack.removeLast()
-                } else {
-                    return .array
-                }
-            } else if char == "{" {
-                if let last = bracketStack.last, last == "}" {
-                    bracketStack.removeLast()
-                } else {
-                    return .object
-                }
-            }
-        }
-
-        return .unknown
+        guard let last = bracketStack.last else { return .unknown }
+        return last == "{" ? .object : .array
     }
 
     /// Removes trailing commas before closing brackets/braces in already-closed JSON.

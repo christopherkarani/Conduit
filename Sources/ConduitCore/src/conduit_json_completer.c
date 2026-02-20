@@ -14,7 +14,12 @@ typedef struct {
     const char *suffix;       // Static or stack-allocated suffix string
     size_t suffix_len;
     size_t end_offset;        // Offset in input where completion applies
-    char suffix_buf[128];     // Stack buffer for dynamic suffixes
+    // Stack buffer for dynamically composed suffixes (e.g. inner completion + "]").
+    // 512 bytes accommodates suffixes up to ~127 levels of nesting before falling back
+    // to the safe-but-minimal "]" or "}" closer (see composite suffix construction below).
+    // If the combined suffix ever exceeds this size the result is still valid JSON —
+    // only the innermost element completion is dropped, producing a shorter output.
+    char suffix_buf[512];
     bool found;
 } completion_t;
 

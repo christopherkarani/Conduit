@@ -29,6 +29,12 @@ float conduit_cosine_similarity(const float *a, const float *b, size_t count);
 
 /// Computes Euclidean distance between two float vectors.
 /// Returns 0 if count is 0.
+///
+/// HEAP ALLOCATION NOTE (Apple platforms only): On builds with Accelerate enabled,
+/// this function allocates a temporary float buffer of `count * sizeof(float)` bytes
+/// via malloc to hold the element-wise difference vector before computing the norm
+/// with vDSP_dotpr. On allocation failure it falls back to the scalar path.
+/// All other functions in this header perform no heap allocation.
 float conduit_euclidean_distance(const float *a, const float *b, size_t count);
 
 /// Computes cosine similarity of `query` against each of `count` vectors in `vectors`.
@@ -152,9 +158,11 @@ int conduit_line_buffer_append(conduit_line_buffer_t *buf, const uint8_t *data, 
 /// On success: writes the line (without delimiter) to `line_out`, sets `line_len`
 ///   to the number of bytes, and returns 1.
 /// On no complete line available: returns 0 and does not modify outputs.
+/// On line too large for `line_out_capacity`: returns -1 and does not modify outputs.
+///   The oversized line remains unconsumed so callers can grow their buffer and retry.
 /// `line_out` must point to a buffer of at least `conduit_line_buffer_pending(buf)` bytes.
 ///
-/// The delimiter bytes are consumed from the buffer.
+/// The delimiter bytes are consumed from the buffer only on success (return 1).
 int conduit_line_buffer_next_line(
     conduit_line_buffer_t *buf,
     char *line_out,

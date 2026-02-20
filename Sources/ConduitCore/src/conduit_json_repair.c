@@ -59,25 +59,47 @@ static size_t remove_partial_unicode_escape(char *buf, size_t len) {
     return len;
 }
 
-// Helper: find the nearest unmatched opener scanning backwards (simplified)
+// Helper: find the innermost unmatched opener by scanning forward with string-awareness.
+// A backward scan without string tracking would miscount brackets inside string literals
+// (e.g. {"key": "[value"} — the '[' inside the string is not an array opener).
 static json_context_t find_context(const char *buf, size_t len) {
-    int brace_depth = 0;
-    int bracket_depth = 0;
+    bracket_type_t stack[256];
+    int depth = 0;
+    bool in_string = false;
+    bool escape_next = false;
 
-    for (size_t i = len; i > 0; i--) {
-        char c = buf[i - 1];
-        if (c == ']') bracket_depth++;
-        else if (c == '}') brace_depth++;
-        else if (c == '[') {
-            if (bracket_depth > 0) bracket_depth--;
-            else return CTX_ARRAY;
+    for (size_t i = 0; i < len; i++) {
+        char c = buf[i];
+        if (escape_next) {
+            escape_next = false;
+            continue;
         }
-        else if (c == '{') {
-            if (brace_depth > 0) brace_depth--;
-            else return CTX_OBJECT;
+        if (in_string) {
+            if (c == '\\') escape_next = true;
+            else if (c == '"') in_string = false;
+            continue;
+        }
+        switch (c) {
+            case '"': in_string = true; break;
+            case '{':
+                if (depth < 256) stack[depth++] = BRACKET_BRACE;
+                break;
+            case '}':
+                if (depth > 0) depth--;
+                break;
+            case '[':
+                if (depth < 256) stack[depth++] = BRACKET_SQUARE;
+                break;
+            case ']':
+                if (depth > 0) depth--;
+                break;
+            default:
+                break;
         }
     }
-    return CTX_UNKNOWN;
+
+    if (depth == 0) return CTX_UNKNOWN;
+    return (stack[depth - 1] == BRACKET_BRACE) ? CTX_OBJECT : CTX_ARRAY;
 }
 
 // Helper: remove incomplete key-value pairs from end of output
@@ -244,6 +266,8 @@ int64_t conduit_json_repair(
     int effective_max = max_depth < 256 ? max_depth : 256;
 
     // First pass: copy input to output while tracking state
+    // Guard against underflow: we need at least (effective_max + 2) bytes for closers + NUL.
+    if (output_capacity <= (size_t)(effective_max + 2)) return -1;
     size_t out = 0;
     size_t capacity_for_content = output_capacity - (size_t)(effective_max + 2); // Reserve space for closers + NUL
 

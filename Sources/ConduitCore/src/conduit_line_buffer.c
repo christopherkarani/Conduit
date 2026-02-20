@@ -106,7 +106,10 @@ int conduit_line_buffer_next_line(
     if (!newline) return 0; // No complete line yet
 
     size_t line_bytes = (size_t)(newline - start);
-    if (line_bytes >= line_out_capacity) return 0; // Caller buffer too small
+    // Return -1 (not 0) when the line exists but is too large for the caller's buffer.
+    // Returning 0 would be indistinguishable from "no complete line yet" and cause
+    // callers polling in a loop to spin indefinitely on the unconsumed oversized line.
+    if (line_bytes >= line_out_capacity) return -1;
 
     // Copy the line (without delimiter)
     memcpy(line_out, start, line_bytes);
@@ -145,6 +148,12 @@ size_t conduit_line_buffer_drain(conduit_line_buffer_t *buf, char *out, size_t o
 
     size_t to_copy = pending < out_capacity ? pending : out_capacity;
     memcpy(out, buf->data + buf->read_pos, to_copy);
+    // NUL-terminate when capacity permits (i.e. data did not fill the entire buffer).
+    // When out_capacity == to_copy the buffer is full of raw bytes with no room for NUL;
+    // callers must treat the output as raw bytes in that case.
+    if (to_copy < out_capacity) {
+        out[to_copy] = '\0';
+    }
     buf->read_pos += to_copy;
 
     return to_copy;

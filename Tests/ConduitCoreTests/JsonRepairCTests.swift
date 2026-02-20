@@ -150,6 +150,18 @@ struct JsonRepairCTests {
         #expect(repair("   ") == "{}")
     }
 
+    @Test("Bracket inside string value is not mistaken for array opener")
+    func bracketInsideStringValue() {
+        // The '[' inside the string literal must NOT be treated as an array opener
+        // by find_context when deciding whether a trailing incomplete key is in
+        // an object or array context.
+        let repaired = repair(#"{"key": "[value", "#)
+        // Should not produce an extra ']' closer from the bracket inside the string
+        #expect(!repaired.hasSuffix("]}"))
+        // Must still be valid-ish JSON ending with '}'
+        #expect(repaired.hasSuffix("}"))
+    }
+
     @Test("Boolean values")
     func booleanValues() {
         #expect(repair(#"{"active": true, "verified": false"#) ==

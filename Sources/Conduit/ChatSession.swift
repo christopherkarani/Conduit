@@ -114,6 +114,10 @@ public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked
     ///
     /// Messages are stored in chronological order. Use factory methods
     /// like `send(_:)` to add messages rather than modifying directly.
+    ///
+    /// - Warning: Internal callers (e.g. extensions in separate files) that mutate
+    ///   `messages` directly MUST do so inside a `withLock { }` block. Direct mutation
+    ///   without the lock is unsafe and will cause data races.
     public internal(set) var messages: [Message] = []
 
     /// Whether a generation is currently in progress.
@@ -526,18 +530,19 @@ public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked
     public func stream(_ content: String) -> AsyncThrowingStream<String, Error> {
         let userMessage = Message.user(content)
 
-        // Prepare state and capture messages under lock
-        let currentMessages: [Message] = withLock {
+        // Prepare state and capture messages + config atomically under lock.
+        // config is a public var that could change concurrently, so it must be
+        // captured inside the same critical section as messages.
+        let (currentMessages, currentConfig): ([Message], GenerateConfig) = withLock {
             lastError = nil
             isGenerating = true
             cancellationRequested = false
             messages.append(userMessage)
-            return messages
+            return (messages, config)
         }
 
-        // Capture model and config for the async operation
+        // model is a let constant — no lock needed
         let currentModel = model
-        let currentConfig = config
 
         return AsyncThrowingStream { continuation in
             let task = Task { [weak self] in

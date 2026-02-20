@@ -184,6 +184,26 @@ struct LineBufferCTests {
         #expect(conduit_line_buffer_pending(buf) == 0)
     }
 
+    @Test("next_line returns -1 (not 0) when line exceeds output buffer capacity")
+    func nextLineOversizedLine() {
+        let buf = conduit_line_buffer_create(1024)!
+        defer { conduit_line_buffer_destroy(buf) }
+
+        // Append a line that is longer than the output buffer we'll provide
+        let longLine: [UInt8] = Array("ABCDEFGHIJ\n".utf8) // 10 chars + newline
+        conduit_line_buffer_append(buf, longLine, longLine.count)
+
+        // Provide a 4-byte output buffer — too small for the 10-char line
+        var line = [CChar](repeating: 0, count: 4)
+        var lineLen: Int = 0
+        let result = conduit_line_buffer_next_line(buf, &line, 4, &lineLen)
+
+        // Must return -1 (not 0) so callers can distinguish "no line" from "line too large"
+        #expect(result == -1)
+        // The oversized line must remain unconsumed so callers can retry with a larger buffer
+        #expect(conduit_line_buffer_pending(buf) == longLine.count)
+    }
+
     // MARK: - SSE Simulation
 
     @Test("Simulated SSE stream with mixed delimiters")

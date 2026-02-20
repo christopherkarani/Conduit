@@ -157,6 +157,21 @@ struct SSEParserCTests {
         #expect(collector.events[0].retry == 5000)
     }
 
+    @Test("Retry field with value 0 is accepted per WHATWG SSE spec")
+    func retryZero() {
+        let parser = makeParser()
+        defer { conduit_sse_parser_destroy(parser) }
+        let collector = EventCollector()
+
+        // WHATWG SSE spec §9.2.6: retry:0 must set reconnection time to 0 ms
+        ingest(parser, line: "retry: 0", collector: collector)
+        ingest(parser, line: "data: test", collector: collector)
+        ingest(parser, line: "", collector: collector)
+
+        #expect(collector.events.count == 1)
+        #expect(collector.events[0].retry == 0)
+    }
+
     // MARK: - Finish
 
     @Test("Finish flushes pending event")
