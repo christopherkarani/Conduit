@@ -631,11 +631,17 @@ extension OpenAIProvider {
                     logger.warning("Skipping tool call with missing required fields (id, function, name, or arguments)")
                     continue
                 }
+                let trimmedID = id.trimmingCharacters(in: .whitespacesAndNewlines)
+                let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmedID.isEmpty, !trimmedName.isEmpty else {
+                    logger.warning("Skipping tool call with empty id or name")
+                    continue
+                }
 
                 do {
                     let toolCall = try Transcript.ToolCall(
-                        id: id,
-                        toolName: name,
+                        id: trimmedID,
+                        toolName: trimmedName,
                         argumentsJSON: argumentsString
                     )
                     toolCalls.append(toolCall)
@@ -717,10 +723,19 @@ extension OpenAIProvider {
 
             if type == "function_call",
                let name = block["name"] as? String {
+                guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    logger.warning("Skipping responses tool call with empty name")
+                    continue
+                }
                 let id = (block["call_id"] as? String)
                     ?? (block["id"] as? String)
                     ?? UUID().uuidString
                 let arguments = block["arguments"] as? String ?? "{}"
+
+                guard !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    logger.warning("Skipping responses tool call with empty id for tool '\(name)'")
+                    continue
+                }
 
                 if let toolCall = try? Transcript.ToolCall(id: id, toolName: name, argumentsJSON: arguments) {
                     toolCalls.append(toolCall)
@@ -740,6 +755,15 @@ extension OpenAIProvider {
                         ?? (item["id"] as? String)
                         ?? UUID().uuidString
                     guard let name = item["name"] as? String else { continue }
+                    guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                        logger.warning("Skipping responses tool call with empty name")
+                        continue
+                    }
+
+                    guard !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                        logger.warning("Skipping responses tool call with empty id for tool '\(name)'")
+                        continue
+                    }
 
                     let argumentsString: String = {
                         if let stringArgs = item["arguments"] as? String {

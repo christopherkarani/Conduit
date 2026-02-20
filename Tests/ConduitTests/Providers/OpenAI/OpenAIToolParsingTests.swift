@@ -122,6 +122,90 @@ struct OpenAIToolParsingTests {
             #expect(result.toolCalls[1].toolName == "get_stock_price")
         }
 
+        @Test("Skip tool calls with empty identifiers")
+        func skipToolCallsWithEmptyIdentifiers() async throws {
+            let json = """
+            {
+                "id": "chatcmpl-999",
+                "object": "chat.completion",
+                "created": 1699000000,
+                "model": "gpt-4",
+                "choices": [{
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": null,
+                        "tool_calls": [{
+                            "id": "",
+                            "type": "function",
+                            "function": {
+                                "name": "get_weather",
+                                "arguments": "{\\"city\\": \\\"NYC\\\"}"
+                            }
+                        }]
+                    },
+                    "finish_reason": "tool_calls"
+                }],
+                "usage": {
+                    "prompt_tokens": 100,
+                    "completion_tokens": 80,
+                    "total_tokens": 180
+                }
+            }
+            """
+
+            let provider = OpenAIProvider(apiKey: "sk-test")
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
+            let result = try await provider.parseGenerationResponse(data: data)
+
+            #expect(result.toolCalls.isEmpty)
+        }
+
+        @Test("Skip tool calls with empty names")
+        func skipToolCallsWithEmptyNames() async throws {
+            let json = """
+            {
+                "id": "chatcmpl-1000",
+                "object": "chat.completion",
+                "created": 1699000000,
+                "model": "gpt-4",
+                "choices": [{
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": null,
+                        "tool_calls": [{
+                            "id": "call_empty_name",
+                            "type": "function",
+                            "function": {
+                                "name": " ",
+                                "arguments": "{\\"city\\": \\"NYC\\"}"
+                            }
+                        }]
+                    },
+                    "finish_reason": "tool_calls"
+                }],
+                "usage": {
+                    "prompt_tokens": 100,
+                    "completion_tokens": 80,
+                    "total_tokens": 180
+                }
+            }
+            """
+
+            let provider = OpenAIProvider(apiKey: "sk-test")
+            guard let data = json.data(using: .utf8) else {
+                Issue.record("Failed to convert test JSON to Data")
+                return
+            }
+            let result = try await provider.parseGenerationResponse(data: data)
+
+            #expect(result.toolCalls.isEmpty)
+        }
+
         @Test("Parse response with text and no tool calls")
         func parseTextOnlyResponse() async throws {
             let json = """

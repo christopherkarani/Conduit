@@ -182,6 +182,17 @@ struct OpenAIAPIVariantTests {
         #expect(completionEvent?.usage?.promptTokens == 3)
         #expect(completionEvent?.usage?.completionTokens == 2)
     }
+
+    @Test("Responses SSE decoding ignores empty tool call ids")
+    func responsesSSEDecodingSkipsEmptyToolCallIDs() {
+        let provider = OpenAIProvider(configuration: .openAI(apiKey: "sk-test").apiVariant(.responses))
+
+        let createdEvent = provider.decodeResponsesEventData(
+            #"{"type":"response.tool_call.created","tool_call":{"call_id":"","name":"lookup","arguments":"{}"}}"#
+        )
+        #expect(createdEvent?.kind == .toolCallCreated)
+        #expect(createdEvent?.toolCallID == "")
+    }
 }
 
 #endif // CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER

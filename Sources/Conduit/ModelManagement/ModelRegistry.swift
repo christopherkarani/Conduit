@@ -245,11 +245,12 @@ public enum ModelRegistry {
 
     /// Complete catalog of all known models across all providers.
     ///
-    /// This array contains 16 pre-configured models:
+    /// This array contains 19 pre-configured models:
     /// - 7 MLX text generation models
     /// - 3 MLX embedding models
     /// - 5 HuggingFace cloud models
     /// - 1 Apple Foundation Model
+    /// - 3 Kimi cloud models
     ///
     /// Models are organized by provider and capability for easy discovery.
     public static let allModels: [ModelInfo] = [

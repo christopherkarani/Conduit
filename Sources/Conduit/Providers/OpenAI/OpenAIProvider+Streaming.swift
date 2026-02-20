@@ -319,9 +319,15 @@ extension OpenAIProvider {
                     if let id = tc["id"] as? String,
                        let function = tc["function"] as? [String: Any],
                        let name = function["name"] as? String {
+                        let trimmedID = id.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimmedID.isEmpty, !trimmedName.isEmpty else {
+                            logger.warning("Skipping tool call with empty id or name in streaming delta")
+                            continue
+                        }
                         // Initialize accumulator with initial arguments (if any)
                         let args = function["arguments"] as? String ?? ""
-                        toolCallAccumulators[index] = (id: id, name: name, argumentsBuffer: args)
+                        toolCallAccumulators[index] = (id: trimmedID, name: trimmedName, argumentsBuffer: args)
                     } else if let function = tc["function"] as? [String: Any],
                               let argsFragment = function["arguments"] as? String {
                         // Append to existing accumulator with buffer size check
@@ -705,6 +711,10 @@ extension OpenAIProvider {
 
                 case .toolCallCreated, .toolCallDelta:
                     guard let callID = decoded.toolCallID else { continue }
+                    guard !callID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                        logger.warning("Skipping responses tool call event with empty id")
+                        continue
+                    }
                     var accumulator = toolAccumulatorsByID[callID] ?? ResponsesToolAccumulator(
                         id: callID,
                         name: decoded.toolName ?? "unknown_tool",
