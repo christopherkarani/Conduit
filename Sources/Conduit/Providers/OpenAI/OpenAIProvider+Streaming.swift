@@ -319,9 +319,17 @@ extension OpenAIProvider {
                     if let id = tc["id"] as? String,
                        let function = tc["function"] as? [String: Any],
                        let name = function["name"] as? String {
+                        let trimmedID = id.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimmedID.isEmpty, !trimmedName.isEmpty else {
+                            logger.warning(
+                                "Skipping tool call with empty id or name at index \(index)"
+                            )
+                            continue
+                        }
                         // Initialize accumulator with initial arguments (if any)
                         let args = function["arguments"] as? String ?? ""
-                        toolCallAccumulators[index] = (id: id, name: name, argumentsBuffer: args)
+                        toolCallAccumulators[index] = (id: trimmedID, name: trimmedName, argumentsBuffer: args)
                     } else if let function = tc["function"] as? [String: Any],
                               let argsFragment = function["arguments"] as? String {
                         // Append to existing accumulator with buffer size check
@@ -494,6 +502,12 @@ extension OpenAIProvider {
             return nil
         }
 
+        func normalizedString(_ value: Any?) -> String? {
+            guard let raw = value as? String else { return nil }
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+
         switch type {
         case "response.output_text.delta":
             return ResponsesStreamEvent(
@@ -529,8 +543,8 @@ extension OpenAIProvider {
             return ResponsesStreamEvent(
                 kind: kind,
                 textDelta: nil,
-                toolCallID: (toolCall["call_id"] as? String) ?? (toolCall["id"] as? String),
-                toolName: toolCall["name"] as? String,
+                toolCallID: normalizedString(toolCall["call_id"]) ?? normalizedString(toolCall["id"]),
+                toolName: normalizedString(toolCall["name"]),
                 argumentsFragment: argumentsFragment,
                 reasoningDelta: nil,
                 finishReason: nil,
@@ -704,7 +718,7 @@ extension OpenAIProvider {
                     ))
 
                 case .toolCallCreated, .toolCallDelta:
-                    guard let callID = decoded.toolCallID else { continue }
+                    guard let callID = decoded.toolCallID, !callID.isEmpty else { continue }
                     var accumulator = toolAccumulatorsByID[callID] ?? ResponsesToolAccumulator(
                         id: callID,
                         name: decoded.toolName ?? "unknown_tool",
