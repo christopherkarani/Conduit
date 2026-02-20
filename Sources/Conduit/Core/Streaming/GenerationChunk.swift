@@ -120,6 +120,30 @@ public struct PartialToolCall: Sendable, Hashable {
         self.index = index
         self.argumentsFragment = argumentsFragment
     }
+
+    /// Creates a partial tool call only if the inputs are valid.
+    ///
+    /// This is a safe alternative to the preconditioned initializer and
+    /// is intended for use when parsing external provider responses.
+    public static func validated(
+        id: String,
+        toolName: String,
+        index: Int,
+        argumentsFragment: String
+    ) -> PartialToolCall? {
+        guard !id.isEmpty,
+              !toolName.isEmpty,
+              (0...maxToolCallIndex).contains(index) else {
+            return nil
+        }
+
+        return PartialToolCall(
+            id: id,
+            toolName: toolName,
+            index: index,
+            argumentsFragment: argumentsFragment
+        )
+    }
 }
 
 // MARK: - GenerationChunk

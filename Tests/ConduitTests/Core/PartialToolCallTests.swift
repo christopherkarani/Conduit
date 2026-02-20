@@ -687,4 +687,61 @@ struct PartialToolCallTests {
             #expect(partial1.index != partial2.index)
         }
     }
+
+    // MARK: - Validated Factory Tests
+
+    @Suite("Validated Factory")
+    struct ValidatedFactoryTests {
+
+        @Test("validated returns instance for valid inputs")
+        func validatedCreatesInstance() {
+            let partial = PartialToolCall.validated(
+                id: "call_valid",
+                toolName: "tool",
+                index: 1,
+                argumentsFragment: "{}"
+            )
+
+            #expect(partial != nil)
+            #expect(partial?.id == "call_valid")
+            #expect(partial?.toolName == "tool")
+            #expect(partial?.index == 1)
+        }
+
+        @Test("validated returns nil for empty id")
+        func validatedRejectsEmptyId() {
+            let partial = PartialToolCall.validated(
+                id: "",
+                toolName: "tool",
+                index: 0,
+                argumentsFragment: "{}"
+            )
+
+            #expect(partial == nil)
+        }
+
+        @Test("validated returns nil for empty tool name")
+        func validatedRejectsEmptyToolName() {
+            let partial = PartialToolCall.validated(
+                id: "call_123",
+                toolName: "",
+                index: 0,
+                argumentsFragment: "{}"
+            )
+
+            #expect(partial == nil)
+        }
+
+        @Test("validated returns nil for out-of-range index")
+        func validatedRejectsOutOfRangeIndex() {
+            let partial = PartialToolCall.validated(
+                id: "call_123",
+                toolName: "tool",
+                index: maxToolCallIndex + 1,
+                argumentsFragment: "{}"
+            )
+
+            #expect(partial == nil)
+        }
+    }
 }
