@@ -690,38 +690,18 @@ extension ModelManager {
         // Pre-fetch estimated size
         let estimatedSize = await estimateDownloadSize(model)
 
-        // Create speed calculator for this download
-        let speedCalculator = SpeedCalculator()
+        let progressEnricher = progress.map { callback in
+            DownloadProgressEnricher(
+                callback: callback,
+                estimatedTotalBytes: estimatedSize?.bytes
+            )
+        }
 
-        // Wrap progress callback with size and speed enrichment
-        let enrichedProgress: (@Sendable (DownloadProgress) -> Void)? = progress.map { callback in
+        // Wrap progress callback with size and speed enrichment (serialized per download).
+        let enrichedProgress: (@Sendable (DownloadProgress) -> Void)? = progressEnricher.map { enricher in
             { @Sendable (downloadProgress: DownloadProgress) in
-                var enriched = downloadProgress
-
-                // Set total bytes from estimation if not provided
-                if enriched.totalBytes == nil {
-                    enriched.totalBytes = estimatedSize?.bytes
-                }
-
-                // Call callback immediately with basic progress
-                callback(enriched)
-
-                // Asynchronously update speed in background (non-blocking)
                 Task {
-                    await speedCalculator.addSample(bytes: downloadProgress.bytesDownloaded)
-                    if let speed = await speedCalculator.averageSpeed() {
-                        var updated = enriched
-                        updated.bytesPerSecond = speed
-
-                        // Calculate ETA
-                        if let total = updated.totalBytes, speed > 0 {
-                            let remaining = total - updated.bytesDownloaded
-                            updated.estimatedTimeRemaining = TimeInterval(remaining) / speed
-                        }
-
-                        // Send updated progress with speed info
-                        callback(updated)
-                    }
+                    await enricher.handle(downloadProgress)
                 }
             }
         }
@@ -783,6 +763,54 @@ extension ModelManager {
         }
 
         return try await downloadWithEstimation(model, progress: progress)
+    }
+}
+
+// MARK: - Download Progress Enrichment
+
+private actor DownloadProgressEnricher {
+    private let callback: @Sendable (DownloadProgress) -> Void
+    private let speedCalculator: SpeedCalculator
+    private let estimatedTotalBytes: Int64?
+    private var lastBytesDownloaded: Int64 = 0
+    private var lastTotalBytes: Int64?
+
+    init(callback: @escaping @Sendable (DownloadProgress) -> Void, estimatedTotalBytes: Int64?) {
+        self.callback = callback
+        self.estimatedTotalBytes = estimatedTotalBytes
+        self.speedCalculator = SpeedCalculator()
+    }
+
+    func handle(_ progress: DownloadProgress) async {
+        var enriched = progress
+
+        if let total = enriched.totalBytes {
+            lastTotalBytes = total
+        } else if let total = lastTotalBytes {
+            enriched.totalBytes = total
+        } else if let estimated = estimatedTotalBytes {
+            enriched.totalBytes = estimated
+        }
+
+        let nextBytes = max(enriched.bytesDownloaded, lastBytesDownloaded)
+        if nextBytes != enriched.bytesDownloaded {
+            enriched.bytesDownloaded = nextBytes
+        }
+
+        if nextBytes >= lastBytesDownloaded {
+            lastBytesDownloaded = nextBytes
+            await speedCalculator.addSample(bytes: nextBytes)
+        }
+
+        if let speed = await speedCalculator.averageSpeed() {
+            enriched.bytesPerSecond = speed
+            if let total = enriched.totalBytes, speed > 0 {
+                let remaining = max(0, total - nextBytes)
+                enriched.estimatedTimeRemaining = TimeInterval(remaining) / speed
+            }
+        }
+
+        callback(enriched)
     }
 }
 

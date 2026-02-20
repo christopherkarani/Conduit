@@ -37,8 +37,15 @@ actor SpeedCalculator {
     /// The size of the sliding window in seconds.
     private let windowSize: TimeInterval = 5.0
 
+    /// Provider for a monotonic timestamp in seconds.
+    private let timeProvider: @Sendable () -> TimeInterval
+
     /// Initializes a new speed calculator with an empty sample set.
-    init() {}
+    ///
+    /// - Parameter timeProvider: Monotonic time source (defaults to system uptime).
+    init(timeProvider: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
+        self.timeProvider = timeProvider
+    }
 
     /// Adds a new speed sample and prunes samples outside the sliding window.
     ///
@@ -47,7 +54,12 @@ actor SpeedCalculator {
     ///
     /// - Parameter bytes: The cumulative number of bytes downloaded.
     func addSample(bytes: Int64) {
-        let now = Date().timeIntervalSinceReferenceDate
+        let now = timeProvider()
+
+        if let last = samples.last, now < last.timestamp {
+            // If the clock regresses, drop prior samples to avoid negative/invalid deltas.
+            samples.removeAll(keepingCapacity: true)
+        }
         samples.append(Sample(timestamp: now, bytes: bytes))
 
         // Keep only the last 5 seconds of samples

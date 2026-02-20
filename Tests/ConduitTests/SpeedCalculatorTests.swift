@@ -5,12 +5,35 @@ import Testing
 import Foundation
 @testable import Conduit
 
+private final class TestTimeSource: @unchecked Sendable {
+    private let lock = NSLock()
+    private var now: TimeInterval
+
+    init(now: TimeInterval = 0) {
+        self.now = now
+    }
+
+    func advance(by delta: TimeInterval) {
+        lock.lock()
+        now += delta
+        lock.unlock()
+    }
+
+    func current() -> TimeInterval {
+        lock.lock()
+        let value = now
+        lock.unlock()
+        return value
+    }
+}
+
 @Suite("SpeedCalculator Tests")
 struct SpeedCalculatorTests {
 
     @Test("Calculator returns nil with no samples")
     func testNoSamples() async {
-        let calculator = SpeedCalculator()
+        let timeSource = TestTimeSource()
+        let calculator = SpeedCalculator(timeProvider: { timeSource.current() })
 
         let speed = await calculator.averageSpeed()
         #expect(speed == nil)
@@ -18,7 +41,8 @@ struct SpeedCalculatorTests {
 
     @Test("Calculator returns nil with single sample")
     func testSingleSample() async {
-        let calculator = SpeedCalculator()
+        let timeSource = TestTimeSource()
+        let calculator = SpeedCalculator(timeProvider: { timeSource.current() })
 
         await calculator.addSample(bytes: 1024)
 
@@ -28,13 +52,14 @@ struct SpeedCalculatorTests {
 
     @Test("Calculator computes speed correctly with two samples")
     func testTwoSamples() async {
-        let calculator = SpeedCalculator()
+        let timeSource = TestTimeSource()
+        let calculator = SpeedCalculator(timeProvider: { timeSource.current() })
 
         // Add first sample
         await calculator.addSample(bytes: 0)
 
-        // Wait a bit to ensure time difference
-        try? await Task.sleep(for: .milliseconds(100))
+        // Advance time to ensure time difference
+        timeSource.advance(by: 0.1)
 
         // Add second sample: 1MB downloaded after 100ms
         await calculator.addSample(bytes: 1_048_576)
@@ -52,7 +77,8 @@ struct SpeedCalculatorTests {
 
     @Test("Calculator handles multiple samples")
     func testMultipleSamples() async {
-        let calculator = SpeedCalculator()
+        let timeSource = TestTimeSource()
+        let calculator = SpeedCalculator(timeProvider: { timeSource.current() })
 
         // Simulate progressive download
         let samples = [
@@ -64,7 +90,7 @@ struct SpeedCalculatorTests {
 
         for sample in samples {
             if sample.delay > 0 {
-                try? await Task.sleep(for: .milliseconds(sample.delay))
+                timeSource.advance(by: TimeInterval(sample.delay) / 1000.0)
             }
             await calculator.addSample(bytes: sample.bytes)
         }
@@ -81,11 +107,12 @@ struct SpeedCalculatorTests {
 
     @Test("Calculator resets correctly")
     func testReset() async {
-        let calculator = SpeedCalculator()
+        let timeSource = TestTimeSource()
+        let calculator = SpeedCalculator(timeProvider: { timeSource.current() })
 
         // Add samples
         await calculator.addSample(bytes: 0)
-        try? await Task.sleep(for: .milliseconds(50))
+        timeSource.advance(by: 0.05)
         await calculator.addSample(bytes: 1_048_576)
 
         let speedBefore = await calculator.averageSpeed()
@@ -100,11 +127,12 @@ struct SpeedCalculatorTests {
 
     @Test("Calculator handles zero speed gracefully")
     func testZeroSpeed() async {
-        let calculator = SpeedCalculator()
+        let timeSource = TestTimeSource()
+        let calculator = SpeedCalculator(timeProvider: { timeSource.current() })
 
         // Add samples with same byte count (no progress)
         await calculator.addSample(bytes: 1024)
-        try? await Task.sleep(for: .milliseconds(100))
+        timeSource.advance(by: 0.1)
         await calculator.addSample(bytes: 1024)
 
         let speed = await calculator.averageSpeed()
@@ -114,13 +142,14 @@ struct SpeedCalculatorTests {
 
     @Test("Calculator handles large byte counts")
     func testLargeBytes() async {
-        let calculator = SpeedCalculator()
+        let timeSource = TestTimeSource()
+        let calculator = SpeedCalculator(timeProvider: { timeSource.current() })
 
         // Simulate downloading a 10GB file
         let tenGB = Int64(10 * 1024 * 1024 * 1024)
 
         await calculator.addSample(bytes: 0)
-        try? await Task.sleep(for: .milliseconds(100))
+        timeSource.advance(by: 0.1)
         await calculator.addSample(bytes: tenGB)
 
         let speed = await calculator.averageSpeed()
