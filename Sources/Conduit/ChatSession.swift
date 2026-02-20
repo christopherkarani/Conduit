@@ -664,12 +664,12 @@ public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked
         let userMessage = Message.user(content)
 
         // Prepare state and capture messages under lock
-        let capturedState: (messages: [Message], toolExecutor: ToolExecutor?, toolCallRetryPolicy: ToolCallRetryPolicy, maxToolCallRounds: Int) = withLock {
+        let capturedState: (messages: [Message], toolExecutor: ToolExecutor?, toolCallRetryPolicy: ToolExecutor.RetryPolicy, maxToolCallRounds: Int) = withLock {
             lastError = nil
             isGenerating = true
             cancellationRequested = false
             messages.append(userMessage)
-            return (messages, toolExecutor, toolCallRetryPolicy, maxToolCallRounds)
+            return (messages, toolExecutor, toolCallRetryPolicy, max(0, maxToolCallRounds))
         }
 
         // Capture model and config for the async operation

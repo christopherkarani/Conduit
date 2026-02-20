@@ -292,7 +292,10 @@ public actor ModelCache {
     /// }
     /// ```
     public func totalSize() -> ByteCount {
-        let totalBytes = cache.values.reduce(0) { $0 + $1.size.bytes }
+        let infos = Array(cache.values)
+        let totalBytes = infos
+            .filter { validateCachedEntry($0) }
+            .reduce(0) { $0 + $1.size.bytes }
         return ByteCount(totalBytes)
     }
 
@@ -561,15 +564,19 @@ extension ModelCache {
 
     /// Returns the number of cached models.
     ///
-    /// - Returns: The count of models in the cache.
+    /// Stale entries (files removed from disk) are pruned and excluded from the count.
+    ///
+    /// - Returns: The count of valid models in the cache.
     public var count: Int {
-        cache.count
+        Array(cache.values).filter { validateCachedEntry($0) }.count
     }
 
     /// Whether the cache is empty.
     ///
+    /// Returns `true` only when no valid (on-disk) entries remain.
+    ///
     /// - Returns: `true` if no models are cached, `false` otherwise.
     public var isEmpty: Bool {
-        cache.isEmpty
+        count == 0
     }
 }
