@@ -347,12 +347,18 @@ extension OpenAIProvider {
 
                     // Create partial tool call for streaming updates
                     if let acc = toolCallAccumulators[index] {
-                        partialToolCall = PartialToolCall(
+                        if let created = PartialToolCall(
                             id: acc.id,
                             toolName: acc.name,
                             index: index,
                             argumentsFragment: acc.argumentsBuffer
-                        )
+                        ) {
+                            partialToolCall = created
+                        } else {
+                            logger.warning(
+                                "Skipping partial tool call with invalid fields (id: '\(acc.id)', name: '\(acc.name)', index: \(index))"
+                            )
+                        }
                     }
                 }
             }
@@ -732,16 +738,22 @@ extension OpenAIProvider {
 
                     toolAccumulatorsByID[callID] = accumulator
 
+                    let partialToolCall = PartialToolCall(
+                        id: accumulator.id,
+                        toolName: accumulator.name,
+                        index: accumulator.index,
+                        argumentsFragment: accumulator.argumentsBuffer
+                    )
+                    if partialToolCall == nil {
+                        logger.warning(
+                            "Skipping partial tool call with invalid fields (id: '\(accumulator.id)', name: '\(accumulator.name)', index: \(accumulator.index))"
+                        )
+                    }
                     continuation.yield(GenerationChunk(
                         text: "",
                         tokenCount: 0,
                         isComplete: false,
-                        partialToolCall: PartialToolCall(
-                            id: accumulator.id,
-                            toolName: accumulator.name,
-                            index: accumulator.index,
-                            argumentsFragment: accumulator.argumentsBuffer
-                        ),
+                        partialToolCall: partialToolCall,
                         reasoningDetails: currentReasoningDetails()
                     ))
 
