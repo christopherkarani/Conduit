@@ -3,10 +3,10 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: 'Conduit',
   description: 'Unified Swift SDK for local and cloud LLM inference',
-  base: '/',
+  base: '/Conduit/',
 
   head: [
-    ['link', { rel: 'icon', href: '/conduit-logo.svg' }],
+    ['link', { rel: 'icon', href: '/Conduit/conduit-logo.svg' }],
   ],
 
   themeConfig: {
