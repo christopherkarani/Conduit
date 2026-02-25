@@ -3,7 +3,7 @@
 //
 // This file requires the MLX trait (Hub) to be enabled.
 
-#if CONDUIT_TRAIT_MLX
+#if CONDUIT_TRAIT_MLX && canImport(MLX) && (canImport(Hub) || canImport(HuggingFace))
 
 import Foundation
 import Testing

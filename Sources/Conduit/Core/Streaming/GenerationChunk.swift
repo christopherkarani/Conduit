@@ -120,6 +120,20 @@ public struct PartialToolCall: Sendable, Hashable {
         self.index = index
         self.argumentsFragment = argumentsFragment
     }
+
+    /// Creates a partial tool call with validation and returns `nil` for invalid inputs.
+    ///
+    /// Use this initializer when values originate from remote providers to avoid
+    /// crashing on malformed data.
+    public init?(validating id: String, toolName: String, index: Int, argumentsFragment: String) {
+        guard !id.isEmpty,
+              !toolName.isEmpty,
+              (0...maxToolCallIndex).contains(index) else {
+            return nil
+        }
+
+        self.init(id: id, toolName: toolName, index: index, argumentsFragment: argumentsFragment)
+    }
 }
 
 // MARK: - GenerationChunk

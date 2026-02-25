@@ -71,6 +71,9 @@ let package = Package(
 
         // MARK: llama.cpp (Optional)
         .package(url: "https://github.com/mattt/llama.swift", .upToNextMajor(from: "2.7484.0")),
+
+        // MARK: Documentation
+        .package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.3"),
     ],
     targets: [
         .target(
