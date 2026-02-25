@@ -723,6 +723,8 @@ public final class DownloadTask: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
 
+        guard !state.isTerminal else { return }
+
         progress = newProgress
         continuation?.yield(newProgress)
     }
@@ -733,6 +735,8 @@ public final class DownloadTask: @unchecked Sendable {
     internal func updateState(_ newState: DownloadState) {
         lock.lock()
         defer { lock.unlock() }
+
+        guard !state.isTerminal else { return }
 
         state = newState
 
