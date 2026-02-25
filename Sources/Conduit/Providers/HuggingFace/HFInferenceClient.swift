@@ -539,16 +539,27 @@ internal actor HFInferenceClient {
 
         var parser = ServerSentEventParser()
 
+        func processSSEEvent(_ event: ServerSentEvent) -> Bool {
+            if event.data == "[DONE]" { return true }
+
+            guard let data = event.data.data(using: .utf8) else { return false }
+            if let chunk = try? decoder.decode(HFChatCompletionResponse.self, from: data) {
+                continuation.yield(chunk)
+            }
+            return false
+        }
+
         for try await line in bytes.lines {
             let events = parser.ingestLine(line)
 
             for event in events {
-                if event.data == "[DONE]" { return }
+                if processSSEEvent(event) { return }
+            }
+        }
 
-                guard let data = event.data.data(using: .utf8) else { continue }
-                if let chunk = try? decoder.decode(HFChatCompletionResponse.self, from: data) {
-                    continuation.yield(chunk)
-                }
+        for event in parser.finish() {
+            if processSSEEvent(event) {
+                return
             }
         }
     }

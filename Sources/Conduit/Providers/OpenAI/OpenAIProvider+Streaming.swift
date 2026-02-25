@@ -224,6 +224,48 @@ extension OpenAIProvider {
             return details
         }
 
+        func finalizeAccumulatedToolCalls() {
+            for (index, acc) in toolCallAccumulators.sorted(by: { $0.key < $1.key }) {
+                do {
+                    let toolCall = try Transcript.ToolCall(
+                        id: acc.id,
+                        toolName: acc.name,
+                        argumentsJSON: acc.argumentsBuffer
+                    )
+                    completedToolCalls.append(toolCall)
+                    logger.debug("Parsed tool call '\(acc.name)' at index \(index)")
+                } catch {
+                    // Try to repair incomplete JSON before giving up
+                    let repairedJson = JsonRepair.repair(acc.argumentsBuffer)
+                    if repairedJson != acc.argumentsBuffer {
+                        logger.debug("Attempting JSON repair for '\(acc.name)'")
+                        do {
+                            let toolCall = try Transcript.ToolCall(
+                                id: acc.id,
+                                toolName: acc.name,
+                                argumentsJSON: repairedJson
+                            )
+                            completedToolCalls.append(toolCall)
+                            logger.info("Recovered tool call '\(acc.name)' via JSON repair")
+                        } catch {
+                            logger.warning(
+                                "Failed to parse tool call '\(acc.name)' even after repair: \(error.localizedDescription)"
+                            )
+                            logger.debug("Original JSON: \(acc.argumentsBuffer.prefix(500))")
+                            logger.debug("Repaired JSON: \(repairedJson.prefix(500))")
+                        }
+                    } else {
+                        logger.warning(
+                            "Failed to parse tool call '\(acc.name)': \(error.localizedDescription)"
+                        )
+                        logger.debug("Malformed JSON buffer: \(acc.argumentsBuffer.prefix(500))")
+                    }
+                }
+            }
+
+            toolCallAccumulators.removeAll(keepingCapacity: true)
+        }
+
         func processEventData(_ jsonStr: String) -> Bool {
             if jsonStr == "[DONE]" {
                 continuation.finish()
@@ -364,50 +406,12 @@ extension OpenAIProvider {
                 }
             }
 
-            // Check if we should finalize tool calls
-            let isToolCallsComplete = finishReason == .toolCalls || finishReason == .toolCall
+            // Finalize tool calls when any terminal finish reason is present.
+            let shouldFinalizeToolCalls = finishReason != nil && !toolCallAccumulators.isEmpty
 
-            if isToolCallsComplete && !toolCallAccumulators.isEmpty {
+            if shouldFinalizeToolCalls {
                 let completedReasoningDetails = buildReasoningDetails()
-
-                // Finalize all accumulated tool calls
-                for (index, acc) in toolCallAccumulators.sorted(by: { $0.key < $1.key }) {
-                    do {
-                        let toolCall = try Transcript.ToolCall(
-                            id: acc.id,
-                            toolName: acc.name,
-                            argumentsJSON: acc.argumentsBuffer
-                        )
-                        completedToolCalls.append(toolCall)
-                        logger.debug("Parsed tool call '\(acc.name)' at index \(index)")
-                    } catch {
-                        // Try to repair incomplete JSON before giving up
-                        let repairedJson = JsonRepair.repair(acc.argumentsBuffer)
-                        if repairedJson != acc.argumentsBuffer {
-                            logger.debug("Attempting JSON repair for '\(acc.name)'")
-                            do {
-                                let toolCall = try Transcript.ToolCall(
-                                    id: acc.id,
-                                    toolName: acc.name,
-                                    argumentsJSON: repairedJson
-                                )
-                                completedToolCalls.append(toolCall)
-                                logger.info("Recovered tool call '\(acc.name)' via JSON repair")
-                            } catch {
-                                logger.warning(
-                                    "Failed to parse tool call '\(acc.name)' even after repair: \(error.localizedDescription)"
-                                )
-                                logger.debug("Original JSON: \(acc.argumentsBuffer.prefix(500))")
-                                logger.debug("Repaired JSON: \(repairedJson.prefix(500))")
-                            }
-                        } else {
-                            logger.warning(
-                                "Failed to parse tool call '\(acc.name)': \(error.localizedDescription)"
-                            )
-                            logger.debug("Malformed JSON buffer: \(acc.argumentsBuffer.prefix(500))")
-                        }
-                    }
-                }
+                finalizeAccumulatedToolCalls()
 
                 // Yield final chunk with completed tool calls
                 let chunk = GenerationChunk(
@@ -489,6 +493,20 @@ extension OpenAIProvider {
             if processEventData(event.data) {
                 return
             }
+        }
+
+        if !toolCallAccumulators.isEmpty {
+            finalizeAccumulatedToolCalls()
+            let completedReasoningDetails = buildReasoningDetails()
+
+            continuation.yield(GenerationChunk(
+                text: "",
+                tokenCount: 0,
+                isComplete: true,
+                finishReason: completedToolCalls.isEmpty ? .stop : .toolCalls,
+                completedToolCalls: completedToolCalls.isEmpty ? nil : completedToolCalls,
+                reasoningDetails: completedReasoningDetails.isEmpty ? nil : completedReasoningDetails
+            ))
         }
 
         continuation.finish()
@@ -674,109 +692,129 @@ extension OpenAIProvider {
             ]
         }
 
+        func processResponsesEventData(_ data: String) -> Bool {
+            if data == "[DONE]" {
+                return true
+            }
+
+            guard let decoded = decodeResponsesEventData(data) else {
+                return false
+            }
+
+            switch decoded.kind {
+            case .outputTextDelta:
+                let text = decoded.textDelta ?? ""
+                guard !text.isEmpty else { return false }
+                continuation.yield(GenerationChunk(text: text, isComplete: false))
+
+            case .reasoningDelta:
+                guard let fragment = decoded.reasoningDelta, !fragment.isEmpty else { return false }
+                let newSize = reasoningBuffer.count + fragment.count
+                if newSize > maxReasoningSize {
+                    let remaining = max(0, maxReasoningSize - reasoningBuffer.count)
+                    reasoningBuffer += String(fragment.prefix(remaining))
+                } else {
+                    reasoningBuffer += fragment
+                }
+
+                continuation.yield(GenerationChunk(
+                    text: "",
+                    tokenCount: 0,
+                    isComplete: false,
+                    reasoningDetails: currentReasoningDetails()
+                ))
+
+            case .toolCallCreated, .toolCallDelta:
+                guard let callID = decoded.toolCallID else { return false }
+                var accumulator = toolAccumulatorsByID[callID] ?? ResponsesToolAccumulator(
+                    id: callID,
+                    name: decoded.toolName ?? "unknown_tool",
+                    index: nextToolIndex,
+                    argumentsBuffer: ""
+                )
+
+                if toolAccumulatorsByID[callID] == nil {
+                    nextToolIndex += 1
+                }
+
+                if let name = decoded.toolName, !name.isEmpty {
+                    accumulator.name = name
+                }
+
+                if let argumentsFragment = decoded.argumentsFragment, !argumentsFragment.isEmpty {
+                    let newSize = accumulator.argumentsBuffer.count + argumentsFragment.count
+                    if newSize > maxToolArgumentsSize {
+                        let remaining = max(0, maxToolArgumentsSize - accumulator.argumentsBuffer.count)
+                        accumulator.argumentsBuffer += String(argumentsFragment.prefix(remaining))
+                    } else {
+                        accumulator.argumentsBuffer += argumentsFragment
+                    }
+                }
+
+                toolAccumulatorsByID[callID] = accumulator
+
+                continuation.yield(GenerationChunk(
+                    text: "",
+                    tokenCount: 0,
+                    isComplete: false,
+                    partialToolCall: PartialToolCall(
+                        id: accumulator.id,
+                        toolName: accumulator.name,
+                        index: accumulator.index,
+                        argumentsFragment: accumulator.argumentsBuffer
+                    ),
+                    reasoningDetails: currentReasoningDetails()
+                ))
+
+            case .completed:
+                let completedToolCalls = finalizeToolCalls()
+                let finishReason = decoded.finishReason ?? (completedToolCalls.isEmpty ? .stop : .toolCalls)
+                continuation.yield(GenerationChunk(
+                    text: "",
+                    tokenCount: 0,
+                    isComplete: true,
+                    finishReason: finishReason,
+                    usage: decoded.usage,
+                    completedToolCalls: completedToolCalls.isEmpty ? nil : completedToolCalls,
+                    reasoningDetails: currentReasoningDetails()
+                ))
+                return true
+
+            case .ignored:
+                return false
+            }
+
+            return false
+        }
+
         for try await line in bytes.lines {
             try Task.checkCancellation()
 
             for event in sseParser.ingestLine(line) {
-                if event.data == "[DONE]" {
+                if processResponsesEventData(event.data) {
                     continuation.finish()
                     return
-                }
-
-                guard let decoded = decodeResponsesEventData(event.data) else {
-                    continue
-                }
-
-                switch decoded.kind {
-                case .outputTextDelta:
-                    let text = decoded.textDelta ?? ""
-                    guard !text.isEmpty else { continue }
-                    continuation.yield(GenerationChunk(text: text, isComplete: false))
-
-                case .reasoningDelta:
-                    guard let fragment = decoded.reasoningDelta, !fragment.isEmpty else { continue }
-                    let newSize = reasoningBuffer.count + fragment.count
-                    if newSize > maxReasoningSize {
-                        let remaining = max(0, maxReasoningSize - reasoningBuffer.count)
-                        reasoningBuffer += String(fragment.prefix(remaining))
-                    } else {
-                        reasoningBuffer += fragment
-                    }
-
-                    continuation.yield(GenerationChunk(
-                        text: "",
-                        tokenCount: 0,
-                        isComplete: false,
-                        reasoningDetails: currentReasoningDetails()
-                    ))
-
-                case .toolCallCreated, .toolCallDelta:
-                    guard let callID = decoded.toolCallID else { continue }
-                    var accumulator = toolAccumulatorsByID[callID] ?? ResponsesToolAccumulator(
-                        id: callID,
-                        name: decoded.toolName ?? "unknown_tool",
-                        index: nextToolIndex,
-                        argumentsBuffer: ""
-                    )
-
-                    if toolAccumulatorsByID[callID] == nil {
-                        nextToolIndex += 1
-                    }
-
-                    if let name = decoded.toolName, !name.isEmpty {
-                        accumulator.name = name
-                    }
-
-                    if let argumentsFragment = decoded.argumentsFragment, !argumentsFragment.isEmpty {
-                        let newSize = accumulator.argumentsBuffer.count + argumentsFragment.count
-                        if newSize > maxToolArgumentsSize {
-                            let remaining = max(0, maxToolArgumentsSize - accumulator.argumentsBuffer.count)
-                            accumulator.argumentsBuffer += String(argumentsFragment.prefix(remaining))
-                        } else {
-                            accumulator.argumentsBuffer += argumentsFragment
-                        }
-                    }
-
-                    toolAccumulatorsByID[callID] = accumulator
-
-                    continuation.yield(GenerationChunk(
-                        text: "",
-                        tokenCount: 0,
-                        isComplete: false,
-                        partialToolCall: PartialToolCall(
-                            id: accumulator.id,
-                            toolName: accumulator.name,
-                            index: accumulator.index,
-                            argumentsFragment: accumulator.argumentsBuffer
-                        ),
-                        reasoningDetails: currentReasoningDetails()
-                    ))
-
-                case .completed:
-                    let completedToolCalls = finalizeToolCalls()
-                    let finishReason = decoded.finishReason ?? (completedToolCalls.isEmpty ? .stop : .toolCalls)
-                    continuation.yield(GenerationChunk(
-                        text: "",
-                        tokenCount: 0,
-                        isComplete: true,
-                        finishReason: finishReason,
-                        usage: decoded.usage,
-                        completedToolCalls: completedToolCalls.isEmpty ? nil : completedToolCalls,
-                        reasoningDetails: currentReasoningDetails()
-                    ))
-                    continuation.finish()
-                    return
-
-                case .ignored:
-                    continue
                 }
             }
         }
 
         for event in sseParser.finish() {
-            if event.data == "[DONE]" {
-                break
+            if processResponsesEventData(event.data) {
+                continuation.finish()
+                return
             }
+        }
+
+        if !toolAccumulatorsByID.isEmpty {
+            let completedToolCalls = finalizeToolCalls()
+            continuation.yield(GenerationChunk(
+                text: "",
+                tokenCount: 0,
+                isComplete: true,
+                finishReason: completedToolCalls.isEmpty ? .stop : .toolCalls,
+                completedToolCalls: completedToolCalls.isEmpty ? nil : completedToolCalls,
+                reasoningDetails: currentReasoningDetails()
+            ))
         }
 
         continuation.finish()

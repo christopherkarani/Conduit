@@ -345,9 +345,8 @@ public enum JsonRepair {
     private enum JsonContext { case object, array, unknown }
 
     private static func findContext(_ chars: [Character], upTo idx: Int) -> JsonContext {
-        // Forward scan with string-awareness to find the innermost unmatched bracket.
-        // A backward scan without string tracking would miscount brackets inside string
-        // literals (e.g. {"key": "[value"} — the '[' inside the string is not an opener).
+        guard !chars.isEmpty, idx >= 0 else { return .unknown }
+
         var bracketStack: [Character] = []
         var inString = false
         var escapeNext = false
@@ -375,6 +374,15 @@ public enum JsonRepair {
             case "{":
                 bracketStack.append("{")
             case "}":
+                if bracketStack.last == "{" {
+                    bracketStack.removeLast()
+                }
+            case "[":
+                bracketStack.append("[")
+            case "]":
+                if bracketStack.last == "[" {
+                    bracketStack.removeLast()
+                }
                 if bracketStack.last == "{" { bracketStack.removeLast() }
             case "[":
                 bracketStack.append("[")
@@ -385,8 +393,14 @@ public enum JsonRepair {
             }
         }
 
-        guard let last = bracketStack.last else { return .unknown }
-        return last == "{" ? .object : .array
+        switch bracketStack.last {
+        case "{":
+            return .object
+        case "[":
+            return .array
+        default:
+            return .unknown
+        }
     }
 
     /// Removes trailing commas before closing brackets/braces in already-closed JSON.

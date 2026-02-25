@@ -144,6 +144,7 @@ internal actor MLXModelLoader {
 
             // Cache the loaded model with its capabilities
             let cachedModel = MLXModelCache.CachedModel(
+                modelId: modelId,
                 container: container,
                 capabilities: capabilities,
                 weightsSize: estimatedSize
