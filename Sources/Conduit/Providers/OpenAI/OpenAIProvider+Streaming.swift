@@ -389,13 +389,58 @@ extension OpenAIProvider {
 
                     // Create partial tool call for streaming updates
                     if let acc = toolCallAccumulators[index] {
-                        if let validated = PartialToolCall(
-                            validating: acc.id,
+                        do {
+                            partialToolCall = try PartialToolCall.validated(
+                                id: acc.id,
+                                toolName: acc.name,
+                                index: index,
+                                argumentsFragment: acc.argumentsBuffer
+                            )
+                        } catch {
+                            logger.error(
+                                "Skipping partial tool call '\(acc.name)' at index \(index): \(error.localizedDescription)"
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Check if we should finalize tool calls
+            let isToolCallsComplete = finishReason == .toolCalls || finishReason == .toolCall
+
+            if isToolCallsComplete && !toolCallAccumulators.isEmpty {
+                let completedReasoningDetails = buildReasoningDetails()
+
+                // Finalize all accumulated tool calls
+                for (index, acc) in toolCallAccumulators.sorted(by: { $0.key < $1.key }) {
+                    do {
+                        let toolCall = try Transcript.ToolCall(
+                            id: acc.id,
                             toolName: acc.name,
-                            index: index,
-                            argumentsFragment: acc.argumentsBuffer
-                        ) {
-                            partialToolCall = validated
+                            argumentsJSON: acc.argumentsBuffer
+                        )
+                        completedToolCalls.append(toolCall)
+                        logger.debug("Parsed tool call '\(acc.name)' at index \(index)")
+                    } catch {
+                        // Try to repair incomplete JSON before giving up
+                        let repairedJson = JsonRepair.repair(acc.argumentsBuffer)
+                        if repairedJson != acc.argumentsBuffer {
+                            logger.debug("Attempting JSON repair for '\(acc.name)'")
+                            do {
+                                let toolCall = try Transcript.ToolCall(
+                                    id: acc.id,
+                                    toolName: acc.name,
+                                    argumentsJSON: repairedJson
+                                )
+                                completedToolCalls.append(toolCall)
+                                logger.info("Recovered tool call '\(acc.name)' via JSON repair")
+                            } catch {
+                                logger.warning(
+                                    "Failed to parse tool call '\(acc.name)' even after repair: \(error.localizedDescription)"
+                                )
+                                logger.debug("Original JSON: \(acc.argumentsBuffer.prefix(500))")
+                                logger.debug("Repaired JSON: \(repairedJson.prefix(500))")
+                            }
                         } else {
                             logger.warning(
                                 "Skipping tool call with invalid metadata: id='\(acc.id)', name='\(acc.name)', index=\(index)"
@@ -784,14 +829,40 @@ extension OpenAIProvider {
                 return false
             }
 
-            return false
-        }
+                    toolAccumulatorsByID[callID] = accumulator
 
-        for try await line in bytes.lines {
-            try Task.checkCancellation()
+                    do {
+                        let partialToolCall = try PartialToolCall.validated(
+                            id: accumulator.id,
+                            toolName: accumulator.name,
+                            index: accumulator.index,
+                            argumentsFragment: accumulator.argumentsBuffer
+                        )
+                        continuation.yield(GenerationChunk(
+                            text: "",
+                            tokenCount: 0,
+                            isComplete: false,
+                            partialToolCall: partialToolCall,
+                            reasoningDetails: currentReasoningDetails()
+                        ))
+                    } catch {
+                        logger.error(
+                            "Skipping partial tool call '\(accumulator.name)' at index \(accumulator.index): \(error.localizedDescription)"
+                        )
+                    }
 
-            for event in sseParser.ingestLine(line) {
-                if processResponsesEventData(event.data) {
+                case .completed:
+                    let completedToolCalls = finalizeToolCalls()
+                    let finishReason = decoded.finishReason ?? (completedToolCalls.isEmpty ? .stop : .toolCalls)
+                    continuation.yield(GenerationChunk(
+                        text: "",
+                        tokenCount: 0,
+                        isComplete: true,
+                        finishReason: finishReason,
+                        usage: decoded.usage,
+                        completedToolCalls: completedToolCalls.isEmpty ? nil : completedToolCalls,
+                        reasoningDetails: currentReasoningDetails()
+                    ))
                     continuation.finish()
                     return
                 }

@@ -106,7 +106,7 @@ public struct PartialToolCall: Sendable, Hashable {
     ///
     /// - Precondition: `id` must not be empty.
     /// - Precondition: `toolName` must not be empty.
-    /// - Precondition: `index` must be in range `0...maxToolCallIndex` (0...100).
+    /// - Precondition: `index` must be in range `0...maxToolCallIndex`.
     public init(id: String, toolName: String, index: Int, argumentsFragment: String) {
         precondition(!id.isEmpty, "PartialToolCall id must not be empty")
         precondition(!toolName.isEmpty, "PartialToolCall toolName must not be empty")
@@ -114,25 +114,43 @@ public struct PartialToolCall: Sendable, Hashable {
             (0...maxToolCallIndex).contains(index),
             "PartialToolCall index must be in range 0...\(maxToolCallIndex), got \(index)"
         )
-
         self.id = id
         self.toolName = toolName
         self.index = index
         self.argumentsFragment = argumentsFragment
     }
 
-    /// Creates a partial tool call with validation and returns `nil` for invalid inputs.
+    /// Creates a validated partial tool call, returning an error for invalid inputs.
     ///
-    /// Use this initializer when values originate from remote providers to avoid
-    /// crashing on malformed data.
-    public init?(validating id: String, toolName: String, index: Int, argumentsFragment: String) {
-        guard !id.isEmpty,
-              !toolName.isEmpty,
-              (0...maxToolCallIndex).contains(index) else {
-            return nil
+    /// Use this factory in streaming code where server responses may contain malformed
+    /// data such as empty IDs, missing tool names, or out-of-range indices. Unlike the
+    /// standard `init`, this factory throws instead of trapping on invalid input.
+    ///
+    /// - Parameters:
+    ///   - id: Unique identifier for this tool call. Must not be empty.
+    ///   - toolName: Name of the tool being called. Must not be empty.
+    ///   - index: Index of this tool call in the response. Must be in range `0...maxToolCallIndex`.
+    ///   - argumentsFragment: Current accumulated arguments JSON fragment.
+    ///
+    /// - Throws: `AIError.invalidInput` when inputs are invalid.
+    public static func validated(
+        id: String,
+        toolName: String,
+        index: Int,
+        argumentsFragment: String
+    ) throws -> PartialToolCall {
+        guard !id.isEmpty else {
+            throw AIError.invalidInput("PartialToolCall id must not be empty")
         }
-
-        self.init(id: id, toolName: toolName, index: index, argumentsFragment: argumentsFragment)
+        guard !toolName.isEmpty else {
+            throw AIError.invalidInput("PartialToolCall toolName must not be empty")
+        }
+        guard (0...maxToolCallIndex).contains(index) else {
+            throw AIError.invalidInput(
+                "PartialToolCall index must be in range 0...\(maxToolCallIndex), got \(index)"
+            )
+        }
+        return PartialToolCall(id: id, toolName: toolName, index: index, argumentsFragment: argumentsFragment)
     }
 }
 

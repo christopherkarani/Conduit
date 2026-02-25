@@ -186,13 +186,18 @@ public actor ModelCache {
     /// }
     /// ```
     public func allCachedModels() -> [CachedModelInfo] {
-        cache.values.sorted { $0.lastAccessedAt > $1.lastAccessedAt }
+        // Take a snapshot before validation to avoid mutating `cache` while iterating its values.
+        let infos = Array(cache.values)
+        return infos
+            .filter { validateCachedEntry($0) }
+            .sorted { $0.lastAccessedAt > $1.lastAccessedAt }
     }
 
     /// Checks if a model is cached.
     ///
     /// This is a fast lookup that only checks the in-memory cache.
-    /// It does not verify that the files still exist on disk.
+    /// It validates that the files still exist on disk and prunes
+    /// stale entries if the OS has evicted the cache.
     ///
     /// - Parameter model: The model identifier to check.
     /// - Returns: `true` if the model is in the cache, `false` otherwise.
@@ -206,7 +211,10 @@ public actor ModelCache {
     /// }
     /// ```
     public func isCached(_ model: ModelIdentifier) -> Bool {
-        cache[model] != nil
+        guard let info = cache[model] else {
+            return false
+        }
+        return validateCachedEntry(info)
     }
 
     /// Gets the cached model info for a model.
@@ -226,7 +234,10 @@ public actor ModelCache {
     /// }
     /// ```
     public func info(for model: ModelIdentifier) -> CachedModelInfo? {
-        cache[model]
+        guard let info = cache[model] else {
+            return nil
+        }
+        return validateCachedEntry(info) ? info : nil
     }
 
     /// Gets the local file path for a cached model.
@@ -245,7 +256,23 @@ public actor ModelCache {
     /// }
     /// ```
     public func localPath(for model: ModelIdentifier) -> URL? {
-        cache[model]?.path
+        guard let info = cache[model] else {
+            return nil
+        }
+        return validateCachedEntry(info) ? info.path : nil
+    }
+
+    /// Validates a cached entry exists on disk and prunes stale metadata.
+    ///
+    /// Returns `true` when the cache entry still exists on disk.
+    private func validateCachedEntry(_ info: CachedModelInfo) -> Bool {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: info.path.path) else {
+            cache.removeValue(forKey: info.identifier)
+            try? saveMetadata()
+            return false
+        }
+        return true
     }
 
     /// Returns the total size of all cached models.
@@ -265,7 +292,10 @@ public actor ModelCache {
     /// }
     /// ```
     public func totalSize() -> ByteCount {
-        let totalBytes = cache.values.reduce(0) { $0 + $1.size.bytes }
+        let infos = Array(cache.values)
+        let totalBytes = infos
+            .filter { validateCachedEntry($0) }
+            .reduce(0) { $0 + $1.size.bytes }
         return ByteCount(totalBytes)
     }
 
@@ -534,15 +564,19 @@ extension ModelCache {
 
     /// Returns the number of cached models.
     ///
-    /// - Returns: The count of models in the cache.
+    /// Stale entries (files removed from disk) are pruned and excluded from the count.
+    ///
+    /// - Returns: The count of valid models in the cache.
     public var count: Int {
-        cache.count
+        Array(cache.values).filter { validateCachedEntry($0) }.count
     }
 
     /// Whether the cache is empty.
     ///
+    /// Returns `true` only when no valid (on-disk) entries remain.
+    ///
     /// - Returns: `true` if no models are cached, `false` otherwise.
     public var isEmpty: Bool {
-        cache.isEmpty
+        count == 0
     }
 }

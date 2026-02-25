@@ -143,10 +143,16 @@ public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked
     /// is `.none`, preserving single-attempt behavior.
     public var toolCallRetryPolicy: ToolExecutor.RetryPolicy = .none
 
-    /// Maximum number of tool-call rounds allowed in a single `send(_:)` request.
+    /// Maximum number of tool-call rounds allowed in a single `send(_:)` or `stream(_:)` request.
     ///
     /// A "round" is one model response containing at least one tool call followed by
     /// executing those calls. This bounds continuation loops and prevents runaway cycles.
+    ///
+    /// The limit is checked **before** executing each round:
+    /// - `maxToolCallRounds = 0`: no tool calls are executed; the first tool-call response
+    ///   throws `AIError.invalidInput` immediately without running any tools.
+    /// - `maxToolCallRounds = N` (N > 0): exactly **N** rounds are permitted. The (N+1)th
+    ///   tool-call response throws `AIError.invalidInput`.
     ///
     /// Values less than zero are treated as zero during execution.
     public var maxToolCallRounds: Int = 8
@@ -530,19 +536,21 @@ public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked
     public func stream(_ content: String) -> AsyncThrowingStream<String, Error> {
         let userMessage = Message.user(content)
 
-        // Prepare state and capture messages + config atomically under lock.
-        // config is a public var that could change concurrently, so it must be
-        // captured inside the same critical section as messages.
-        let (currentMessages, currentConfig): ([Message], GenerateConfig) = withLock {
+        // Prepare state and capture messages under lock
+        let capturedState: (messages: [Message], toolExecutor: ToolExecutor?, toolCallRetryPolicy: ToolExecutor.RetryPolicy, maxToolCallRounds: Int) = withLock {
             lastError = nil
             isGenerating = true
             cancellationRequested = false
             messages.append(userMessage)
-            return (messages, config)
+            return (messages, toolExecutor, toolCallRetryPolicy, max(0, maxToolCallRounds))
         }
 
         // model is a let constant — no lock needed
         let currentModel = model
+        let currentConfig = config
+        let currentToolExecutor = capturedState.toolExecutor
+        let currentToolCallRetryPolicy = capturedState.toolCallRetryPolicy
+        let currentMaxToolCallRounds = capturedState.maxToolCallRounds
 
         return AsyncThrowingStream { continuation in
             let task = Task { [weak self] in
@@ -551,27 +559,90 @@ public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked
                     return
                 }
 
-                var fullText = ""
                 var streamError: Error?
 
                 do {
-                    // Get the stream from provider using streamWithMetadata
-                    // which accepts messages array
-                    let providerStream = self.provider.streamWithMetadata(
-                        messages: currentMessages,
-                        model: currentModel,
-                        config: currentConfig
-                    )
+                    var loopMessages = capturedState.messages
+                    var turnMessages: [Message] = []
+                    var toolRoundCount = 0
 
-                    // Iterate and yield tokens
-                    for try await chunk in providerStream {
-                        // Check for cancellation
+                    while true {
                         try Task.checkCancellation()
+                        try self.throwIfCancelled()
 
-                        // Yield the token (text is non-optional in GenerationChunk)
-                        let tokenText = chunk.text
-                        continuation.yield(tokenText)
-                        fullText += tokenText
+                        var roundText = ""
+                        var completedToolCalls: [Transcript.ToolCall] = []
+
+                        let providerStream = self.provider.streamWithMetadata(
+                            messages: loopMessages,
+                            model: currentModel,
+                            config: currentConfig
+                        )
+
+                        for try await chunk in providerStream {
+                            try Task.checkCancellation()
+                            try self.throwIfCancelled()
+
+                            if !chunk.text.isEmpty {
+                                continuation.yield(chunk.text)
+                                roundText += chunk.text
+                            }
+
+                            if let toolCalls = chunk.completedToolCalls, !toolCalls.isEmpty {
+                                completedToolCalls = toolCalls
+                            }
+                        }
+
+                        let assistantMessage = Message(
+                            role: .assistant,
+                            content: .text(roundText),
+                            metadata: MessageMetadata(
+                                model: currentModel.rawValue,
+                                toolCalls: completedToolCalls.isEmpty ? nil : completedToolCalls
+                            )
+                        )
+
+                        turnMessages.append(assistantMessage)
+                        loopMessages.append(assistantMessage)
+
+                        guard !completedToolCalls.isEmpty else {
+                            break
+                        }
+
+                        guard toolRoundCount < currentMaxToolCallRounds else {
+                            throw AIError.invalidInput(
+                                "Tool-call loop exceeded maxToolCallRounds (\(currentMaxToolCallRounds))."
+                            )
+                        }
+
+                        guard let currentToolExecutor else {
+                            throw AIError.invalidInput(
+                                "Tool calls were requested but ChatSession.toolExecutor is nil."
+                            )
+                        }
+
+                        let toolOutputs = try await currentToolExecutor.execute(
+                            toolCalls: completedToolCalls,
+                            retryPolicy: currentToolCallRetryPolicy
+                        )
+
+                        try Task.checkCancellation()
+                        try self.throwIfCancelled()
+
+                        for output in toolOutputs {
+                            let toolMessage = Message.toolOutput(output)
+                            turnMessages.append(toolMessage)
+                            loopMessages.append(toolMessage)
+                        }
+
+                        toolRoundCount += 1
+                    }
+
+                    // Finalize state under lock on success
+                    self.withLock {
+                        self.messages.append(contentsOf: turnMessages)
+                        self.isGenerating = false
+                        self.cancellationRequested = false
                     }
 
                 } catch is CancellationError {
@@ -581,24 +652,16 @@ public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked
                     streamError = error
                 }
 
-                // Finalize state under lock
-                self.withLock {
-                    if let error = streamError {
-                        // Remove user message on error
+                // Finalize error state under lock
+                if let error = streamError {
+                    self.withLock {
                         if let index = self.messages.lastIndex(where: { $0.id == userMessage.id }) {
                             self.messages.remove(at: index)
                         }
                         self.lastError = error
-                    } else {
-                        // Add assistant message on success
-                        let assistantMessage = Message(
-                            role: .assistant,
-                            content: .text(fullText),
-                            metadata: MessageMetadata(model: currentModel.rawValue)
-                        )
-                        self.messages.append(assistantMessage)
+                        self.isGenerating = false
+                        self.cancellationRequested = false
                     }
-                    self.isGenerating = false
                 }
 
                 // Finish the stream
