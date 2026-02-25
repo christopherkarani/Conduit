@@ -76,6 +76,18 @@ let package = Package(
         .package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.3"),
     ],
     targets: [
+        .target(
+            name: "ConduitCore",
+            dependencies: [],
+            path: "Sources/ConduitCore",
+            publicHeadersPath: "include",
+            cSettings: [
+                .define("CONDUIT_HAS_ACCELERATE", .when(platforms: [.macOS, .iOS, .visionOS, .tvOS, .watchOS])),
+            ],
+            linkerSettings: [
+                .linkedFramework("Accelerate", .when(platforms: [.macOS, .iOS, .visionOS, .tvOS, .watchOS])),
+            ]
+        ),
         .macro(
             name: "ConduitMacros",
             dependencies: [
@@ -89,6 +101,7 @@ let package = Package(
         .target(
             name: "Conduit",
             dependencies: [
+                "ConduitCore",
                 "ConduitMacros",
                 .product(name: "OrderedCollections", package: "swift-collections"),
                 .product(name: "Logging", package: "swift-log"),
@@ -129,6 +142,13 @@ let package = Package(
                 .define("CONDUIT_TRAIT_COREML", .when(traits: ["CoreML"])),
                 .enableExperimentalFeature("StrictConcurrency")
             ]
+        ),
+        .testTarget(
+            name: "ConduitCoreTests",
+            dependencies: [
+                "ConduitCore",
+            ],
+            path: "Tests/ConduitCoreTests"
         ),
         .testTarget(
             name: "ConduitMacrosTests",
