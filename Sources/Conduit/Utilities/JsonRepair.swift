@@ -4,6 +4,7 @@
 // Utility for repairing incomplete JSON from streaming responses.
 
 import Foundation
+import ConduitCore
 
 // MARK: - JsonRepair
 
@@ -77,33 +78,57 @@ public enum JsonRepair {
     /// - Parameter json: The potentially incomplete JSON string
     /// - Returns: A repaired JSON string that should be valid JSON
     public static func repair(_ json: String, maximumDepth: Int = 64) -> String {
+        // Use [CChar] directly to avoid reinterpreting [UInt8] as CChar via assumingMemoryBound,
+        // which is technically undefined behaviour in Swift's strict memory model.
+        let utf8: [CChar] = json.utf8.map { CChar(bitPattern: $0) }
+        let capacity = utf8.count + maximumDepth + 128 // Room for closing brackets + suffix
+        var output = [CChar](repeating: 0, count: capacity)
+
+        let result = utf8.withUnsafeBufferPointer { inputBuf in
+            output.withUnsafeMutableBufferPointer { outputBuf in
+                conduit_json_repair(
+                    inputBuf.baseAddress,
+                    inputBuf.count,
+                    outputBuf.baseAddress,
+                    outputBuf.count,
+                    Int32(maximumDepth)
+                )
+            }
+        }
+
+        if result >= 0 {
+            return output.withUnsafeBufferPointer { buf in
+                String(cString: buf.baseAddress!)
+            }
+        }
+
+        // Fallback to Swift implementation if C buffer was too small
+        return repairSwift(json, maximumDepth: maximumDepth)
+    }
+
+    /// Original Swift repair implementation, kept as fallback.
+    private static func repairSwift(_ json: String, maximumDepth: Int = 64) -> String {
         let trimmed = json.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return "{}" }
 
-        // Pre-allocate result string with margin for closing brackets
         var resultBuilder = ""
         resultBuilder.reserveCapacity(json.count + 100)
 
         var state = ParserState(maximumDepth: maximumDepth)
 
-        // Single pass: analyze AND build simultaneously
         for char in json {
             state.process(char)
             resultBuilder.append(char)
         }
 
-        // If we're in a string, close it
         if state.inString {
-            // Check for partial unicode escape sequence and remove it
             removePartialUnicodeEscape(&resultBuilder)
-            // Also handle incomplete escape at the very end
             if state.escapeNext, let last = resultBuilder.last, last == "\\" {
                 resultBuilder.removeLast()
             }
             resultBuilder.append("\"")
         }
 
-        // Remove trailing whitespace and comma in-place
         while let last = resultBuilder.last, last.isWhitespace {
             resultBuilder.removeLast()
         }
@@ -111,12 +136,9 @@ public enum JsonRepair {
             resultBuilder.removeLast()
         }
 
-        // Remove incomplete key-value pairs (key without value, key without colon)
         resultBuilder = removeIncompleteKeyValuePairs(resultBuilder)
 
-        // Close any open brackets/braces
         for bracket in state.bracketStack.reversed() {
-            // Before adding a closing bracket, remove any trailing comma
             while let last = resultBuilder.last, last.isWhitespace {
                 resultBuilder.removeLast()
             }
@@ -126,7 +148,6 @@ public enum JsonRepair {
             resultBuilder.append(bracket.closing)
         }
 
-        // Final pass: remove trailing commas before existing closing brackets
         resultBuilder = removeTrailingCommasBeforeClosingBrackets(resultBuilder)
 
         return resultBuilder
@@ -324,7 +345,9 @@ public enum JsonRepair {
     private enum JsonContext { case object, array, unknown }
 
     private static func findContext(_ chars: [Character], upTo idx: Int) -> JsonContext {
-        var depth = 0
+        guard !chars.isEmpty, idx >= 0 else { return .unknown }
+
+        var bracketStack: [Character] = []
         var inString = false
         var escapeNext = false
 
@@ -349,46 +372,35 @@ public enum JsonRepair {
             case "\"":
                 inString = true
             case "{":
-                depth += 1
+                bracketStack.append("{")
             case "}":
-                depth -= 1
+                if bracketStack.last == "{" {
+                    bracketStack.removeLast()
+                }
             case "[":
-                depth += 1
+                bracketStack.append("[")
             case "]":
-                depth -= 1
+                if bracketStack.last == "[" {
+                    bracketStack.removeLast()
+                }
+                if bracketStack.last == "{" { bracketStack.removeLast() }
+            case "[":
+                bracketStack.append("[")
+            case "]":
+                if bracketStack.last == "[" { bracketStack.removeLast() }
             default:
                 break
             }
         }
 
-        // Now scan backwards from idx to find the most recent unmatched opener
-        var bracketStack: [Character] = []
-        inString = false
-        escapeNext = false
-
-        for i in (0...idx).reversed() {
-            let char = chars[i]
-
-            // Handle string detection (simplified - scan forward to know if in string)
-            // Actually, for simplicity, let's just look for the nearest unmatched [ or {
-            if char == "]" || char == "}" {
-                bracketStack.append(char)
-            } else if char == "[" {
-                if let last = bracketStack.last, last == "]" {
-                    bracketStack.removeLast()
-                } else {
-                    return .array
-                }
-            } else if char == "{" {
-                if let last = bracketStack.last, last == "}" {
-                    bracketStack.removeLast()
-                } else {
-                    return .object
-                }
-            }
+        switch bracketStack.last {
+        case "{":
+            return .object
+        case "[":
+            return .array
+        default:
+            return .unknown
         }
-
-        return .unknown
     }
 
     /// Removes trailing commas before closing brackets/braces in already-closed JSON.
