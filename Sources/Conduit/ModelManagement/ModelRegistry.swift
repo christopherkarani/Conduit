@@ -245,10 +245,11 @@ public enum ModelRegistry {
 
     /// Complete catalog of all known models across all providers.
     ///
-    /// This array contains 16 pre-configured models:
+    /// This array contains 19 pre-configured models:
     /// - 7 MLX text generation models
     /// - 3 MLX embedding models
     /// - 5 HuggingFace cloud models
+    /// - 3 Kimi cloud models
     /// - 1 Apple Foundation Model
     ///
     /// Models are organized by provider and capability for easy discovery.
@@ -538,8 +539,7 @@ public enum ModelRegistry {
 
     /// Get all models for a specific provider.
     ///
-    /// Filters the model catalog by provider type (MLX, HuggingFace, or
-    /// Apple Foundation Models).
+    /// Filters the model catalog by provider type.
     ///
     /// ## Usage
     /// ```swift
@@ -613,7 +613,8 @@ public enum ModelRegistry {
 
     /// Get all cloud-based models requiring network access.
     ///
-    /// Cloud models include all HuggingFace inference API models.
+    /// Cloud models include providers that require network access
+    /// (for example HuggingFace and Kimi).
     /// These models require an internet connection and API key.
     ///
     /// ## Usage
