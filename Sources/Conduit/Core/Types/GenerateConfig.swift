@@ -238,6 +238,22 @@ public struct GenerateConfig: Sendable, Codable {
     /// ```
     public var reasoning: ReasoningConfig?
 
+    // MARK: - Provider Runtime Features
+
+    /// Provider/runtime feature controls for advanced local execution paths.
+    ///
+    /// These controls are provider-owned runtime hints (for example MLX runtime
+    /// features) and may be ignored by providers that do not support them.
+    ///
+    /// `nil` means no per-request runtime overrides are requested.
+    public var runtimeFeatures: ProviderRuntimeFeatureConfiguration?
+
+    /// Optional per-request runtime policy overrides.
+    ///
+    /// These overrides are merged with provider-level runtime policy to support
+    /// task-local feature flags and allowlists.
+    public var runtimePolicyOverride: ProviderRuntimePolicyOverride?
+
     // MARK: - Initialization
 
     /// Creates a generation configuration with the specified parameters.
@@ -263,6 +279,8 @@ public struct GenerateConfig: Sendable, Codable {
     ///   - maxToolCalls: Maximum number of tool calls per response (default: nil).
     ///   - responseFormat: Response format for structured output (default: nil).
     ///   - reasoning: Configuration for reasoning mode (default: nil).
+    ///   - runtimeFeatures: Provider/runtime feature overrides (default: nil).
+    ///   - runtimePolicyOverride: Provider/runtime policy overrides (default: nil).
     ///
     /// - Note: Dont set temperature and topP for Anthropic models
     public init(
@@ -285,7 +303,9 @@ public struct GenerateConfig: Sendable, Codable {
         parallelToolCalls: Bool? = nil,
         maxToolCalls: Int? = nil,
         responseFormat: ResponseFormat? = nil,
-        reasoning: ReasoningConfig? = nil
+        reasoning: ReasoningConfig? = nil,
+        runtimeFeatures: ProviderRuntimeFeatureConfiguration? = nil,
+        runtimePolicyOverride: ProviderRuntimePolicyOverride? = nil
     ) {
         self.maxTokens = maxTokens
         self.minTokens = minTokens
@@ -307,6 +327,8 @@ public struct GenerateConfig: Sendable, Codable {
         self.maxToolCalls = maxToolCalls
         self.responseFormat = responseFormat
         self.reasoning = reasoning
+        self.runtimeFeatures = runtimeFeatures
+        self.runtimePolicyOverride = runtimePolicyOverride
     }
 
     // MARK: - Static Presets
@@ -754,6 +776,26 @@ extension GenerateConfig {
     public func reasoning(_ config: ReasoningConfig) -> GenerateConfig {
         var copy = self
         copy.reasoning = config
+        return copy
+    }
+
+    /// Returns a copy with provider/runtime feature overrides.
+    ///
+    /// - Parameter config: Runtime feature overrides, or `nil` to clear overrides.
+    /// - Returns: A new configuration with updated runtime feature controls.
+    public func runtimeFeatures(_ config: ProviderRuntimeFeatureConfiguration?) -> GenerateConfig {
+        var copy = self
+        copy.runtimeFeatures = config
+        return copy
+    }
+
+    /// Returns a copy with provider/runtime policy overrides.
+    ///
+    /// - Parameter policy: Runtime policy overrides, or `nil` to clear overrides.
+    /// - Returns: A new configuration with updated runtime policy overrides.
+    public func runtimePolicyOverride(_ policy: ProviderRuntimePolicyOverride?) -> GenerateConfig {
+        var copy = self
+        copy.runtimePolicyOverride = policy
         return copy
     }
 

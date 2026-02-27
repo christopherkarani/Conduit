@@ -85,6 +85,10 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
     /// Tracks whether runtime configuration has been applied.
     private var didApplyRuntimeConfiguration: Bool = false
 
+    /// Bounded runtime diagnostics for capability/fallback telemetry.
+    private var runtimeDiagnosticsEvents: [ProviderRuntimeDiagnosticsEvent] = []
+    private let runtimeDiagnosticsLimit = 512
+
     // MARK: - Initialization
 
     /// Creates an MLX provider with the specified configuration.
@@ -278,6 +282,53 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
     /// ```
     public func detectCapabilities(_ model: ModelID) async -> ModelCapabilities {
         return await VLMDetector.shared.detectCapabilities(model)
+    }
+
+    // MARK: - Runtime Feature Capabilities
+
+    /// Returns runtime feature capabilities for the given model.
+    ///
+    /// These capabilities represent provider/runtime-owned features (post-v1).
+    public func runtimeCapabilities(for model: ModelID) async -> ProviderRuntimeCapabilities {
+        let quantization = ProviderRuntimeFeatureCapability(
+            isSupported: true,
+            supportedBits: [4, 8]
+        )
+
+        // MLX high-level ChatSession does not currently expose deterministic low-level
+        // controls required for these runtime features.
+        let unsupportedReason = "not_exposed_by_mlx_chatsession_runtime"
+
+        return ProviderRuntimeCapabilities(
+            kvQuantization: quantization,
+            attentionSinks: ProviderRuntimeFeatureCapability(
+                isSupported: false,
+                reasonUnavailable: unsupportedReason
+            ),
+            kvSwap: ProviderRuntimeFeatureCapability(
+                isSupported: false,
+                reasonUnavailable: unsupportedReason
+            ),
+            incrementalPrefill: ProviderRuntimeFeatureCapability(
+                isSupported: false,
+                reasonUnavailable: unsupportedReason
+            ),
+            speculativeScheduling: ProviderRuntimeFeatureCapability(
+                isSupported: false,
+                supportsVerifierRollback: false,
+                reasonUnavailable: unsupportedReason
+            )
+        )
+    }
+
+    /// Snapshot current runtime diagnostics.
+    public func runtimeDiagnosticsSnapshot() -> [ProviderRuntimeDiagnosticsEvent] {
+        runtimeDiagnosticsEvents
+    }
+
+    /// Clears buffered runtime diagnostics.
+    public func clearRuntimeDiagnostics() {
+        runtimeDiagnosticsEvents.removeAll(keepingCapacity: false)
     }
 
     // MARK: - Cache Management
@@ -659,7 +710,14 @@ extension MLXProvider {
         let startTime = Date()
 
         // Create generation parameters
-        let params = createGenerateParameters(from: config)
+        let runtimeConfiguration = await resolveRuntimeConfiguration(
+            model: model,
+            generateConfig: config
+        )
+        let params = createGenerateParameters(
+            from: config,
+            mlxConfiguration: runtimeConfiguration
+        )
 
         // Create chat session with the container and parameters
         let session = MLXLMCommon.ChatSession(container, generateParameters: params)
@@ -727,7 +785,14 @@ extension MLXProvider {
             let container = try await modelLoader.loadModel(identifier: model)
 
             // Create generation parameters
-            let params = createGenerateParameters(from: config)
+            let runtimeConfiguration = await resolveRuntimeConfiguration(
+                model: model,
+                generateConfig: config
+            )
+            let params = createGenerateParameters(
+                from: config,
+                mlxConfiguration: runtimeConfiguration
+            )
 
             // Create chat session with the container and parameters
             let session = MLXLMCommon.ChatSession(container, generateParameters: params)
@@ -821,11 +886,257 @@ extension MLXProvider {
     }
 
     /// Converts Conduit GenerateConfig to mlx-swift-lm GenerateParameters.
-    private func createGenerateParameters(from config: GenerateConfig) -> GenerateParameters {
+    private func createGenerateParameters(
+        from config: GenerateConfig,
+        mlxConfiguration: MLXConfiguration
+    ) -> GenerateParameters {
         MLXGenerateParametersBuilder().make(
-            mlxConfiguration: configuration,
+            mlxConfiguration: mlxConfiguration,
             generateConfig: config
         )
+    }
+
+    private func resolveRuntimeConfiguration(
+        model: ModelIdentifier,
+        generateConfig: GenerateConfig
+    ) async -> MLXConfiguration {
+        var effectiveRuntimeFeatures = generateConfig.runtimeFeatures ?? .init()
+        let capabilities = await runtimeCapabilities(for: model)
+        let policy = configuration.runtimePolicy.applying(overrides: generateConfig.runtimePolicyOverride)
+        let modelID = model.rawValue
+
+        var effectiveConfiguration = configuration.applying(runtimeFeatures: effectiveRuntimeFeatures)
+
+        if effectiveConfiguration.useQuantizedKVCache {
+            let feature: ProviderRuntimeFeature = .kvQuantization
+            let requestedBits = max(4, min(8, effectiveConfiguration.kvQuantizationBits))
+
+            guard policy.isEnabled(feature: feature) else {
+                effectiveConfiguration.useQuantizedKVCache = false
+                effectiveRuntimeFeatures.kvQuantization.enabled = false
+                recordRuntimeDiagnostic(
+                    feature: feature,
+                    kind: .capabilityDenied,
+                    modelID: modelID,
+                    reason: "policyDisabled",
+                    details: ["requested_bits": String(requestedBits)]
+                )
+                recordRuntimeDiagnostic(
+                    feature: feature,
+                    kind: .fallbackUsed,
+                    modelID: modelID,
+                    reason: "fallbackToUnquantizedKV",
+                    details: [:]
+                )
+                return effectiveConfiguration
+            }
+
+            guard policy.isModelAllowed(feature: feature, modelID: modelID) else {
+                effectiveConfiguration.useQuantizedKVCache = false
+                effectiveRuntimeFeatures.kvQuantization.enabled = false
+                recordRuntimeDiagnostic(
+                    feature: feature,
+                    kind: .capabilityDenied,
+                    modelID: modelID,
+                    reason: "modelNotAllowlisted",
+                    details: ["requested_bits": String(requestedBits)]
+                )
+                recordRuntimeDiagnostic(
+                    feature: feature,
+                    kind: .fallbackUsed,
+                    modelID: modelID,
+                    reason: "fallbackToUnquantizedKV",
+                    details: [:]
+                )
+                return effectiveConfiguration
+            }
+
+            guard capabilities.kvQuantization.isSupported else {
+                effectiveConfiguration.useQuantizedKVCache = false
+                effectiveRuntimeFeatures.kvQuantization.enabled = false
+                recordRuntimeDiagnostic(
+                    feature: feature,
+                    kind: .capabilityDenied,
+                    modelID: modelID,
+                    reason: capabilities.kvQuantization.reasonUnavailable ?? "runtimeUnsupported",
+                    details: ["requested_bits": String(requestedBits)]
+                )
+                recordRuntimeDiagnostic(
+                    feature: feature,
+                    kind: .fallbackUsed,
+                    modelID: modelID,
+                    reason: "fallbackToUnquantizedKV",
+                    details: [:]
+                )
+                return effectiveConfiguration
+            }
+
+            if !capabilities.kvQuantization.supportedBits.contains(requestedBits) {
+                effectiveConfiguration.useQuantizedKVCache = false
+                effectiveRuntimeFeatures.kvQuantization.enabled = false
+                recordRuntimeDiagnostic(
+                    feature: feature,
+                    kind: .capabilityDenied,
+                    modelID: modelID,
+                    reason: "unsupportedBitDepth",
+                    details: [
+                        "requested_bits": String(requestedBits),
+                        "supported_bits": capabilities.kvQuantization.supportedBits.map(String.init).joined(separator: ","),
+                    ]
+                )
+                recordRuntimeDiagnostic(
+                    feature: feature,
+                    kind: .fallbackUsed,
+                    modelID: modelID,
+                    reason: "fallbackToUnquantizedKV",
+                    details: [:]
+                )
+                return effectiveConfiguration
+            }
+
+            recordRuntimeDiagnostic(
+                feature: feature,
+                kind: .capabilitySelected,
+                modelID: modelID,
+                reason: nil,
+                details: [
+                    "effective_bits": String(requestedBits),
+                    "source": generateConfig.runtimeFeatures == nil ? "providerConfiguration" : "runtimeOverride",
+                ]
+            )
+        }
+
+        evaluateUnsupportedFeature(
+            .attentionSinks,
+            enabled: effectiveRuntimeFeatures.attentionSinks.enabled == true,
+            capability: capabilities.attentionSinks,
+            modelID: modelID,
+            policy: policy
+        )
+        evaluateUnsupportedFeature(
+            .kvSwap,
+            enabled: effectiveRuntimeFeatures.kvSwap.enabled == true,
+            capability: capabilities.kvSwap,
+            modelID: modelID,
+            policy: policy
+        )
+        evaluateUnsupportedFeature(
+            .incrementalPrefill,
+            enabled: effectiveRuntimeFeatures.incrementalPrefill.enabled == true,
+            capability: capabilities.incrementalPrefill,
+            modelID: modelID,
+            policy: policy
+        )
+        evaluateUnsupportedFeature(
+            .speculativeScheduling,
+            enabled: effectiveRuntimeFeatures.speculativeScheduling.enabled == true,
+            capability: capabilities.speculativeScheduling,
+            modelID: modelID,
+            policy: policy
+        )
+
+        return effectiveConfiguration
+    }
+
+    private func evaluateUnsupportedFeature(
+        _ feature: ProviderRuntimeFeature,
+        enabled: Bool,
+        capability: ProviderRuntimeFeatureCapability,
+        modelID: String,
+        policy: ProviderRuntimePolicy
+    ) {
+        guard enabled else { return }
+
+        if !policy.isEnabled(feature: feature) {
+            recordRuntimeDiagnostic(
+                feature: feature,
+                kind: .capabilityDenied,
+                modelID: modelID,
+                reason: "policyDisabled",
+                details: [:]
+            )
+            recordRuntimeDiagnostic(
+                feature: feature,
+                kind: .fallbackUsed,
+                modelID: modelID,
+                reason: "fallbackToBaseline",
+                details: [:]
+            )
+            return
+        }
+
+        if !policy.isModelAllowed(feature: feature, modelID: modelID) {
+            recordRuntimeDiagnostic(
+                feature: feature,
+                kind: .capabilityDenied,
+                modelID: modelID,
+                reason: "modelNotAllowlisted",
+                details: [:]
+            )
+            recordRuntimeDiagnostic(
+                feature: feature,
+                kind: .fallbackUsed,
+                modelID: modelID,
+                reason: "fallbackToBaseline",
+                details: [:]
+            )
+            return
+        }
+
+        if !capability.isSupported {
+            recordRuntimeDiagnostic(
+                feature: feature,
+                kind: .capabilityDenied,
+                modelID: modelID,
+                reason: capability.reasonUnavailable ?? "runtimeUnsupported",
+                details: [:]
+            )
+            recordRuntimeDiagnostic(
+                feature: feature,
+                kind: .fallbackUsed,
+                modelID: modelID,
+                reason: "fallbackToBaseline",
+                details: [:]
+            )
+        } else {
+            recordRuntimeDiagnostic(
+                feature: feature,
+                kind: .capabilitySelected,
+                modelID: modelID,
+                reason: nil,
+                details: [:]
+            )
+        }
+    }
+
+    private func recordRuntimeDiagnostic(
+        feature: ProviderRuntimeFeature,
+        kind: ProviderRuntimeDiagnosticsEventKind,
+        modelID: String,
+        reason: String?,
+        details: [String: String]
+    ) {
+        runtimeDiagnosticsEvents.append(
+            ProviderRuntimeDiagnosticsEvent(
+                feature: feature,
+                kind: kind,
+                modelID: modelID,
+                reason: reason,
+                details: details
+            )
+        )
+
+        if runtimeDiagnosticsEvents.count > runtimeDiagnosticsLimit {
+            runtimeDiagnosticsEvents.removeFirst(runtimeDiagnosticsEvents.count - runtimeDiagnosticsLimit)
+        }
+    }
+
+    // Test hook: deterministic validation of runtime gating without model execution.
+    internal func _testing_resolveRuntimeConfiguration(
+        model: ModelIdentifier,
+        generateConfig: GenerateConfig
+    ) async -> MLXConfiguration {
+        await resolveRuntimeConfiguration(model: model, generateConfig: generateConfig)
     }
 
     // MARK: - Runtime Configuration

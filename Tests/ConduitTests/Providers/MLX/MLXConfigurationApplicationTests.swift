@@ -118,6 +118,45 @@ struct MLXConfigurationModelCacheApplicationTests {
     }
 }
 
+@Suite("MLXConfiguration Application - Runtime Features")
+struct MLXConfigurationRuntimeFeaturesTests {
+
+    @Test("runtime feature overrides can enable quantized KV bits")
+    func testRuntimeFeatureOverridesApplyQuantizedKV() async {
+        let base = MLXConfiguration.default.withoutQuantizedKVCache()
+        let runtime = ProviderRuntimeFeatureConfiguration(
+            kvQuantization: .init(enabled: true, bits: 8)
+        )
+
+        let applied = base.applying(runtimeFeatures: runtime)
+        #expect(applied.useQuantizedKVCache == true)
+        #expect(applied.kvQuantizationBits == 8)
+    }
+
+    @Test("runtime policy fluent setter updates policy")
+    func testRuntimePolicySetter() async {
+        let policy = ProviderRuntimePolicy(
+            featureFlags: ProviderRuntimeFeatureFlags(
+                kvQuantization: false,
+                attentionSinks: true,
+                kvSwap: true,
+                incrementalPrefill: true,
+                speculativeScheduling: true
+            ),
+            modelAllowlist: ProviderRuntimeModelAllowlist(
+                kvQuantizationModels: ["mlx-community/allowlisted"]
+            )
+        )
+
+        let config = MLXConfiguration.default.runtimePolicy(policy)
+        #expect(config.runtimePolicy.isEnabled(feature: .kvQuantization) == false)
+        #expect(config.runtimePolicy.isModelAllowed(
+            feature: .kvQuantization,
+            modelID: "mlx-community/allowlisted"
+        ) == true)
+    }
+}
+
 #else
 @Suite("MLXConfiguration Application Tests (Skipped without MLX)")
 struct MLXConfigurationApplicationTests {

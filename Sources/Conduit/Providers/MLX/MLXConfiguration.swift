@@ -125,6 +125,15 @@ public struct MLXConfiguration: Sendable, Hashable {
     /// ```
     public var maxCacheSize: ByteCount?
 
+    // MARK: - Runtime Policy
+
+    /// Policy gate for provider/runtime-owned features.
+    ///
+    /// This controls feature flags and model allowlists for runtime features
+    /// such as KV quantization, attention sinks, KVSwap, incremental prefill,
+    /// and speculative scheduling.
+    public var runtimePolicy: ProviderRuntimePolicy
+
     // MARK: - Initialization
 
     /// Creates an MLX configuration with the specified parameters.
@@ -138,6 +147,7 @@ public struct MLXConfiguration: Sendable, Hashable {
     ///   - kvQuantizationBits: Bit depth for quantization, 4 or 8 (default: 4).
     ///   - maxCachedModels: Maximum number of models to keep in cache (default: 3).
     ///   - maxCacheSize: Maximum total memory for cached models (default: nil).
+    ///   - runtimePolicy: Runtime feature policy/allowlist gate (default: `.default`).
     public init(
         memoryLimit: ByteCount? = nil,
         useMemoryMapping: Bool = true,
@@ -146,7 +156,8 @@ public struct MLXConfiguration: Sendable, Hashable {
         useQuantizedKVCache: Bool = false,
         kvQuantizationBits: Int = 4,
         maxCachedModels: Int = 3,
-        maxCacheSize: ByteCount? = nil
+        maxCacheSize: ByteCount? = nil,
+        runtimePolicy: ProviderRuntimePolicy = .default
     ) {
         self.memoryLimit = memoryLimit
         self.useMemoryMapping = useMemoryMapping
@@ -156,6 +167,7 @@ public struct MLXConfiguration: Sendable, Hashable {
         self.kvQuantizationBits = max(4, min(8, kvQuantizationBits)) // Clamp to valid range
         self.maxCachedModels = maxCachedModels
         self.maxCacheSize = maxCacheSize
+        self.runtimePolicy = runtimePolicy
     }
 
     // MARK: - Static Presets
@@ -418,6 +430,16 @@ extension MLXConfiguration {
         return copy
     }
 
+    /// Returns a copy with an updated runtime policy gate.
+    ///
+    /// - Parameter policy: Runtime feature policy + model allowlists.
+    /// - Returns: A new configuration with updated policy controls.
+    public func runtimePolicy(_ policy: ProviderRuntimePolicy) -> MLXConfiguration {
+        var copy = self
+        copy.runtimePolicy = policy
+        return copy
+    }
+
     /// Creates cache configuration from provider configuration.
     ///
     /// Converts this MLXConfiguration into an MLXModelCache.Configuration
@@ -436,6 +458,23 @@ extension MLXConfiguration {
             maxCachedModels: maxCachedModels,
             maxCacheSize: maxCacheSize
         )
+    }
+
+    /// Applies per-request runtime feature overrides to the provider configuration.
+    ///
+    /// This method only maps feature overrides that are directly represented in
+    /// `MLXConfiguration` today. Unsupported features remain provider-gated no-ops.
+    internal func applying(runtimeFeatures: ProviderRuntimeFeatureConfiguration) -> MLXConfiguration {
+        var copy = self
+
+        if let enabled = runtimeFeatures.kvQuantization.enabled {
+            copy.useQuantizedKVCache = enabled
+        }
+        if let bits = runtimeFeatures.kvQuantization.bits {
+            copy.kvQuantizationBits = max(4, min(8, bits))
+        }
+
+        return copy
     }
 }
 

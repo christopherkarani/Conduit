@@ -440,4 +440,96 @@ final class GenerateConfigTests: XCTestCase {
         }
     }
 
+    func testRuntimeFeaturesFluentSetterStoresOverrides() {
+        let runtimeFeatures = ProviderRuntimeFeatureConfiguration(
+            kvQuantization: .init(enabled: true, bits: 4),
+            attentionSinks: .init(enabled: false),
+            kvSwap: .init(enabled: false),
+            incrementalPrefill: .init(enabled: false),
+            speculativeScheduling: .init(enabled: false)
+        )
+
+        let config = GenerateConfig.default.runtimeFeatures(runtimeFeatures)
+
+        XCTAssertEqual(config.runtimeFeatures?.kvQuantization.enabled, true)
+        XCTAssertEqual(config.runtimeFeatures?.kvQuantization.bits, 4)
+    }
+
+    func testRuntimeFeaturesCodableRoundTrip() throws {
+        let original = GenerateConfig.default.runtimeFeatures(
+            ProviderRuntimeFeatureConfiguration(
+                kvQuantization: .init(enabled: true, bits: 8),
+                attentionSinks: .init(enabled: true, sinkTokenCount: 64),
+                kvSwap: .init(enabled: true, ioBudgetMBPerSecond: 128),
+                incrementalPrefill: .init(enabled: true, maxPrefixTokens: 4096),
+                speculativeScheduling: .init(
+                    enabled: true,
+                    draftStreamCount: 2,
+                    draftAheadTokens: 16,
+                    verificationBatchTokens: 8,
+                    rollbackTokenBudgetPerTurn: 64,
+                    autoDisableDivergenceRate: 0.15
+                )
+            )
+        )
+
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(GenerateConfig.self, from: data)
+
+        XCTAssertEqual(decoded.runtimeFeatures?.kvQuantization.enabled, true)
+        XCTAssertEqual(decoded.runtimeFeatures?.kvQuantization.bits, 8)
+        XCTAssertEqual(decoded.runtimeFeatures?.attentionSinks.sinkTokenCount, 64)
+        XCTAssertEqual(decoded.runtimeFeatures?.kvSwap.ioBudgetMBPerSecond, 128)
+        XCTAssertEqual(decoded.runtimeFeatures?.incrementalPrefill.maxPrefixTokens, 4096)
+        XCTAssertEqual(decoded.runtimeFeatures?.speculativeScheduling.draftStreamCount, 2)
+    }
+
+    func testRuntimePolicyOverrideFluentSetterStoresOverrides() {
+        let override = ProviderRuntimePolicyOverride(
+            featureFlags: ProviderRuntimeFeatureFlagOverride(
+                kvQuantization: false,
+                speculativeScheduling: true
+            ),
+            modelAllowlist: ProviderRuntimeModelAllowlistOverride(
+                kvQuantizationModels: ["mlx-community/allowlisted"]
+            )
+        )
+
+        let config = GenerateConfig.default.runtimePolicyOverride(override)
+
+        XCTAssertEqual(config.runtimePolicyOverride?.featureFlags.kvQuantization, false)
+        XCTAssertEqual(config.runtimePolicyOverride?.featureFlags.speculativeScheduling, true)
+        XCTAssertEqual(config.runtimePolicyOverride?.modelAllowlist.kvQuantizationModels, ["mlx-community/allowlisted"])
+    }
+
+    func testRuntimePolicyOverrideCodableRoundTrip() throws {
+        let original = GenerateConfig.default.runtimePolicyOverride(
+            ProviderRuntimePolicyOverride(
+                featureFlags: ProviderRuntimeFeatureFlagOverride(
+                    kvQuantization: false,
+                    attentionSinks: true,
+                    kvSwap: true,
+                    incrementalPrefill: nil,
+                    speculativeScheduling: false
+                ),
+                modelAllowlist: ProviderRuntimeModelAllowlistOverride(
+                    kvQuantizationModels: ["mlx-community/a"],
+                    attentionSinkModels: ["mlx-community/b"],
+                    kvSwapModels: nil,
+                    incrementalPrefillModels: nil,
+                    speculativeSchedulingModels: ["mlx-community/c"]
+                )
+            )
+        )
+
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(GenerateConfig.self, from: data)
+
+        XCTAssertEqual(decoded.runtimePolicyOverride?.featureFlags.kvQuantization, false)
+        XCTAssertEqual(decoded.runtimePolicyOverride?.featureFlags.attentionSinks, true)
+        XCTAssertEqual(decoded.runtimePolicyOverride?.featureFlags.speculativeScheduling, false)
+        XCTAssertEqual(decoded.runtimePolicyOverride?.modelAllowlist.kvQuantizationModels, ["mlx-community/a"])
+        XCTAssertEqual(decoded.runtimePolicyOverride?.modelAllowlist.speculativeSchedulingModels, ["mlx-community/c"])
+    }
+
 }
