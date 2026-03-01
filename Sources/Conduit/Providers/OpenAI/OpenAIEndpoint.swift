@@ -228,11 +228,20 @@ public enum OpenAIEndpoint: Sendable, Hashable {
             return components.url ?? URL(string: "http://localhost:11434/v1")!
 
         case .azure(let resource, _, _):
-            // Validate resource name - use a safe fallback if empty or invalid
-            let sanitizedResource = resource.isEmpty ? "default" : resource
-            // URL construction with a validated resource name should never fail.
-            // If it does, we use a fallback to avoid crashing the app.
-            return URL(string: "https://\(sanitizedResource).openai.azure.com/openai")!
+            let trimmed = resource.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let input = trimmed.isEmpty ? "default" : trimmed
+            let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789-")
+            let mapped = String(input.unicodeScalars.map { allowed.contains($0) ? Character($0) : "-" })
+            let collapsed = mapped.replacingOccurrences(of: "-+", with: "-", options: .regularExpression)
+            let sanitized = collapsed.trimmingCharacters(in: CharacterSet(charactersIn: "-")).isEmpty
+                ? "default"
+                : collapsed.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+
+            var components = URLComponents()
+            components.scheme = "https"
+            components.host = "\(sanitized).openai.azure.com"
+            components.path = "/openai"
+            return components.url ?? URL(string: "https://default.openai.azure.com/openai")!
 
         case .custom(let url):
             return url

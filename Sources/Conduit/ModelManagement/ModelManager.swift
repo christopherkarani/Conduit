@@ -361,8 +361,9 @@ public actor ModelManager {
         let task = DownloadTask(model: model)
         activeTasks[model] = task
 
-        // Start the download in a detached task
-        Task.detached { [weak self] in
+        // Start the download in a child task so cancellation/lifetime can
+        // propagate from callers that hold this async context.
+        Task { [weak self] in
             do {
                 _ = try await self?.download(model, progress: nil)
             } catch {

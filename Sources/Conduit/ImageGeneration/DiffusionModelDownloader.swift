@@ -37,6 +37,7 @@ public actor DiffusionModelDownloader {
 #endif
     private let token: String?
     private var activeDownloads: [String: Task<URL, Error>] = [:]
+    private var reservedDiskBytesByModel: [String: Int64] = [:]
     private let registry = DiffusionModelRegistry.shared
 
     // MARK: - Initialization
@@ -84,9 +85,16 @@ public actor DiffusionModelDownloader {
             }
         }
 
-        // Check available disk space before downloading
+        // Reuse existing in-flight download for the same model.
+        if let existingTask = activeDownloads[modelId] {
+            return try await existingTask.value
+        }
+
+        // Check available disk space before downloading, accounting for reserved
+        // space from other in-flight downloads in this actor.
         let requiredBytes = variant.sizeBytes
         try checkAvailableDiskSpace(requiredBytes: requiredBytes)
+        let reservedBytes = Self.diskRequirementWithSafetyBuffer(requiredBytes: requiredBytes)
 
         // Create download task
         let task = Task<URL, Error> { [weak self] in
@@ -171,22 +179,15 @@ public actor DiffusionModelDownloader {
             }
         }
 
-        // Atomically insert task - if another task was inserted concurrently,
-        // cancel ours and use theirs instead
-        if let existingTask = activeDownloads[modelId] {
-            task.cancel()
-            return try await existingTask.value
-        }
         activeDownloads[modelId] = task
+        reserveDiskSpace(for: modelId, bytes: reservedBytes)
 
-        do {
-            let result = try await task.value
+        defer {
             cleanupDownloadTask(modelId: modelId)
-            return result
-        } catch {
-            cleanupDownloadTask(modelId: modelId)
-            throw error
+            releaseReservedDiskSpace(for: modelId)
         }
+
+        return try await task.value
     }
 
     /// Cleans up a download task from the active downloads dictionary.
@@ -200,6 +201,7 @@ public actor DiffusionModelDownloader {
     public func cancelDownload(modelId: String) {
         activeDownloads[modelId]?.cancel()
         activeDownloads.removeValue(forKey: modelId)
+        releaseReservedDiskSpace(for: modelId)
     }
 
     /// Checks if a model is currently being downloaded.
@@ -216,6 +218,7 @@ public actor DiffusionModelDownloader {
             task.cancel()
         }
         activeDownloads.removeAll()
+        reservedDiskBytesByModel.removeAll()
     }
 
     /// Number of active downloads.
@@ -240,11 +243,21 @@ public actor DiffusionModelDownloader {
     /// - Parameter modelId: The model ID to delete.
     /// - Throws: Error if file deletion fails.
     public func deleteModel(modelId: String) async throws {
+        if let task = activeDownloads.removeValue(forKey: modelId) {
+            task.cancel()
+            _ = try? await task.value
+        }
+        releaseReservedDiskSpace(for: modelId)
+
         guard let path = await registry.localPath(for: modelId) else {
             return // Not downloaded
         }
 
-        try FileManager.default.removeItem(at: path)
+        do {
+            try FileManager.default.removeItem(at: path)
+        } catch let error as CocoaError where error.code == .fileNoSuchFile {
+            // Already gone from disk; still clear registry state.
+        }
         await registry.removeDownloaded(modelId)
     }
 
@@ -253,10 +266,37 @@ public actor DiffusionModelDownloader {
     /// - Throws: Error if any deletion fails.
     public func deleteAllModels() async throws {
         let models = await registry.allDownloadedModels
+        var deletionErrors: [String] = []
+
         for model in models {
-            try? FileManager.default.removeItem(at: model.localPath)
+            do {
+                try FileManager.default.removeItem(at: model.localPath)
+                await registry.removeDownloaded(model.id)
+            } catch let error as CocoaError where error.code == .fileNoSuchFile {
+                // Treat already-missing files as deleted and normalize registry state.
+                await registry.removeDownloaded(model.id)
+            } catch {
+                deletionErrors.append("\(model.id): \(error.localizedDescription)")
+            }
         }
-        await registry.clearAllRecords()
+
+        if !deletionErrors.isEmpty {
+            throw AIError.fileError(underlying: SendableError(NSError(
+                domain: "DiffusionModelDownloader",
+                code: -2,
+                userInfo: [
+                    NSLocalizedDescriptionKey: "Failed to delete \(deletionErrors.count) model(s): \(deletionErrors.joined(separator: "; "))"
+                ]
+            )))
+        }
+    }
+
+    private func reserveDiskSpace(for modelId: String, bytes: Int64) {
+        reservedDiskBytesByModel[modelId] = bytes
+    }
+
+    private func releaseReservedDiskSpace(for modelId: String) {
+        reservedDiskBytesByModel.removeValue(forKey: modelId)
     }
 
     // MARK: - Helpers
@@ -298,7 +338,7 @@ public actor DiffusionModelDownloader {
     ///
     /// - Parameter requiredBytes: The number of bytes required.
     /// - Throws: `AIError.insufficientDiskSpace` if not enough space is available.
-    private nonisolated func checkAvailableDiskSpace(requiredBytes: Int64) throws {
+    private func checkAvailableDiskSpace(requiredBytes: Int64) throws {
         let fileManager = FileManager.default
 
         // Use the home directory to check available space
@@ -312,12 +352,14 @@ public actor DiffusionModelDownloader {
                 return
             }
 
-            // Require 10% buffer above the model size for safety
-            let requiredWithBuffer = Int64(Double(requiredBytes) * 1.1)
+            // Require 10% buffer above the model size for safety and account for
+            // in-flight downloads that already reserved disk budget.
+            let requiredWithBuffer = Self.diskRequirementWithSafetyBuffer(requiredBytes: requiredBytes)
+            let totalRequired = requiredWithBuffer + reservedDiskBytesByModel.values.reduce(0, +)
 
-            if availableBytes < requiredWithBuffer {
+            if availableBytes < totalRequired {
                 throw AIError.insufficientDiskSpace(
-                    required: ByteCount(requiredWithBuffer),
+                    required: ByteCount(totalRequired),
                     available: ByteCount(availableBytes)
                 )
             }
@@ -327,6 +369,10 @@ public actor DiffusionModelDownloader {
             // If we can't check disk space, log but proceed
             // This is a non-critical check
         }
+    }
+
+    private nonisolated static func diskRequirementWithSafetyBuffer(requiredBytes: Int64) -> Int64 {
+        Int64(Double(requiredBytes) * 1.1)
     }
 
     // MARK: - Checksum Verification
@@ -369,8 +415,7 @@ public actor DiffusionModelDownloader {
         }
 
         guard let fileToVerify = primaryFile else {
-            // No safetensors file found, skip verification
-            return
+            throw AIError.checksumMismatch(expected: expected, actual: "<missing .safetensors file>")
         }
 
         // Calculate SHA256 checksum

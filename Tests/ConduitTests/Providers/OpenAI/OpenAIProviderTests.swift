@@ -192,6 +192,28 @@ struct OpenAIEndpointTests {
         #expect(endpoint.chatCompletionsURL.absoluteString.contains("api-version=2024-02-15-preview"))
     }
 
+    @Test("Azure endpoint sanitizes invalid resource values")
+    func azureInvalidResourceSanitization() {
+        let endpoint = OpenAIEndpoint.azure(
+            resource: " https://My Bad/Resource\\Name ",
+            deployment: "gpt-4",
+            apiVersion: "2024-02-15-preview"
+        )
+
+        #expect(endpoint.baseURL.absoluteString == "https://my-bad-resource-name.openai.azure.com/openai")
+    }
+
+    @Test("Azure endpoint falls back to default resource when empty")
+    func azureEmptyResourceFallback() {
+        let endpoint = OpenAIEndpoint.azure(
+            resource: "   ",
+            deployment: "gpt-4",
+            apiVersion: "2024-02-15-preview"
+        )
+
+        #expect(endpoint.baseURL.absoluteString == "https://default.openai.azure.com/openai")
+    }
+
     @Test("Endpoint display names")
     func displayNames() {
         #expect(OpenAIEndpoint.openAI.displayName == "OpenAI")
