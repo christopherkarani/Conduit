@@ -348,11 +348,11 @@ extension OpenAIProvider {
                 for tc in toolCalls {
                     guard let index = tc["index"] as? Int else { continue }
 
-                    // Validate index is within reasonable bounds (0...100)
-                    guard (0...100).contains(index) else {
+                    // Validate index is within bounded range.
+                    guard (0...maxToolCallIndex).contains(index) else {
                         let toolName = (tc["function"] as? [String: Any])?["name"] as? String ?? "unknown"
                         logger.warning(
-                            "Skipping tool call '\(toolName)' with invalid index \(index) (must be 0...100)"
+                            "Skipping tool call '\(toolName)' with invalid index \(index) (must be 0...\(maxToolCallIndex))"
                         )
                         continue
                     }
@@ -697,6 +697,7 @@ extension OpenAIProvider {
         var sseParser = ServerSentEventParser()
         var reasoningBuffer = ""
         var toolAccumulatorsByID: [String: ResponsesToolAccumulator] = [:]
+        var skippedToolAccumulatorIDs: Set<String> = []
         var nextToolIndex = 0
 
         func finalizeToolCalls() -> [Transcript.ToolCall] {
@@ -798,6 +799,28 @@ extension OpenAIProvider {
 
                 toolAccumulatorsByID[callID] = accumulator
 
+                case .toolCallCreated, .toolCallDelta:
+                    guard let callID = decoded.toolCallID else { continue }
+                    guard !skippedToolAccumulatorIDs.contains(callID) else { continue }
+
+                    if toolAccumulatorsByID[callID] == nil, nextToolIndex > maxToolCallIndex {
+                        skippedToolAccumulatorIDs.insert(callID)
+                        logger.warning(
+                            "Skipping tool call '\(callID)' because index exceeded maxToolCallIndex (\(maxToolCallIndex))"
+                        )
+                        continue
+                    }
+
+                    var accumulator = toolAccumulatorsByID[callID] ?? ResponsesToolAccumulator(
+                        id: callID,
+                        name: decoded.toolName ?? "unknown_tool",
+                        index: nextToolIndex,
+                        argumentsBuffer: ""
+                    )
+
+                    if toolAccumulatorsByID[callID] == nil {
+                        nextToolIndex += 1
+                    }
                 continuation.yield(GenerationChunk(
                     text: "",
                     tokenCount: 0,

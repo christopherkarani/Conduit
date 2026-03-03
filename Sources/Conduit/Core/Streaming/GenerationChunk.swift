@@ -81,7 +81,7 @@ public struct PartialToolCall: Sendable, Hashable {
     ///
     /// ## Valid Range
     ///
-    /// The index must be in the range `0...100` (see ``maxToolCallIndex``). This bound exists to:
+    /// The index is clamped to `0...maxToolCallIndex` (see ``maxToolCallIndex``). This bound exists to:
     /// - Prevent unbounded memory allocation in streaming accumulators
     /// - Provide defense against malformed server responses
     /// - Ensure predictable behavior across all providers
@@ -89,7 +89,7 @@ public struct PartialToolCall: Sendable, Hashable {
     /// Most real-world use cases involve indices 0-9, as models rarely invoke more than
     /// 10 tools in parallel.
     ///
-    /// - Precondition: Must be in range `0...maxToolCallIndex` (0...100).
+    /// - Note: Values outside `0...maxToolCallIndex` are clamped rather than rejected.
     /// - SeeAlso: ``maxToolCallIndex``
     public let index: Int
 
