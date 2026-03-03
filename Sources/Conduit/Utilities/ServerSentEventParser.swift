@@ -96,7 +96,8 @@ internal struct ServerSentEventParser: Sendable {
     mutating func finish() -> [ServerSentEvent] {
         // Match upstream `EventSource.Parser.finish()` semantics: only dispatch if we have
         // non-empty `data`, or an explicit `id:` / `event:` for this event.
-        guard !currentData.isEmpty || currentEventId != nil || currentEventType != nil else {
+        let hasExplicitEmptyDataField = currentData.isEmpty && seenFields.contains("data")
+        guard !currentData.isEmpty || hasExplicitEmptyDataField || currentEventId != nil || currentEventType != nil else {
             return []
         }
 
