@@ -249,6 +249,7 @@ public enum ModelRegistry {
     /// - 7 MLX text generation models
     /// - 3 MLX embedding models
     /// - 5 HuggingFace cloud models
+    /// - 3 Kimi cloud models
     /// - 1 Apple Foundation Model
     /// - 3 Kimi cloud models
     ///
@@ -539,8 +540,7 @@ public enum ModelRegistry {
 
     /// Get all models for a specific provider.
     ///
-    /// Filters the model catalog by provider type (MLX, HuggingFace, or
-    /// Apple Foundation Models).
+    /// Filters the model catalog by provider type.
     ///
     /// ## Usage
     /// ```swift
@@ -614,7 +614,8 @@ public enum ModelRegistry {
 
     /// Get all cloud-based models requiring network access.
     ///
-    /// Cloud models include all HuggingFace inference API models.
+    /// Cloud models include providers that require network access
+    /// (for example HuggingFace and Kimi).
     /// These models require an internet connection and API key.
     ///
     /// ## Usage
