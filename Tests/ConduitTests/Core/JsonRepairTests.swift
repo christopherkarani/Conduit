@@ -357,8 +357,6 @@ struct JsonRepairTests {
             // A colon without key-value structure
             let broken = #"{"name" :"#
 
-            let content = JsonRepair.tryParse(broken)
-
             // The repair will try to close it, but the result may still be unparseable
             // Let's verify tryParse returns something (repair + parse might succeed)
             // Actually, this might succeed after repair, let's test a more broken case
