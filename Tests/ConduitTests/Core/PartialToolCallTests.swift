@@ -243,6 +243,60 @@ struct PartialToolCallTests {
         }
     }
 
+    // MARK: - Validating Initializer Tests
+
+    @Suite("Validating Initializer")
+    struct ValidatingInitializerTests {
+
+        @Test("Validating init returns value for valid input")
+        func validatingInitAcceptsValidInput() {
+            let partial = PartialToolCall(
+                validating: "call_123",
+                toolName: "tool",
+                index: 1,
+                argumentsFragment: "{}"
+            )
+
+            #expect(partial != nil)
+        }
+
+        @Test("Validating init returns nil for empty id")
+        func validatingInitRejectsEmptyId() {
+            let partial = PartialToolCall(
+                validating: "",
+                toolName: "tool",
+                index: 1,
+                argumentsFragment: "{}"
+            )
+
+            #expect(partial == nil)
+        }
+
+        @Test("Validating init returns nil for empty tool name")
+        func validatingInitRejectsEmptyToolName() {
+            let partial = PartialToolCall(
+                validating: "call_123",
+                toolName: "",
+                index: 1,
+                argumentsFragment: "{}"
+            )
+
+            #expect(partial == nil)
+        }
+
+        @Test("Validating init returns nil for out-of-range index")
+        func validatingInitRejectsInvalidIndex() {
+            let partial = PartialToolCall(
+                validating: "call_123",
+                toolName: "tool",
+                index: 101,
+                argumentsFragment: "{}"
+            )
+
+            #expect(partial == nil)
+        }
+    }
+
     // MARK: - Equatable Conformance Tests
 
     @Suite("Equatable Conformance")

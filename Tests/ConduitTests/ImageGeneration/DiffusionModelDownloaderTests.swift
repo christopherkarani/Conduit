@@ -773,4 +773,4 @@ struct DiffusionModelDownloaderTests {
     }
 }
 
-#endif // canImport(Hub)
+#endif // CONDUIT_TRAIT_MLX

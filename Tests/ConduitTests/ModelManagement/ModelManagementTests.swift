@@ -402,6 +402,31 @@ final class DownloadTaskTests: XCTestCase {
         XCTAssertEqual(task.state, .completed(completedURL))
     }
 
+    func testUpdateStateIgnoresAfterTerminal() {
+        let task = DownloadTask(model: .llama3_2_1b)
+        let completedURL = URL(fileURLWithPath: "/tmp/model")
+
+        task.updateState(.cancelled)
+        task.updateState(.completed(completedURL))
+
+        XCTAssertEqual(task.state, .cancelled)
+    }
+
+    func testUpdateProgressIgnoresAfterTerminal() {
+        let task = DownloadTask(model: .llama3_2_1b)
+
+        let initialProgress = DownloadProgress(bytesDownloaded: 1, totalBytes: 10)
+        task.updateProgress(initialProgress)
+
+        task.updateState(.cancelled)
+
+        let laterProgress = DownloadProgress(bytesDownloaded: 5, totalBytes: 10)
+        task.updateProgress(laterProgress)
+
+        XCTAssertEqual(task.progress.bytesDownloaded, initialProgress.bytesDownloaded)
+        XCTAssertEqual(task.progress.totalBytes, initialProgress.totalBytes)
+    }
+
     // MARK: - Sendable Tests
 
     func testSendableConformance() async {
