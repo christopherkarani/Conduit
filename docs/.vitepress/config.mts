@@ -4,6 +4,7 @@ export default defineConfig({
   title: 'Conduit',
   description: 'Unified Swift SDK for local and cloud LLM inference',
   base: '/Conduit/',
+  appearance: 'dark',
 
   head: [
     ['link', { rel: 'icon', href: '/Conduit/conduit-logo.svg' }],

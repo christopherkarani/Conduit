@@ -773,4 +773,4 @@ struct DiffusionModelDownloaderTests {
     }
 }
 
-#endif // CONDUIT_TRAIT_MLX && canImport(MLX) && (canImport(Hub) || canImport(HuggingFace))
+#endif // CONDUIT_TRAIT_MLX

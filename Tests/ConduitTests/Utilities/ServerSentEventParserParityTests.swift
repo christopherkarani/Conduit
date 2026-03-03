@@ -82,9 +82,9 @@ final class ServerSentEventParserParityTests: XCTestCase {
                 expected: [ServerSentEvent(id: nil, event: nil, data: "hello", retry: nil)]
             ),
             .init(
-                name: "EOF does not flush empty data-only",
+                name: "EOF flushes empty data-only",
                 bytes: Array("data:\n".utf8),
-                expected: []
+                expected: [ServerSentEvent(id: nil, event: nil, data: "", retry: nil)]
             ),
             .init(
                 name: "BOM stripped",

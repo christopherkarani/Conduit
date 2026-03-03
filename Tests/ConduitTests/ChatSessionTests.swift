@@ -38,6 +38,12 @@ actor MockTextProvider: AIProvider, @preconcurrency TextGenerator {
     /// Optional artificial delay per generate call for cancellation tests.
     private var _generationDelayNanos: UInt64 = 0
 
+    /// Queue of pre-built chunk arrays to return from successive stream calls.
+    ///
+    /// Each inner array is one complete stream response. When non-empty, the
+    /// next `stream(messages:model:config:)` call dequeues from the front.
+    private var _queuedStreamChunkSets: [[GenerationChunk]] = []
+
     // MARK: - Accessors for Test Assertions
 
     var responseToReturn: String {
@@ -71,6 +77,10 @@ actor MockTextProvider: AIProvider, @preconcurrency TextGenerator {
 
     func setGenerationDelay(nanoseconds: UInt64) {
         _generationDelayNanos = nanoseconds
+    }
+
+    func setQueuedStreamChunkSets(_ chunkSets: [[GenerationChunk]]) {
+        _queuedStreamChunkSets = chunkSets
     }
 
     // MARK: - AIProvider
@@ -116,16 +126,30 @@ actor MockTextProvider: AIProvider, @preconcurrency TextGenerator {
         model: ModelID,
         config: GenerateConfig
     ) -> AsyncThrowingStream<StreamChunk, Error> {
+        _generateCallCount += 1
         _lastReceivedMessages = messages
-        let responseText = _responseToReturn
-        let throwError = _shouldThrowError
+        _receivedMessagesByGenerateCall.append(messages)
 
-        return AsyncThrowingStream { continuation in
-            if throwError {
+        if _shouldThrowError {
+            return AsyncThrowingStream { continuation in
                 continuation.finish(throwing: MockError.simulatedFailure)
-                return
             }
+        }
 
+        if !_queuedStreamChunkSets.isEmpty {
+            let chunks = _queuedStreamChunkSets.removeFirst()
+            return AsyncThrowingStream { continuation in
+                Task {
+                    for chunk in chunks {
+                        continuation.yield(chunk)
+                    }
+                    continuation.finish()
+                }
+            }
+        }
+
+        let responseText = _responseToReturn
+        return AsyncThrowingStream { continuation in
             let words = responseText.split(separator: " ")
             Task {
                 for (index, word) in words.enumerated() {
@@ -208,6 +232,7 @@ actor MockTextProvider: AIProvider, @preconcurrency TextGenerator {
         _generateCallCount = 0
         _generationDelayNanos = 0
         _queuedGenerationResults = []
+        _queuedStreamChunkSets = []
         _receivedMessagesByGenerateCall = []
     }
 }
@@ -1042,5 +1067,187 @@ struct ChatSessionTests {
         // Verify warmUp was not called
         let callCount = await provider.generateCallCount
         #expect(callCount == 0)
+    }
+
+    // MARK: - Streaming Tool-Call Loop Tests
+
+    @Test("stream executes tool calls then yields final answer")
+    func streamExecutesToolCallsThenYieldsFinalAnswer() async throws {
+        let provider = MockTextProvider()
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
+
+        let toolCall = try Transcript.ToolCall(
+            id: "stream_tool_1",
+            toolName: "session_echo_tool",
+            argumentsJSON: #"{"input":"Paris"}"#
+        )
+
+        // Round 1: assistant requests a tool call
+        // Round 2: assistant responds with the final answer
+        await provider.setQueuedStreamChunkSets([
+            [
+                GenerationChunk(text: "Checking weather", isComplete: false),
+                GenerationChunk(
+                    text: "",
+                    tokenCount: 0,
+                    isComplete: true,
+                    finishReason: .toolCalls,
+                    completedToolCalls: [toolCall]
+                )
+            ],
+            [
+                GenerationChunk(text: "Weather is Echo: Paris", isComplete: false),
+                GenerationChunk(text: "", tokenCount: 0, isComplete: true, finishReason: .stop)
+            ]
+        ])
+
+        session.toolExecutor = ToolExecutor(tools: [SessionEchoTool()])
+
+        var tokens: [String] = []
+        for try await token in session.stream("What's the weather?") {
+            tokens.append(token)
+        }
+
+        // Tokens from both rounds should have been yielded
+        #expect(tokens.contains("Checking weather"))
+        #expect(tokens.contains("Weather is Echo: Paris"))
+
+        // Final message history: user, assistant (with tool call), tool output, final assistant
+        #expect(session.messages.count == 4)
+        #expect(session.messages[0].role == .user)
+        #expect(session.messages[1].role == .assistant)
+        #expect(session.messages[1].metadata?.toolCalls?.count == 1)
+        #expect(session.messages[2].role == .tool)
+        #expect(session.messages[2].content.textValue == "Echo: Paris")
+        #expect(session.messages[3].role == .assistant)
+        #expect(session.messages[3].content.textValue == "Weather is Echo: Paris")
+
+        let callCount = await provider.generateCallCount
+        #expect(callCount == 2)
+
+        let receivedByCall = await provider.receivedMessagesByGenerateCall
+        #expect(receivedByCall.count == 2)
+        // Second stream call must have received the tool output message
+        #expect(
+            receivedByCall[1].contains(where: { $0.role == .tool && $0.content.textValue == "Echo: Paris" })
+        )
+    }
+
+    @Test("stream throws when tool loop exceeds maxToolCallRounds")
+    func streamThrowsWhenToolLoopExceedsMaxRounds() async throws {
+        let provider = MockTextProvider()
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
+
+        let toolCall1 = try Transcript.ToolCall(
+            id: "stream_loop_1",
+            toolName: "session_echo_tool",
+            argumentsJSON: #"{"input":"one"}"#
+        )
+        let toolCall2 = try Transcript.ToolCall(
+            id: "stream_loop_2",
+            toolName: "session_echo_tool",
+            argumentsJSON: #"{"input":"two"}"#
+        )
+
+        // Both stream results request tool calls; with maxToolCallRounds = 1,
+        // the second tool-call response should trigger the overflow error.
+        await provider.setQueuedStreamChunkSets([
+            [GenerationChunk(
+                text: "", tokenCount: 0, isComplete: true,
+                finishReason: .toolCalls, completedToolCalls: [toolCall1]
+            )],
+            [GenerationChunk(
+                text: "", tokenCount: 0, isComplete: true,
+                finishReason: .toolCalls, completedToolCalls: [toolCall2]
+            )]
+        ])
+
+        session.toolExecutor = ToolExecutor(tools: [SessionEchoTool()])
+        session.maxToolCallRounds = 1
+
+        await #expect(throws: AIError.self) {
+            for try await _ in session.stream("Trigger loop") {}
+        }
+
+        // User message must be rolled back on error
+        #expect(session.messages.isEmpty)
+        #expect(session.isGenerating == false)
+        #expect(session.lastError != nil)
+
+        guard let aiError = session.lastError as? AIError else {
+            Issue.record("Expected AIError for loop limit failure")
+            return
+        }
+        guard case .invalidInput(let message) = aiError else {
+            Issue.record("Expected AIError.invalidInput for loop limit failure")
+            return
+        }
+        #expect(message.contains("maxToolCallRounds"))
+    }
+
+    @Test("stream throws when toolExecutor is nil and tool calls are returned")
+    func streamThrowsWhenToolExecutorNilAndToolCallsReturned() async throws {
+        let provider = MockTextProvider()
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
+
+        let toolCall = try Transcript.ToolCall(
+            id: "no_executor_tool",
+            toolName: "session_echo_tool",
+            argumentsJSON: #"{"input":"test"}"#
+        )
+
+        await provider.setQueuedStreamChunkSets([
+            [GenerationChunk(
+                text: "", tokenCount: 0, isComplete: true,
+                finishReason: .toolCalls, completedToolCalls: [toolCall]
+            )]
+        ])
+
+        // Intentionally no toolExecutor set
+
+        await #expect(throws: AIError.self) {
+            for try await _ in session.stream("Request that returns tool calls") {}
+        }
+
+        // User message must be rolled back on error
+        #expect(session.messages.isEmpty)
+        #expect(session.isGenerating == false)
+        #expect(session.lastError != nil)
+    }
+
+    @Test("stream with maxToolCallRounds = 0 throws without executing any tool calls")
+    func streamMaxToolCallRoundsZeroThrowsImmediately() async throws {
+        let provider = MockTextProvider()
+        let session = try await ChatSession(provider: provider, model: .llama3_2_1b)
+
+        let toolCall = try Transcript.ToolCall(
+            id: "zero_rounds_tool",
+            toolName: "session_echo_tool",
+            argumentsJSON: #"{"input":"test"}"#
+        )
+
+        await provider.setQueuedStreamChunkSets([
+            [GenerationChunk(
+                text: "", tokenCount: 0, isComplete: true,
+                finishReason: .toolCalls, completedToolCalls: [toolCall]
+            )]
+        ])
+
+        session.toolExecutor = ToolExecutor(tools: [SessionEchoTool()])
+        session.maxToolCallRounds = 0
+
+        await #expect(throws: AIError.self) {
+            for try await _ in session.stream("Trigger zero-rounds") {}
+        }
+
+        // No tool execution should have happened; messages rolled back
+        #expect(session.messages.isEmpty)
+
+        guard let aiError = session.lastError as? AIError,
+              case .invalidInput(let message) = aiError else {
+            Issue.record("Expected AIError.invalidInput for zero-rounds failure")
+            return
+        }
+        #expect(message.contains("maxToolCallRounds"))
     }
 }

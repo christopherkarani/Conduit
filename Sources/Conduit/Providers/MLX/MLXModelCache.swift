@@ -62,7 +62,12 @@ public struct CacheStats: Sendable {
 /// let cache = MLXModelCache.shared
 ///
 /// // Cache a model
-/// let model = CachedModel(container: container, capabilities: caps, weightsSize: .gigabytes(2))
+/// let model = CachedModel(
+///     modelId: "llama-3.2-1B",
+///     container: container,
+///     capabilities: caps,
+///     weightsSize: .gigabytes(2)
+/// )
 /// await cache.set(model, forKey: "llama-3.2-1B")
 ///
 /// // Retrieve a model
@@ -93,6 +98,9 @@ public actor MLXModelCache {
     /// - Access is always through the `MLXModelCache` actor, providing isolation
     /// - The container is immutable after initialization
     public final class CachedModel: NSObject, @unchecked Sendable {
+        /// Model ID used to reconcile NSCache evictions with actor tracking.
+        let modelId: String
+
         /// The loaded MLX model container
         let container: ModelContainer
 
@@ -105,7 +113,8 @@ public actor MLXModelCache {
         /// Size of model weights in memory
         let weightsSize: ByteCount
 
-        init(container: ModelContainer, capabilities: ModelCapabilities, weightsSize: ByteCount) {
+        init(modelId: String, container: ModelContainer, capabilities: ModelCapabilities, weightsSize: ByteCount) {
+            self.modelId = modelId
             self.container = container
             self.capabilities = capabilities
             self.loadedAt = Date()
@@ -143,8 +152,8 @@ public actor MLXModelCache {
         var onEviction: ((String) -> Void)?
 
         func cache(_ cache: NSCache<AnyObject, AnyObject>, willEvictObject obj: Any) {
-            // NSCache eviction callback - we'll clean up tracking asynchronously
-            // Actual cleanup happens in get() when we detect the model is gone
+            guard let model = obj as? CachedModel else { return }
+            onEviction?(model.modelId)
         }
     }
 
@@ -182,6 +191,9 @@ public actor MLXModelCache {
     /// caches without mutating the process-global `shared` singleton.
     internal init(configuration: Configuration = .default) {
         self.delegate = CacheDelegate()
+        self.delegate.onEviction = { [weak self] modelId in
+            Task { await self?.handleEviction(of: modelId) }
+        }
         cacheWrapper.cache.delegate = delegate
         cacheWrapper.cache.countLimit = configuration.maxCachedModels
         if let maxSize = configuration.maxCacheSize {
@@ -297,6 +309,14 @@ public actor MLXModelCache {
     /// - Returns: The active model ID, or nil if no model is active
     public func getCurrentModelId() -> String? {
         currentModelId
+    }
+
+    private func handleEviction(of modelId: String) {
+        cachedModelIds.remove(modelId)
+        modelSizes.removeValue(forKey: modelId)
+        if currentModelId == modelId {
+            currentModelId = nil
+        }
     }
 
     // MARK: - Test Hooks
