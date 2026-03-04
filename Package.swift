@@ -57,7 +57,7 @@ let package = Package(
     dependencies: [
         // MARK: Cross-Platform Dependencies
         .package(url: "https://github.com/apple/swift-collections.git", from: "1.1.0"),
-        .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", "600.0.0"..<"700.0.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.8.0"),
 
         // MARK: MLX Dependencies (Apple Silicon Only)
