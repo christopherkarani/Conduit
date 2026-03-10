@@ -3,7 +3,7 @@
 //
 // This file requires the MLX trait to be enabled.
 
-#if canImport(MLX)
+#if CONDUIT_TRAIT_MLX && canImport(MLX)
 
 import Foundation
 import Testing
@@ -286,4 +286,4 @@ struct MLXImageProviderErrorRecoveryTests {
     }
 }
 
-#endif // canImport(MLX)
+#endif // CONDUIT_TRAIT_MLX && canImport(MLX)

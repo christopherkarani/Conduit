@@ -414,16 +414,28 @@ final class ModelIdentifierTests: XCTestCase {
     func testRegistryContainsAllExpectedModels() {
         let allModels = ModelRegistry.allModels
 
-        // Should have 16 models total
-        XCTAssertEqual(allModels.count, 16)
+        XCTAssertFalse(allModels.isEmpty)
+        XCTAssertEqual(Set(allModels.map(\.identifier)).count, allModels.count, "Model identifiers must be unique")
+
+        let expectedCoreModels: Set<ModelIdentifier> = [
+            .llama3_2_1b, .llama3_2_3b, .phi3Mini, .phi4, .qwen2_5_3b, .mistral7B, .gemma2_2b,
+            .bgeSmall, .bgeLarge, .nomicEmbed,
+            .llama3_1_70B, .llama3_1_8B, .mixtral8x7B, .deepseekR1, .whisperLargeV3,
+            .apple,
+            .kimiK2_5, .kimiK2, .kimiK1_5
+        ]
+        XCTAssertTrue(expectedCoreModels.isSubset(of: Set(allModels.map(\.identifier))))
+        XCTAssertEqual(allModels.count, expectedCoreModels.count)
 
         // Count by provider
         let mlxModels = allModels.filter { $0.identifier.provider == .mlx }
         let hfModels = allModels.filter { $0.identifier.provider == .huggingFace }
+        let kimiModels = allModels.filter { $0.identifier.provider == .kimi }
         let appleModels = allModels.filter { $0.identifier.provider == .foundationModels }
 
         XCTAssertEqual(mlxModels.count, 10) // 7 text gen + 3 embedding
         XCTAssertEqual(hfModels.count, 5)
+        XCTAssertEqual(kimiModels.count, 3)
         XCTAssertEqual(appleModels.count, 1)
     }
 
@@ -450,15 +462,18 @@ final class ModelIdentifierTests: XCTestCase {
     func testRegistryModelsByProvider() {
         let mlxModels = ModelRegistry.models(for: .mlx)
         let hfModels = ModelRegistry.models(for: .huggingFace)
+        let kimiModels = ModelRegistry.models(for: .kimi)
         let appleModels = ModelRegistry.models(for: .foundationModels)
 
         XCTAssertEqual(mlxModels.count, 10)
         XCTAssertEqual(hfModels.count, 5)
+        XCTAssertEqual(kimiModels.count, 3)
         XCTAssertEqual(appleModels.count, 1)
 
         // Verify all MLX models are actually MLX
         XCTAssertTrue(mlxModels.allSatisfy { $0.identifier.provider == .mlx })
         XCTAssertTrue(hfModels.allSatisfy { $0.identifier.provider == .huggingFace })
+        XCTAssertTrue(kimiModels.allSatisfy { $0.identifier.provider == .kimi })
         XCTAssertTrue(appleModels.allSatisfy { $0.identifier.provider == .foundationModels })
     }
 
@@ -469,10 +484,10 @@ final class ModelIdentifierTests: XCTestCase {
         let reasoningModels = ModelRegistry.models(with: .reasoning)
         let transcriptionModels = ModelRegistry.models(with: .transcription)
 
-        XCTAssertEqual(textGenModels.count, 12) // Most models support text generation
+        XCTAssertEqual(textGenModels.count, 15) // Includes MLX, HuggingFace, Foundation, and Kimi models
         XCTAssertEqual(embeddingModels.count, 3) // BGE small, BGE large, Nomic
-        XCTAssertEqual(codeGenModels.count, 3) // Phi-3 Mini, Phi-4, Llama 3.1 70B
-        XCTAssertEqual(reasoningModels.count, 4) // Phi-3 Mini, Phi-4, Llama 3.1 70B, DeepSeek R1
+        XCTAssertEqual(codeGenModels.count, 5) // Phi models, Llama 3.1 70B, and Kimi code models
+        XCTAssertEqual(reasoningModels.count, 6) // Phi models, DeepSeek R1, and Kimi reasoning models
         XCTAssertEqual(transcriptionModels.count, 1) // Whisper Large V3
 
         // Verify all embedding models actually have the capability
@@ -517,15 +532,15 @@ final class ModelIdentifierTests: XCTestCase {
     func testRegistryCloudModels() {
         let cloudModels = ModelRegistry.cloudModels()
 
-        // Cloud models should be HuggingFace only
-        XCTAssertEqual(cloudModels.count, 5)
+        XCTAssertEqual(cloudModels.count, 8)
 
         // All should require network
         XCTAssertTrue(cloudModels.allSatisfy { $0.identifier.requiresNetwork })
         XCTAssertTrue(cloudModels.allSatisfy { !$0.identifier.isLocal })
 
-        // All should be HuggingFace
-        XCTAssertTrue(cloudModels.allSatisfy { $0.identifier.provider == .huggingFace })
+        // Cloud providers currently include HuggingFace and Kimi model catalog entries.
+        let providers = Set(cloudModels.map { $0.identifier.provider })
+        XCTAssertEqual(providers, Set([.huggingFace, .kimi]))
     }
 
     // MARK: - ProviderType Tests

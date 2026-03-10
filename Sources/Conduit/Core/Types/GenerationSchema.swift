@@ -7,12 +7,12 @@ import struct Foundation.Decimal
 
 /// Error that occurs during schema encoding.
 private enum EncodingError: Error, LocalizedError {
-    case invalidValue(Any, Context)
+    case invalidValue(String, Context)
 
     var errorDescription: String? {
         switch self {
-        case .invalidValue(let value, let context):
-            return "Invalid value during encoding: \(value). \(context.debugDescription)"
+        case .invalidValue(let valueDescription, let context):
+            return "Invalid value during encoding: \(valueDescription). \(context.debugDescription)"
         }
     }
 
@@ -59,7 +59,7 @@ public struct GenerationSchema: Sendable, Codable, CustomDebugStringConvertible 
                 for (name, node) in obj.properties {
                     guard let key = DynamicCodingKey(stringValue: name) else {
                         throw EncodingError.invalidValue(
-                            name,
+                            String(describing: name),
                             EncodingError.Context(
                                 codingPath: container.codingPath,
                                 debugDescription: "Unable to create coding key for property '\(name)'"

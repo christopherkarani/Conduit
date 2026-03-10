@@ -7,7 +7,7 @@ import Foundation
 import Testing
 @testable import Conduit
 
-#if canImport(MLX)
+#if CONDUIT_TRAIT_MLX && canImport(MLX)
 @preconcurrency import MLXLMCommon
 
 @Suite("MLXConfiguration Application - GenerateParameters")

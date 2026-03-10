@@ -6,7 +6,7 @@
 import XCTest
 @testable import Conduit
 
-#if canImport(StableDiffusion)
+#if CONDUIT_TRAIT_MLX && canImport(MLX) && canImport(StableDiffusion)
 import StableDiffusion
 
 final class ModelLRUCacheTests: XCTestCase {
