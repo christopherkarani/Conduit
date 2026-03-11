@@ -7,7 +7,7 @@ import struct Foundation.Decimal
 
 /// Error that occurs during schema encoding.
 private enum EncodingError: Error, LocalizedError {
-    case invalidValue(Any, Context)
+    case invalidValue(String, Context)
 
     var errorDescription: String? {
         switch self {

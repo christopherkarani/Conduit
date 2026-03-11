@@ -1,9 +1,9 @@
 // DiffusionModelDownloaderTests.swift
 // Conduit
 //
-// This file requires the MLX trait (Hub) to be enabled.
+// This file requires MLX trait and at least one download backend.
 
-#if canImport(Hub)
+#if CONDUIT_TRAIT_MLX && canImport(MLX) && (canImport(Hub) || canImport(HuggingFace))
 
 import Foundation
 import Testing
@@ -773,4 +773,4 @@ struct DiffusionModelDownloaderTests {
     }
 }
 
-#endif // canImport(Hub)
+#endif // CONDUIT_TRAIT_MLX && canImport(MLX) && (canImport(Hub) || canImport(HuggingFace))

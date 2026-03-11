@@ -181,15 +181,17 @@ extension DeviceCapabilities {
     private static func getChipType() -> String? {
         #if os(macOS) || os(iOS)
         var size = 0
-        sysctlbyname("machdep.cpu.brand_string", nil, &size, nil, 0)
-
-        if size > 0 {
-            var buffer = [CChar](repeating: 0, count: size)
-            sysctlbyname("machdep.cpu.brand_string", &buffer, &size, nil, 0)
-            // Use failable String initializer with null-terminated C string
-            return String(cString: buffer)
+        guard sysctlbyname("machdep.cpu.brand_string", nil, &size, nil, 0) == 0, size > 1 else {
+            return nil
         }
-        return nil
+
+        var buffer = [CChar](repeating: 0, count: size)
+        guard sysctlbyname("machdep.cpu.brand_string", &buffer, &size, nil, 0) == 0 else {
+            return nil
+        }
+
+        let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+        return bytes.isEmpty ? nil : String(decoding: bytes, as: UTF8.self)
         #elseif os(Linux)
         // Linux: Read from /proc/cpuinfo
         // NOTE: Returns the "model name" field which contains CPU description

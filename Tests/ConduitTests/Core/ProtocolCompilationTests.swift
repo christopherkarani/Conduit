@@ -659,23 +659,29 @@ final class ProtocolCompilationTests: XCTestCase {
         let llama = ProviderType.llama
         let huggingFace = ProviderType.huggingFace
         let foundationModels = ProviderType.foundationModels
+        let kimi = ProviderType.kimi
+        let minimax = ProviderType.minimax
 
         XCTAssertEqual(mlx.displayName, "MLX (Local)")
         XCTAssertEqual(coreml.displayName, "Core ML (Local)")
         XCTAssertEqual(llama.displayName, "llama.cpp (Local)")
         XCTAssertEqual(huggingFace.displayName, "HuggingFace (Cloud)")
         XCTAssertEqual(foundationModels.displayName, "Apple Foundation Models")
+        XCTAssertEqual(kimi.displayName, "Kimi")
+        XCTAssertEqual(minimax.displayName, "MiniMax")
 
         XCTAssertFalse(mlx.requiresNetwork)
         XCTAssertFalse(coreml.requiresNetwork)
         XCTAssertFalse(llama.requiresNetwork)
         XCTAssertTrue(huggingFace.requiresNetwork)
         XCTAssertFalse(foundationModels.requiresNetwork)
+        XCTAssertTrue(kimi.requiresNetwork)
+        XCTAssertTrue(minimax.requiresNetwork)
     }
 
     func testProviderTypeIsCaseIterable() {
         let allCases = ProviderType.allCases
-        XCTAssertEqual(allCases.count, 10)
+        XCTAssertEqual(allCases.count, 12)
         XCTAssertTrue(allCases.contains(.mlx))
         XCTAssertTrue(allCases.contains(.coreml))
         XCTAssertTrue(allCases.contains(.llama))
@@ -685,6 +691,8 @@ final class ProtocolCompilationTests: XCTestCase {
         XCTAssertTrue(allCases.contains(.openRouter))
         XCTAssertTrue(allCases.contains(.ollama))
         XCTAssertTrue(allCases.contains(.anthropic))
+        XCTAssertTrue(allCases.contains(.kimi))
+        XCTAssertTrue(allCases.contains(.minimax))
         XCTAssertTrue(allCases.contains(.azure))
     }
 
