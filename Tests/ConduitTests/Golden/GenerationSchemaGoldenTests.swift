@@ -213,6 +213,24 @@ final class GenerationSchemaGoldenTests: XCTestCase {
         XCTAssertEqual(scoresItems["maximum"] as? Double, 100)
     }
 
+    func testSchemaEncodingSupportsEmptyPropertyNames() throws {
+        let schema = GenerationSchema(
+            type: String.self,
+            properties: [
+                .init(name: "", type: String.self),
+            ]
+        )
+
+        let data = try JSONEncoder().encode(schema)
+        let object = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let defs = try XCTUnwrap(object["$defs"] as? [String: Any])
+        let root = try XCTUnwrap(defs[String(reflecting: String.self)] as? [String: Any])
+        let properties = try XCTUnwrap(root["properties"] as? [String: Any])
+        XCTAssertNotNil(properties[""])
+
+        _ = try JSONDecoder().decode(GenerationSchema.self, from: data)
+    }
+
     private func canonicalJSONString(_ json: String) throws -> String {
         let object = try JSONSerialization.jsonObject(with: Data(json.utf8), options: [.fragmentsAllowed])
         let canonical = canonicalizeJSON(object)

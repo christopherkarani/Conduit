@@ -3,25 +3,6 @@ import class Foundation.JSONEncoder
 import class Foundation.JSONDecoder
 import struct Foundation.Decimal
 
-// MARK: - EncodingError
-
-/// Error that occurs during schema encoding.
-private enum EncodingError: Error, LocalizedError {
-    case invalidValue(Any, Context)
-
-    var errorDescription: String? {
-        switch self {
-        case .invalidValue(let value, let context):
-            return "Invalid value during encoding: \(value). \(context.debugDescription)"
-        }
-    }
-
-    struct Context: Sendable {
-        let codingPath: [any CodingKey]
-        let debugDescription: String
-    }
-}
-
 /// A type that describes properties of an object and any guides
 /// on their values.
 ///
@@ -57,15 +38,7 @@ public struct GenerationSchema: Sendable, Codable, CustomDebugStringConvertible 
                 }
                 var propsContainer = container.nestedContainer(keyedBy: DynamicCodingKey.self, forKey: .properties)
                 for (name, node) in obj.properties {
-                    guard let key = DynamicCodingKey(stringValue: name) else {
-                        throw EncodingError.invalidValue(
-                            name,
-                            EncodingError.Context(
-                                codingPath: container.codingPath,
-                                debugDescription: "Unable to create coding key for property '\(name)'"
-                            )
-                        )
-                    }
+                    let key = DynamicCodingKey(stringValue: name)
                     try propsContainer.encode(node, forKey: key)
                 }
                 try container.encode(Array(obj.required), forKey: .required)
@@ -220,12 +193,12 @@ public struct GenerationSchema: Sendable, Codable, CustomDebugStringConvertible 
         var stringValue: String
         var intValue: Int?
 
-        init?(stringValue: String) {
+        init(stringValue: String) {
             self.stringValue = stringValue
             self.intValue = nil
         }
 
-        init?(intValue: Int) {
+        init(intValue: Int) {
             self.stringValue = String(intValue)
             self.intValue = intValue
         }
@@ -578,15 +551,7 @@ public struct GenerationSchema: Sendable, Codable, CustomDebugStringConvertible 
         if !defs.isEmpty {
             var defsContainer = container.nestedContainer(keyedBy: DynamicCodingKey.self, forKey: .defs)
             for (name, node) in defs {
-                guard let key = DynamicCodingKey(stringValue: name) else {
-                    throw EncodingError.invalidValue(
-                        name,
-                        EncodingError.Context(
-                            codingPath: encoder.codingPath,
-                            debugDescription: "Unable to create coding key for definition '\(name)'"
-                        )
-                    )
-                }
+                let key = DynamicCodingKey(stringValue: name)
                 try defsContainer.encode(node, forKey: key)
             }
         }
