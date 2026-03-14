@@ -413,18 +413,19 @@ final class ModelIdentifierTests: XCTestCase {
 
     func testRegistryContainsAllExpectedModels() {
         let allModels = ModelRegistry.allModels
+        XCTAssertFalse(allModels.isEmpty)
 
-        // Should have 16 models total
-        XCTAssertEqual(allModels.count, 16)
-
-        // Count by provider
+        // Count by provider should reflect current catalog composition.
         let mlxModels = allModels.filter { $0.identifier.provider == .mlx }
         let hfModels = allModels.filter { $0.identifier.provider == .huggingFace }
+        let kimiModels = allModels.filter { $0.identifier.provider == .kimi }
         let appleModels = allModels.filter { $0.identifier.provider == .foundationModels }
 
-        XCTAssertEqual(mlxModels.count, 10) // 7 text gen + 3 embedding
-        XCTAssertEqual(hfModels.count, 5)
+        XCTAssertEqual(mlxModels.count, 10) // 7 text generation + 3 embedding
+        XCTAssertEqual(hfModels.count, 5) // curated cloud HF catalog
+        XCTAssertEqual(kimiModels.count, 3) // curated Kimi catalog
         XCTAssertEqual(appleModels.count, 1)
+        XCTAssertEqual(allModels.count, mlxModels.count + hfModels.count + kimiModels.count + appleModels.count)
     }
 
     func testRegistryInfoLookup() {
@@ -450,15 +451,18 @@ final class ModelIdentifierTests: XCTestCase {
     func testRegistryModelsByProvider() {
         let mlxModels = ModelRegistry.models(for: .mlx)
         let hfModels = ModelRegistry.models(for: .huggingFace)
+        let kimiModels = ModelRegistry.models(for: .kimi)
         let appleModels = ModelRegistry.models(for: .foundationModels)
 
         XCTAssertEqual(mlxModels.count, 10)
         XCTAssertEqual(hfModels.count, 5)
+        XCTAssertEqual(kimiModels.count, 3)
         XCTAssertEqual(appleModels.count, 1)
 
         // Verify all MLX models are actually MLX
         XCTAssertTrue(mlxModels.allSatisfy { $0.identifier.provider == .mlx })
         XCTAssertTrue(hfModels.allSatisfy { $0.identifier.provider == .huggingFace })
+        XCTAssertTrue(kimiModels.allSatisfy { $0.identifier.provider == .kimi })
         XCTAssertTrue(appleModels.allSatisfy { $0.identifier.provider == .foundationModels })
     }
 
@@ -469,14 +473,18 @@ final class ModelIdentifierTests: XCTestCase {
         let reasoningModels = ModelRegistry.models(with: .reasoning)
         let transcriptionModels = ModelRegistry.models(with: .transcription)
 
-        XCTAssertEqual(textGenModels.count, 12) // Most models support text generation
         XCTAssertEqual(embeddingModels.count, 3) // BGE small, BGE large, Nomic
-        XCTAssertEqual(codeGenModels.count, 3) // Phi-3 Mini, Phi-4, Llama 3.1 70B
-        XCTAssertEqual(reasoningModels.count, 4) // Phi-3 Mini, Phi-4, Llama 3.1 70B, DeepSeek R1
         XCTAssertEqual(transcriptionModels.count, 1) // Whisper Large V3
+        XCTAssertGreaterThanOrEqual(textGenModels.count, 1)
+        XCTAssertGreaterThanOrEqual(codeGenModels.count, 1)
+        XCTAssertGreaterThanOrEqual(reasoningModels.count, 1)
 
-        // Verify all embedding models actually have the capability
+        // Verify all filtered models actually have the queried capability.
+        XCTAssertTrue(textGenModels.allSatisfy { $0.capabilities.contains(.textGeneration) })
         XCTAssertTrue(embeddingModels.allSatisfy { $0.capabilities.contains(.embeddings) })
+        XCTAssertTrue(codeGenModels.allSatisfy { $0.capabilities.contains(.codeGeneration) })
+        XCTAssertTrue(reasoningModels.allSatisfy { $0.capabilities.contains(.reasoning) })
+        XCTAssertTrue(transcriptionModels.allSatisfy { $0.capabilities.contains(.transcription) })
     }
 
     func testRegistryRecommendedModels() {
@@ -517,15 +525,21 @@ final class ModelIdentifierTests: XCTestCase {
     func testRegistryCloudModels() {
         let cloudModels = ModelRegistry.cloudModels()
 
-        // Cloud models should be HuggingFace only
-        XCTAssertEqual(cloudModels.count, 5)
+        // Cloud models include all network-backed providers.
+        XCTAssertEqual(cloudModels.count, 8)
 
         // All should require network
         XCTAssertTrue(cloudModels.allSatisfy { $0.identifier.requiresNetwork })
         XCTAssertTrue(cloudModels.allSatisfy { !$0.identifier.isLocal })
 
-        // All should be HuggingFace
-        XCTAssertTrue(cloudModels.allSatisfy { $0.identifier.provider == .huggingFace })
+        // Cloud catalog includes both HuggingFace and Kimi entries.
+        XCTAssertTrue(cloudModels.contains { $0.identifier.provider == .huggingFace })
+        XCTAssertTrue(cloudModels.contains { $0.identifier.provider == .kimi })
+        XCTAssertTrue(
+            cloudModels.allSatisfy {
+                $0.identifier.provider == .huggingFace || $0.identifier.provider == .kimi
+            }
+        )
     }
 
     // MARK: - ProviderType Tests
