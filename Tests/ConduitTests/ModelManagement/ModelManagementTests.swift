@@ -869,6 +869,42 @@ final class ModelCacheTests: XCTestCase {
         XCTAssertTrue(isEmpty)
     }
 
+    func testClearAllRetainsEntriesWhenDeletionFails() async throws {
+        let cache = try await ModelCache(cacheDirectory: tempDirectory)
+
+        let removablePath = tempDirectory.appendingPathComponent("removable-model")
+        try FileManager.default.createDirectory(at: removablePath, withIntermediateDirectories: true)
+
+        // `/System` is protected on macOS for normal users, so deletion should fail.
+        let protectedPath = URL(fileURLWithPath: "/System", isDirectory: true)
+
+        try await cache.add(CachedModelInfo(
+            identifier: .llama3_2_1b,
+            path: removablePath,
+            size: .gigabytes(1)
+        ))
+        try await cache.add(CachedModelInfo(
+            identifier: .llama3_2_3b,
+            path: protectedPath,
+            size: .gigabytes(1)
+        ))
+
+        do {
+            try await cache.clearAll()
+            XCTFail("Expected clearAll() to throw when one deletion fails")
+        } catch {
+            // Expected path.
+        }
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: removablePath.path))
+        let removableStillCached = await cache.isCached(.llama3_2_1b)
+        let protectedStillCached = await cache.isCached(.llama3_2_3b)
+        let remainingCount = await cache.count
+        XCTAssertFalse(removableStillCached)
+        XCTAssertTrue(protectedStillCached)
+        XCTAssertEqual(remainingCount, 1)
+    }
+
     // MARK: - LRU Eviction Tests
 
     func testEvictToFitLRU() async throws {
@@ -1017,5 +1053,17 @@ final class ModelCacheTests: XCTestCase {
         XCTAssertEqual(allModels[0].identifier, .mlx("test/model"))
         XCTAssertEqual(allModels[1].identifier, .llama3_2_3b)
         XCTAssertEqual(allModels[2].identifier, .llama3_2_1b)
+    }
+}
+
+// MARK: - ModelManager Regression Tests
+
+final class ModelManagerRegressionTests: XCTestCase {
+    func testDownloadTaskImmediatelyWiresUnderlyingTask() async {
+        let task = await ModelManager.shared.downloadTask(for: .llama3_2_1b)
+        XCTAssertNotNil(task.downloadTask)
+
+        // Cleanup in case background work started.
+        await ModelManager.shared.cancelDownload(.llama3_2_1b)
     }
 }

@@ -390,27 +390,31 @@ public actor ModelCache {
     /// ```
     public func clearAll() throws {
         let fileManager = FileManager.default
-        var errors: [Error] = []
+        var remainingCache: [ModelIdentifier: CachedModelInfo] = [:]
+        var firstError: Error?
 
         // Delete all model directories
-        for info in cache.values {
+        for (identifier, info) in cache {
             do {
                 if fileManager.fileExists(atPath: info.path.path) {
                     try fileManager.removeItem(at: info.path)
                 }
             } catch {
-                errors.append(error)
+                remainingCache[identifier] = info
+                if firstError == nil {
+                    firstError = error
+                }
             }
         }
 
-        // Clear the in-memory cache
-        cache.removeAll()
+        // Keep entries for models that failed deletion so metadata remains truthful.
+        cache = remainingCache
 
-        // Persist the empty cache
+        // Persist the updated cache state.
         try saveMetadata()
 
-        // If any deletions failed, throw an error
-        if let firstError = errors.first {
+        // If any deletion failed, surface the first error after state is persisted.
+        if let firstError {
             throw AIError.file(firstError)
         }
     }

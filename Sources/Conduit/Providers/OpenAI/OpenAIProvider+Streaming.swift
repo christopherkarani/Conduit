@@ -319,6 +319,10 @@ extension OpenAIProvider {
                     if let id = tc["id"] as? String,
                        let function = tc["function"] as? [String: Any],
                        let name = function["name"] as? String {
+                        guard !id.isEmpty, !name.isEmpty else {
+                            logger.warning("Skipping malformed tool call delta with empty id/name at index \(index)")
+                            continue
+                        }
                         // Initialize accumulator with initial arguments (if any)
                         let args = function["arguments"] as? String ?? ""
                         toolCallAccumulators[index] = (id: id, name: name, argumentsBuffer: args)

@@ -666,9 +666,9 @@ public final class ChatSession<Provider: AIProvider & TextGenerator>: @unchecked
             return messages
         }
 
-        // Capture model and config for the async operation
+        // Capture model and config for the async operation.
         let currentModel = model
-        let currentConfig = config
+        let currentConfig = withLock { config }
 
         return AsyncThrowingStream { continuation in
             let task = Task { [weak self] in

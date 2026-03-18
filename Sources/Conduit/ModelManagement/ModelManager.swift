@@ -361,13 +361,13 @@ public actor ModelManager {
         let task = DownloadTask(model: model)
         activeTasks[model] = task
 
-        // Start the download in a detached task
-        Task.detached { [weak self] in
-            do {
-                _ = try await self?.download(model, progress: nil)
-            } catch {
-                // Error is already handled in download()
+        // Wire and start the backing async work before returning, so `result()`
+        // cannot observe a transient `taskNotStarted` state.
+        task.downloadTask = Task { [weak self] in
+            guard let self else {
+                throw CancellationError()
             }
+            return try await self.download(model, progress: nil)
         }
 
         return task

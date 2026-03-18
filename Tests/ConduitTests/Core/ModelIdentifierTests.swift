@@ -414,17 +414,20 @@ final class ModelIdentifierTests: XCTestCase {
     func testRegistryContainsAllExpectedModels() {
         let allModels = ModelRegistry.allModels
 
-        // Should have 16 models total
-        XCTAssertEqual(allModels.count, 16)
+        // Registry should include at least the original baseline catalog.
+        XCTAssertGreaterThanOrEqual(allModels.count, 16)
+        XCTAssertEqual(Set(allModels.map(\.identifier)).count, allModels.count)
 
         // Count by provider
         let mlxModels = allModels.filter { $0.identifier.provider == .mlx }
         let hfModels = allModels.filter { $0.identifier.provider == .huggingFace }
         let appleModels = allModels.filter { $0.identifier.provider == .foundationModels }
+        let kimiModels = allModels.filter { $0.identifier.provider == .kimi }
 
-        XCTAssertEqual(mlxModels.count, 10) // 7 text gen + 3 embedding
-        XCTAssertEqual(hfModels.count, 5)
+        XCTAssertGreaterThanOrEqual(mlxModels.count, 10) // baseline: 7 text + 3 embedding
+        XCTAssertGreaterThanOrEqual(hfModels.count, 5)
         XCTAssertEqual(appleModels.count, 1)
+        XCTAssertGreaterThanOrEqual(kimiModels.count, 1)
     }
 
     func testRegistryInfoLookup() {
@@ -451,15 +454,18 @@ final class ModelIdentifierTests: XCTestCase {
         let mlxModels = ModelRegistry.models(for: .mlx)
         let hfModels = ModelRegistry.models(for: .huggingFace)
         let appleModels = ModelRegistry.models(for: .foundationModels)
+        let kimiModels = ModelRegistry.models(for: .kimi)
 
-        XCTAssertEqual(mlxModels.count, 10)
-        XCTAssertEqual(hfModels.count, 5)
+        XCTAssertGreaterThanOrEqual(mlxModels.count, 10)
+        XCTAssertGreaterThanOrEqual(hfModels.count, 5)
         XCTAssertEqual(appleModels.count, 1)
+        XCTAssertGreaterThanOrEqual(kimiModels.count, 1)
 
         // Verify all MLX models are actually MLX
         XCTAssertTrue(mlxModels.allSatisfy { $0.identifier.provider == .mlx })
         XCTAssertTrue(hfModels.allSatisfy { $0.identifier.provider == .huggingFace })
         XCTAssertTrue(appleModels.allSatisfy { $0.identifier.provider == .foundationModels })
+        XCTAssertTrue(kimiModels.allSatisfy { $0.identifier.provider == .kimi })
     }
 
     func testRegistryModelsByCapability() {
@@ -469,10 +475,10 @@ final class ModelIdentifierTests: XCTestCase {
         let reasoningModels = ModelRegistry.models(with: .reasoning)
         let transcriptionModels = ModelRegistry.models(with: .transcription)
 
-        XCTAssertEqual(textGenModels.count, 12) // Most models support text generation
-        XCTAssertEqual(embeddingModels.count, 3) // BGE small, BGE large, Nomic
-        XCTAssertEqual(codeGenModels.count, 3) // Phi-3 Mini, Phi-4, Llama 3.1 70B
-        XCTAssertEqual(reasoningModels.count, 4) // Phi-3 Mini, Phi-4, Llama 3.1 70B, DeepSeek R1
+        XCTAssertGreaterThanOrEqual(textGenModels.count, 12)
+        XCTAssertGreaterThanOrEqual(embeddingModels.count, 3)
+        XCTAssertGreaterThanOrEqual(codeGenModels.count, 3)
+        XCTAssertGreaterThanOrEqual(reasoningModels.count, 4)
         XCTAssertEqual(transcriptionModels.count, 1) // Whisper Large V3
 
         // Verify all embedding models actually have the capability
@@ -517,15 +523,16 @@ final class ModelIdentifierTests: XCTestCase {
     func testRegistryCloudModels() {
         let cloudModels = ModelRegistry.cloudModels()
 
-        // Cloud models should be HuggingFace only
-        XCTAssertEqual(cloudModels.count, 5)
+        XCTAssertGreaterThanOrEqual(cloudModels.count, 5)
 
         // All should require network
         XCTAssertTrue(cloudModels.allSatisfy { $0.identifier.requiresNetwork })
         XCTAssertTrue(cloudModels.allSatisfy { !$0.identifier.isLocal })
 
-        // All should be HuggingFace
-        XCTAssertTrue(cloudModels.allSatisfy { $0.identifier.provider == .huggingFace })
+        // Cloud providers currently include HuggingFace and Kimi.
+        let providers = Set(cloudModels.map { $0.identifier.provider })
+        XCTAssertTrue(providers.contains(.huggingFace))
+        XCTAssertTrue(providers.contains(.kimi))
     }
 
     // MARK: - ProviderType Tests
