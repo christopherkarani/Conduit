@@ -1,13 +1,13 @@
 ![unnamed-14](https://github.com/user-attachments/assets/30ca8b25-ac66-48d9-b462-afd135050304)
 
-**Switch between Claude, GPT-4o, local Llama on Apple Silicon, and Apple's Foundation Models — by changing one line of code.**
+**Switch between Claude, GPT-4o, local Llama on Apple Silicon, and Apple's Foundation Models with a small config change.**
 
 [![Swift 6.2](https://img.shields.io/badge/Swift-6.2-F05138.svg?style=flat&logo=swift)](https://swift.org)
 [![Platforms](https://img.shields.io/badge/Platforms-iOS%2017+%20|%20macOS%2014+%20|%20visionOS%201+%20|%20Linux-007AFF.svg?style=flat)](https://developer.apple.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=flat)](LICENSE)
 [![Version](https://img.shields.io/badge/Version-1.0.0-blue.svg?style=flat)](https://github.com/christopherkarani/Conduit/releases)
 
-Conduit is a unified Swift 6.2 SDK for LLM inference across local and cloud providers. Every provider conforms to `TextGenerator`, giving you a single API surface whether you're running Claude in the cloud, GPT-4o via OpenRouter, Llama on your device with MLX, or Apple's built-in Foundation Models. Actors and `Sendable` types give you compile-time race-condition safety with zero extra work.
+Conduit is a Swift 6.2 SDK for LLM inference across local and cloud providers. Every provider conforms to `TextGenerator`, so the same surface works whether you are calling Claude in the cloud, GPT-4o through OpenRouter, Llama on-device with MLX, or Apple's Foundation Models. Actors and `Sendable` types keep the concurrency model explicit.
 
 ## Table of Contents
 
@@ -44,7 +44,7 @@ let response = try await provider.generate(
     config: .default
 )
 
-// Swap to local MLX — same call, zero rewrite
+// Swap to local MLX with the same call shape
 // let provider = MLXProvider()
 // let response = try await provider.generate("Explain async/await in Swift", model: .llama3_2_1B, config: .default)
 ```
@@ -160,9 +160,9 @@ for try await chunk in provider.stream(
 
 ### MLXProvider
 
-Local inference on Apple Silicon. Zero network traffic, complete privacy.
+Local inference on Apple Silicon. No network traffic and no cloud round trip.
 
-**Best for:** Privacy-sensitive apps, offline functionality, consistent latency
+**Best for:** Privacy-sensitive apps, offline use, and predictable latency
 
 ```swift
 // Default configuration
