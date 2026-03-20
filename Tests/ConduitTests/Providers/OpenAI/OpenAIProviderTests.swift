@@ -6,7 +6,7 @@
 #if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
 import Testing
 import Foundation
-@testable import Conduit
+@testable import ConduitAdvanced
 
 // MARK: - Configuration Tests
 
@@ -207,6 +207,8 @@ struct OpenAIModelIDTests {
 
     @Test("Static model properties")
     func staticModels() {
+        #expect(OpenAIModelID.gpt5_4.rawValue == "gpt-5.4")
+        #expect(OpenAIModelID.gpt5_4Mini.rawValue == "gpt-5.4-mini")
         #expect(OpenAIModelID.gpt4o.rawValue == "gpt-4o")
         #expect(OpenAIModelID.gpt4oMini.rawValue == "gpt-4o-mini")
         #expect(OpenAIModelID.gpt35Turbo.rawValue == "gpt-3.5-turbo")

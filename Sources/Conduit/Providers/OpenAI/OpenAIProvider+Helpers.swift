@@ -22,7 +22,7 @@ extension OpenAIProvider {
     /// Performs a non-streaming generation request.
     internal func performGeneration(
         messages: [Message],
-        model: OpenAIModelID,
+        model: ModelIdentifier,
         config: GenerateConfig,
         stream: Bool
     ) async throws -> GenerationResult {
@@ -57,7 +57,7 @@ extension OpenAIProvider {
     /// Builds the request body for chat completions.
     nonisolated func buildRequestBody(
         messages: [Message],
-        model: OpenAIModelID,
+        model: ModelIdentifier,
         config: GenerateConfig,
         stream: Bool,
         variant: OpenAIAPIVariant = .chatCompletions
@@ -225,7 +225,7 @@ extension OpenAIProvider {
     /// Note: full response parsing/execution is intentionally guarded elsewhere for now.
     private nonisolated func buildResponsesRequestBody(
         messages: [Message],
-        model: OpenAIModelID,
+        model: ModelIdentifier,
         config: GenerateConfig,
         stream: Bool
     ) -> [String: Any] {

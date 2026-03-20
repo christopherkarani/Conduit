@@ -74,10 +74,12 @@ extension AnthropicProvider {
     ///   return a validation error.
     internal func buildRequestBody(
         messages: [Message],
-        model: AnthropicModelID,
+        model: ModelIdentifier,
         config: GenerateConfig,
         stream: Bool = false
-    ) -> AnthropicMessagesRequest {
+    ) throws -> AnthropicMessagesRequest {
+        try validateModel(model)
+
         // Convert tools early so structured-output prompt policy can account for tool usage.
         let (toolDefinitions, toolChoiceRequest) = convertToolsConfig(config)
         let toolsEnabled = toolDefinitions != nil && toolChoiceRequest != nil
@@ -232,6 +234,13 @@ extension AnthropicProvider {
             tools: toolDefinitions,
             toolChoice: toolChoiceRequest
         )
+    }
+
+    /// Validates that the requested model belongs to Anthropic.
+    private nonisolated func validateModel(_ model: ModelIdentifier) throws {
+        guard model.provider == .anthropic else {
+            throw AIError.invalidInput("AnthropicProvider only supports Anthropic model identifiers")
+        }
     }
 
     /// Appends deterministic structured-output instructions for response format.

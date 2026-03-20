@@ -17,7 +17,7 @@ extension OpenAIProvider {
     /// Generates an embedding for the given text.
     public func embed(
         _ text: String,
-        model: OpenAIModelID
+        model: ModelIdentifier
     ) async throws -> EmbeddingResult {
         let url = configuration.endpoint.embeddingsURL
         var request = URLRequest(url: url)
@@ -82,7 +82,7 @@ extension OpenAIProvider {
     /// - Throws: `AIError` if any embedding generation fails.
     public func embedBatch(
         _ texts: [String],
-        model: OpenAIModelID
+        model: ModelIdentifier
     ) async throws -> [EmbeddingResult] {
         // Limit concurrency to prevent rate limiting
         let maxConcurrent = 10

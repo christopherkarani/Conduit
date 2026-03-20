@@ -93,7 +93,7 @@ extension AnthropicProvider {
     ///   when the stream is iterated.
     nonisolated public func streamWithMetadata(
         messages: [Message],
-        model: AnthropicModelID,
+        model: ModelIdentifier,
         config: GenerateConfig
     ) -> AsyncThrowingStream<GenerationChunk, Error> {
         AsyncThrowingStream { continuation in
@@ -149,7 +149,7 @@ extension AnthropicProvider {
     ///   when the stream is iterated.
     nonisolated public func stream(
         messages: [Message],
-        model: AnthropicModelID,
+        model: ModelIdentifier,
         config: GenerateConfig
     ) -> AsyncThrowingStream<GenerationChunk, Error> {
         streamWithMetadata(messages: messages, model: model, config: config)
@@ -196,7 +196,7 @@ extension AnthropicProvider {
     ///   when the stream is iterated.
     nonisolated public func stream(
         _ prompt: String,
-        model: AnthropicModelID,
+        model: ModelIdentifier,
         config: GenerateConfig
     ) -> AsyncThrowingStream<String, Error> {
         let messages = [Message.user(prompt)]
@@ -280,7 +280,7 @@ extension AnthropicProvider {
     /// - Throws: `AIError` if the request fails or response is invalid.
     internal func performStreamingGeneration(
         messages: [Message],
-        model: AnthropicModelID,
+        model: ModelIdentifier,
         config: GenerateConfig,
         continuation: AsyncThrowingStream<GenerationChunk, Error>.Continuation
     ) async throws {
@@ -290,7 +290,7 @@ extension AnthropicProvider {
         }
 
         // Build request with stream=true
-        let request = buildRequestBody(messages: messages, model: model, config: config, stream: true)
+        let request = try buildRequestBody(messages: messages, model: model, config: config, stream: true)
 
         // Build URLRequest
         let url = configuration.baseURL.appending(path: "v1/messages")

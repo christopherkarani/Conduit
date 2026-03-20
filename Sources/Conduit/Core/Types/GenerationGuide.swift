@@ -1,8 +1,13 @@
 import struct Foundation.Decimal
 import class Foundation.NSDecimalNumber
 
-/// Guides that control how values are generated.
-indirect enum _GenerationGuideConstraint: Sendable {
+// MARK: - GenerationGuideConstraint
+
+/// Internal constraint representation for generation guides.
+///
+/// - Note: This type is an implementation detail and should not be used directly.
+///   Use `GenerationGuide` methods to create constraints.
+indirect enum GenerationGuideConstraint: Sendable {
     case unsupported
     case stringPattern(String)
     case stringAnyOf([String])
@@ -14,11 +19,17 @@ indirect enum _GenerationGuideConstraint: Sendable {
     case arrayMaximumCount(Int)
     case arrayCount(Int)
     case arrayCountRange(minimum: Int, maximum: Int)
-    case arrayElement(_GenerationGuideConstraint)
+    case arrayElement(GenerationGuideConstraint)
 }
 
+// MARK: - Deprecated Alias
+
+/// Deprecated: Use `GenerationGuideConstraint` instead.
+@available(*, deprecated, renamed: "GenerationGuideConstraint")
+typealias _GenerationGuideConstraint = GenerationGuideConstraint
+
 public struct GenerationGuide<Value>: Sendable {
-    let constraint: _GenerationGuideConstraint
+    let constraint: GenerationGuideConstraint
 
     /// Creates a no-op guide.
     ///
@@ -28,7 +39,7 @@ public struct GenerationGuide<Value>: Sendable {
         self.constraint = .unsupported
     }
 
-    init(constraint: _GenerationGuideConstraint) {
+    init(constraint: GenerationGuideConstraint) {
         self.constraint = constraint
     }
 }

@@ -58,7 +58,7 @@ extension OpenAIProvider {
     /// Streams text generation token by token.
     nonisolated public func stream(
         _ prompt: String,
-        model: OpenAIModelID,
+        model: ModelIdentifier,
         config: GenerateConfig
     ) -> AsyncThrowingStream<String, Error> {
         let messages = [Message.user(prompt)]
@@ -82,7 +82,7 @@ extension OpenAIProvider {
     /// Streams text generation with full metadata.
     nonisolated public func streamWithMetadata(
         messages: [Message],
-        model: OpenAIModelID,
+        model: ModelIdentifier,
         config: GenerateConfig
     ) -> AsyncThrowingStream<GenerationChunk, Error> {
         AsyncThrowingStream { continuation in
@@ -110,7 +110,7 @@ extension OpenAIProvider {
     /// For simple string prompts, use `stream(_:model:config:)` instead.
     nonisolated public func stream(
         messages: [Message],
-        model: OpenAIModelID,
+        model: ModelIdentifier,
         config: GenerateConfig
     ) -> AsyncThrowingStream<GenerationChunk, Error> {
         streamWithMetadata(messages: messages, model: model, config: config)
@@ -121,7 +121,7 @@ extension OpenAIProvider {
     /// Performs a streaming generation request.
     internal func performStreamingGeneration(
         messages: [Message],
-        model: OpenAIModelID,
+        model: ModelIdentifier,
         config: GenerateConfig,
         continuation: AsyncThrowingStream<GenerationChunk, Error>.Continuation
     ) async throws {
@@ -578,7 +578,7 @@ extension OpenAIProvider {
 
     private func performResponsesStreamingGeneration(
         messages: [Message],
-        model: OpenAIModelID,
+        model: ModelIdentifier,
         config: GenerateConfig,
         continuation: AsyncThrowingStream<GenerationChunk, Error>.Continuation
     ) async throws {

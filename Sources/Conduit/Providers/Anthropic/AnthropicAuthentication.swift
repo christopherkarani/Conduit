@@ -30,12 +30,12 @@ import Foundation
 ///
 /// API keys are automatically redacted in debug output to prevent
 /// accidental exposure in logs.
-public struct AnthropicAuthentication: Sendable, Hashable, Codable {
+struct AnthropicAuthentication: Sendable, Hashable, Codable {
 
     // MARK: - AuthType
 
     /// The authentication type.
-    public enum AuthType: Sendable, Hashable, Codable {
+    enum AuthType: Sendable, Hashable, Codable {
         /// Explicit API key.
         ///
         /// - Parameter key: The Anthropic API key (starts with "sk-ant-").
@@ -50,14 +50,14 @@ public struct AnthropicAuthentication: Sendable, Hashable, Codable {
     // MARK: - Properties
 
     /// The authentication type.
-    public let type: AuthType
+    let type: AuthType
 
     // MARK: - Initialization
 
     /// Creates authentication with the specified type.
     ///
     /// - Parameter type: The authentication type.
-    public init(type: AuthType) {
+    init(type: AuthType) {
         self.type = type
     }
 
@@ -67,14 +67,14 @@ public struct AnthropicAuthentication: Sendable, Hashable, Codable {
     ///
     /// - Parameter key: The Anthropic API key.
     /// - Returns: An authentication instance.
-    public static func apiKey(_ key: String) -> AnthropicAuthentication {
+    static func apiKey(_ key: String) -> AnthropicAuthentication {
         AnthropicAuthentication(type: .apiKey(key))
     }
 
     /// Auto-detect authentication from environment variables.
     ///
     /// Checks the `ANTHROPIC_API_KEY` environment variable.
-    public static let auto = AnthropicAuthentication(type: .auto)
+    static let auto = AnthropicAuthentication(type: .auto)
 
     // MARK: - Computed Properties
 
@@ -84,7 +84,7 @@ public struct AnthropicAuthentication: Sendable, Hashable, Codable {
     /// For `.auto`, checks the `ANTHROPIC_API_KEY` environment variable.
     ///
     /// - Returns: The API key, or `nil` if not configured.
-    public var apiKey: String? {
+    var apiKey: String? {
         switch type {
         case .apiKey(let key):
             return key
@@ -96,7 +96,7 @@ public struct AnthropicAuthentication: Sendable, Hashable, Codable {
     /// Whether this authentication is configured with a valid key.
     ///
     /// Returns `true` if the API key is non-nil and non-empty.
-    public var isValid: Bool {
+    var isValid: Bool {
         guard let key = apiKey else {
             return false
         }
@@ -144,7 +144,7 @@ extension AnthropicAuthentication.AuthType: Equatable {
     ///
     /// **Security**: Uses constant-time comparison for API keys to prevent
     /// timing attacks that could leak credential information.
-    public static func == (lhs: AnthropicAuthentication.AuthType, rhs: AnthropicAuthentication.AuthType) -> Bool {
+    static func == (lhs: AnthropicAuthentication.AuthType, rhs: AnthropicAuthentication.AuthType) -> Bool {
         switch (lhs, rhs) {
         case (.apiKey(let lhsKey), .apiKey(let rhsKey)):
             return lhsKey.constantTimeCompare(to: rhsKey)
@@ -163,7 +163,7 @@ extension AnthropicAuthentication: CustomDebugStringConvertible {
     ///
     /// API keys are replaced with `***` to prevent accidental
     /// exposure in logs.
-    public var debugDescription: String {
+    var debugDescription: String {
         switch type {
         case .apiKey:
             return "AnthropicAuthentication.apiKey(***)"
@@ -176,7 +176,7 @@ extension AnthropicAuthentication: CustomDebugStringConvertible {
 // MARK: - CustomStringConvertible
 
 extension AnthropicAuthentication: CustomStringConvertible {
-    public var description: String {
+    var description: String {
         debugDescription
     }
 }

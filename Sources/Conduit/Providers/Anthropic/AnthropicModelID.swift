@@ -95,6 +95,23 @@ public struct AnthropicModelID: ModelIdentifying {
     }
 }
 
+// MARK: - Claude 4.6 Models
+
+extension AnthropicModelID {
+
+    /// Claude Opus 4.6 - Current most capable model.
+    ///
+    /// Highest intelligence for complex, multi-step tasks.
+    /// Context: 200K tokens
+    public static let claudeOpus46 = AnthropicModelID("claude-opus-4-6")
+
+    /// Claude Sonnet 4.6 - Current balanced model.
+    ///
+    /// Intelligence and speed for demanding tasks.
+    /// Context: 200K tokens
+    public static let claudeSonnet46 = AnthropicModelID("claude-sonnet-4-6")
+}
+
 // MARK: - Claude 4.5 Models
 
 extension AnthropicModelID {

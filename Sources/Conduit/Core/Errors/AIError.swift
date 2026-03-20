@@ -310,7 +310,7 @@ public enum AIError: Error, Sendable, LocalizedError, CustomStringConvertible {
             return "Check the model identifier and try again. Use ModelIdentifier static properties for known models."
 
         case .modelNotCached:
-            return "Download the model using ModelManager.shared.download() before using it."
+            return "Download the model assets locally before using this model."
 
         case .incompatibleModel:
             return "Use an MLX-optimized version from mlx-community or choose a compatible model architecture."
@@ -404,7 +404,7 @@ public enum AIError: Error, Sendable, LocalizedError, CustomStringConvertible {
             return "Wait for the download to complete."
 
         case .modelNotDownloaded:
-            return "Download the model using ModelManager before using it."
+            return "Download the model assets locally before using this provider."
 
         case .noNetwork:
             return "Connect to the internet to use this cloud provider."

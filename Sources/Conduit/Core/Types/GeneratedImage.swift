@@ -77,13 +77,13 @@ public struct GeneratedImage: Sendable {
     ///   or `save(to:)` for file output.
     #if canImport(SwiftUI) && (os(iOS) || os(visionOS) || os(macOS))
     @MainActor
-    public var image: Image? {
+    public var image: SwiftUI.Image? {
         #if os(iOS) || os(visionOS)
         guard let uiImage = UIImage(data: data) else { return nil }
-        return Image(uiImage: uiImage)
+        return SwiftUI.Image(uiImage: uiImage)
         #elseif os(macOS)
         guard let nsImage = NSImage(data: data) else { return nil }
-        return Image(nsImage: nsImage)
+        return SwiftUI.Image(nsImage: nsImage)
         #endif
     }
     #endif

@@ -1,6 +1,63 @@
 // swift-tools-version: 6.2
 import PackageDescription
 import CompilerPluginSupport
+import Foundation
+
+let skipMLXDependencies = ProcessInfo.processInfo.environment["CONDUIT_SKIP_MLX_DEPS"] == "1"
+let includeMLXDependencies =
+    !skipMLXDependencies
+    && ProcessInfo.processInfo.environment["CONDUIT_INCLUDE_MLX_DEPS"] == "1"
+
+var packageDependencies: [Package.Dependency] = [
+    // MARK: Cross-Platform Dependencies
+    .package(url: "https://github.com/apple/swift-collections.git", from: "1.1.0"),
+    .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
+    .package(url: "https://github.com/apple/swift-log.git", from: "1.8.0"),
+
+    // MARK: Hugging Face Hub / Core ML
+    .package(url: "https://github.com/huggingface/swift-huggingface", branch: "main"),
+    .package(url: "https://github.com/huggingface/swift-transformers", from: "1.1.6"),
+
+    // MARK: llama.cpp (Optional)
+    .package(url: "https://github.com/mattt/llama.swift", .upToNextMajor(from: "2.7484.0")),
+
+    // MARK: Documentation
+    .package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.3"),
+]
+
+if includeMLXDependencies {
+    packageDependencies.insert(
+        contentsOf: [
+            // MARK: MLX Dependencies (Apple Silicon Only)
+            .package(url: "https://github.com/ml-explore/mlx-swift.git", from: "0.29.1"),
+            .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", from: "2.29.2"),
+            .package(url: "https://github.com/ml-explore/mlx-swift-examples.git", revision: "fc3afc7cdbc4b6120d210c4c58c6b132ce346775"),
+        ],
+        at: 3
+    )
+}
+
+var conduitAdvancedDependencies: [Target.Dependency] = [
+    "ConduitMacros",
+    .product(name: "OrderedCollections", package: "swift-collections"),
+    .product(name: "Logging", package: "swift-log"),
+    .product(name: "Hub", package: "swift-transformers"),
+    .product(name: "HuggingFace", package: "swift-huggingface", condition: .when(traits: ["HuggingFaceHub"])),
+    .product(name: "Transformers", package: "swift-transformers", condition: .when(traits: ["CoreML"])),
+    .product(name: "LlamaSwift", package: "llama.swift", condition: .when(traits: ["Llama"])),
+]
+
+if includeMLXDependencies {
+    conduitAdvancedDependencies.append(
+        contentsOf: [
+            .product(name: "MLX", package: "mlx-swift", condition: .when(traits: ["MLX"])),
+            .product(name: "MLXLMCommon", package: "mlx-swift-lm", condition: .when(traits: ["MLX"])),
+            .product(name: "MLXLLM", package: "mlx-swift-lm", condition: .when(traits: ["MLX"])),
+            .product(name: "MLXVLM", package: "mlx-swift-lm", condition: .when(traits: ["MLX"])),
+            .product(name: "StableDiffusion", package: "mlx-swift-examples", condition: .when(traits: ["MLX"])),
+        ]
+    )
+}
 
 let package = Package(
     name: "Conduit",
@@ -13,6 +70,10 @@ let package = Package(
         .library(
             name: "Conduit",
             targets: ["Conduit"]
+        ),
+        .library(
+            name: "ConduitAdvanced",
+            targets: ["ConduitAdvanced"]
         ),
     ],
     traits: [
@@ -27,6 +88,14 @@ let package = Package(
         .trait(
             name: "Anthropic",
             description: "Enable Anthropic Claude provider support"
+        ),
+        .trait(
+            name: "Kimi",
+            description: "Enable Moonshot Kimi provider support (OpenAI-compatible)"
+        ),
+        .trait(
+            name: "MiniMax",
+            description: "Enable MiniMax provider support (OpenAI-compatible)"
         ),
         .trait(
             name: "MLX",
@@ -46,24 +115,7 @@ let package = Package(
         ),
         .default(enabledTraits: []),
     ],
-    dependencies: [
-        // MARK: Cross-Platform Dependencies
-        .package(url: "https://github.com/apple/swift-collections.git", from: "1.1.0"),
-        .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
-        .package(url: "https://github.com/apple/swift-log.git", from: "1.8.0"),
-
-        // MARK: MLX Dependencies (Apple Silicon Only)
-        .package(url: "https://github.com/ml-explore/mlx-swift.git", from: "0.29.1"),
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", from: "2.29.2"),
-        .package(url: "https://github.com/ml-explore/mlx-swift-examples.git", revision: "fc3afc7cdbc4b6120d210c4c58c6b132ce346775"),
-
-        // MARK: Hugging Face Hub (Optional)
-        .package(url: "https://github.com/huggingface/swift-huggingface", branch: "main"),
-        .package(url: "https://github.com/huggingface/swift-transformers", from: "1.1.6"),
-
-        // MARK: llama.cpp (Optional)
-        .package(url: "https://github.com/mattt/llama.swift", .upToNextMajor(from: "2.7484.0")),
-    ],
+    dependencies: packageDependencies,
     targets: [
         .macro(
             name: "ConduitMacros",
@@ -76,26 +128,32 @@ let package = Package(
             path: "Sources/ConduitMacros"
         ),
         .target(
-            name: "Conduit",
-            dependencies: [
-                "ConduitMacros",
-                .product(name: "OrderedCollections", package: "swift-collections"),
-                .product(name: "Logging", package: "swift-log"),
-                .product(name: "Hub", package: "swift-transformers"),
-                .product(name: "HuggingFace", package: "swift-huggingface", condition: .when(traits: ["HuggingFaceHub"])),
-                // MLX dependencies (only included when MLX trait is enabled)
-                .product(name: "MLX", package: "mlx-swift", condition: .when(traits: ["MLX"])),
-                .product(name: "MLXLMCommon", package: "mlx-swift-lm", condition: .when(traits: ["MLX"])),
-                .product(name: "MLXLLM", package: "mlx-swift-lm", condition: .when(traits: ["MLX"])),
-                .product(name: "MLXVLM", package: "mlx-swift-lm", condition: .when(traits: ["MLX"])),
-                .product(name: "StableDiffusion", package: "mlx-swift-examples", condition: .when(traits: ["MLX"])),
-                .product(name: "Transformers", package: "swift-transformers", condition: .when(traits: ["CoreML"])),
-                .product(name: "LlamaSwift", package: "llama.swift", condition: .when(traits: ["Llama"])),
-            ],
+            name: "ConduitAdvanced",
+            dependencies: conduitAdvancedDependencies,
+            path: "Sources/Conduit",
             swiftSettings: [
                 .define("CONDUIT_TRAIT_OPENAI", .when(traits: ["OpenAI"])),
                 .define("CONDUIT_TRAIT_OPENROUTER", .when(traits: ["OpenRouter"])),
                 .define("CONDUIT_TRAIT_ANTHROPIC", .when(traits: ["Anthropic"])),
+                .define("CONDUIT_TRAIT_KIMI", .when(traits: ["Kimi"])),
+                .define("CONDUIT_TRAIT_MINIMAX", .when(traits: ["MiniMax"])),
+                .define("CONDUIT_TRAIT_MLX", .when(traits: ["MLX"])),
+                .define("CONDUIT_TRAIT_COREML", .when(traits: ["CoreML"])),
+                .enableExperimentalFeature("StrictConcurrency")
+            ]
+        ),
+        .target(
+            name: "Conduit",
+            dependencies: [
+                "ConduitAdvanced"
+            ],
+            path: "Sources/ConduitFacade",
+            swiftSettings: [
+                .define("CONDUIT_TRAIT_OPENAI", .when(traits: ["OpenAI"])),
+                .define("CONDUIT_TRAIT_OPENROUTER", .when(traits: ["OpenRouter"])),
+                .define("CONDUIT_TRAIT_ANTHROPIC", .when(traits: ["Anthropic"])),
+                .define("CONDUIT_TRAIT_KIMI", .when(traits: ["Kimi"])),
+                .define("CONDUIT_TRAIT_MINIMAX", .when(traits: ["MiniMax"])),
                 .define("CONDUIT_TRAIT_MLX", .when(traits: ["MLX"])),
                 .define("CONDUIT_TRAIT_COREML", .when(traits: ["CoreML"])),
                 .enableExperimentalFeature("StrictConcurrency")
@@ -105,11 +163,14 @@ let package = Package(
             name: "ConduitTests",
             dependencies: [
                 "Conduit",
+                "ConduitAdvanced",
             ],
             swiftSettings: [
                 .define("CONDUIT_TRAIT_OPENAI", .when(traits: ["OpenAI"])),
                 .define("CONDUIT_TRAIT_OPENROUTER", .when(traits: ["OpenRouter"])),
                 .define("CONDUIT_TRAIT_ANTHROPIC", .when(traits: ["Anthropic"])),
+                .define("CONDUIT_TRAIT_KIMI", .when(traits: ["Kimi"])),
+                .define("CONDUIT_TRAIT_MINIMAX", .when(traits: ["MiniMax"])),
                 .define("CONDUIT_TRAIT_MLX", .when(traits: ["MLX"])),
                 .define("CONDUIT_TRAIT_COREML", .when(traits: ["CoreML"])),
                 .enableExperimentalFeature("StrictConcurrency")
@@ -118,7 +179,7 @@ let package = Package(
         .testTarget(
             name: "ConduitMacrosTests",
             dependencies: [
-                "Conduit",
+                "ConduitAdvanced",
                 "ConduitMacros",
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
             ],

@@ -4,7 +4,7 @@
 // This file requires the MLX trait to be enabled.
 
 import Testing
-@testable import Conduit
+@testable import ConduitAdvanced
 
 #if canImport(MLX)
 @preconcurrency import MLX

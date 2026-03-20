@@ -101,6 +101,18 @@ public enum ProviderType: String, Sendable, Codable, CaseIterable {
     /// Best for: Access to Claude 3/4 models, advanced reasoning.
     case anthropic
 
+    /// Moonshot Kimi API (cloud).
+    ///
+    /// Connects to Moonshot's Kimi models with 256K context.
+    /// Best for: Long context tasks, reasoning, coding.
+    case kimi
+
+    /// MiniMax API (cloud).
+    ///
+    /// Connects to MiniMax's M2 models with 128K+ context.
+    /// Best for: Coding, agentic workflows, cost-effective inference.
+    case minimax
+
     /// Azure OpenAI Service (cloud).
     ///
     /// Microsoft's enterprise OpenAI deployment.
@@ -128,6 +140,10 @@ public enum ProviderType: String, Sendable, Codable, CaseIterable {
             return "Ollama (Local)"
         case .anthropic:
             return "Anthropic"
+        case .kimi:
+            return "Kimi"
+        case .minimax:
+            return "MiniMax"
         case .azure:
             return "Azure OpenAI"
         }
@@ -141,7 +157,7 @@ public enum ProviderType: String, Sendable, Codable, CaseIterable {
         switch self {
         case .mlx, .coreml, .llama, .foundationModels, .ollama:
             return false
-        case .huggingFace, .openAI, .openRouter, .anthropic, .azure:
+        case .huggingFace, .openAI, .openRouter, .anthropic, .kimi, .azure, .minimax:
             return true
         }
     }
@@ -315,100 +331,3 @@ public struct ByteCount: Sendable, Hashable, Comparable, Codable {
 
 // MARK: - TokenCount (Phase 8: Token Counting - COMPLETE)
 // Full implementation in TokenCount.swift
-
-// MARK: - CachedModelInfo Stub (Phase 9: Model Management)
-
-/// Information about a cached model on the local device.
-///
-/// Describes a model that has been downloaded and is available
-/// for local inference. This type provides metadata about the cached
-/// model including its location, size, and access history.
-///
-/// ## Usage
-/// ```swift
-/// let modelManager = try await MLXModelManager()
-/// let cachedModels = try await modelManager.listCachedModels()
-///
-/// for model in cachedModels {
-///     print("Model: \(model.identifier.displayName)")
-///     print("Size: \(model.size.formatted)")
-///     print("Downloaded: \(model.downloadedAt)")
-/// }
-/// ```
-///
-/// - Note: This is a minimal stub. Full implementation in Phase 9.
-public struct CachedModelInfo: Sendable, Identifiable, Codable {
-    /// The model identifier.
-    ///
-    /// This uniquely identifies which model is cached and includes
-    /// provider-specific information.
-    public let identifier: ModelIdentifier
-
-    /// Local path to the model files.
-    ///
-    /// This directory contains all model artifacts including weights,
-    /// configuration files, and tokenizer data.
-    public let path: URL
-
-    /// Size of the model on disk.
-    ///
-    /// Total size of all model files in the cache directory.
-    public let size: ByteCount
-
-    /// When the model was downloaded.
-    ///
-    /// Timestamp of the initial download completion.
-    public let downloadedAt: Date
-
-    /// When the model was last accessed.
-    ///
-    /// Updated whenever the model is loaded for inference.
-    /// Used for cache eviction policies.
-    public let lastAccessedAt: Date
-
-    /// The model revision/version identifier.
-    ///
-    /// For HuggingFace models, this corresponds to the git commit SHA.
-    /// For MLX models, this may be a version tag or commit reference.
-    /// Can be `nil` for models without version tracking.
-    public let revision: String?
-
-    /// Unique identifier for Identifiable conformance.
-    ///
-    /// Derived from the model identifier's raw value.
-    public var id: String { identifier.rawValue }
-
-    /// Creates cached model information.
-    ///
-    /// - Parameters:
-    ///   - identifier: The model identifier.
-    ///   - path: Local path to the model files.
-    ///   - size: Size of the model on disk.
-    ///   - downloadedAt: When the model was downloaded.
-    ///   - lastAccessedAt: When the model was last accessed.
-    ///   - revision: Optional revision/version identifier.
-    public init(
-        identifier: ModelIdentifier,
-        path: URL,
-        size: ByteCount,
-        downloadedAt: Date = Date(),
-        lastAccessedAt: Date = Date(),
-        revision: String? = nil
-    ) {
-        self.identifier = identifier
-        self.path = path
-        self.size = size
-        self.downloadedAt = downloadedAt
-        self.lastAccessedAt = lastAccessedAt
-        self.revision = revision
-    }
-
-    // MARK: - Codable
-    //
-    // ModelIdentifier is already Codable, so we can directly encode/decode it.
-    // Swift will synthesize the Codable implementation automatically since
-    // all stored properties are Codable (ModelIdentifier, URL, ByteCount, Date, String?).
-}
-
-// MARK: - DownloadProgress, DownloadState, DownloadTask (Phase 9 - COMPLETE)
-// Full implementation in ModelManagement/DownloadProgress.swift

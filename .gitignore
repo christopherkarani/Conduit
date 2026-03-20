@@ -16,3 +16,17 @@ osaurus/
 
 # Reference implementations (not part of build)
 clone/
+
+# VitePress / Node
+node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+
+# API audit working documents
+docs/reference/
+
+# Git worktrees
+.worktrees/
+docs/
+tasks/
+scripts/

@@ -215,6 +215,46 @@ extension OpenAIModelID {
     ///
     /// Higher quality audio.
     public static let tts1HD = OpenAIModelID("tts-1-hd")
+
+    // MARK: GPT-5.4 Series
+
+    /// GPT-5.4 - Current flagship API model.
+    public static let gpt5_4 = OpenAIModelID("gpt-5.4")
+
+    /// GPT-5.4 Mini - Smaller GPT-5.4 variant.
+    public static let gpt5_4Mini = OpenAIModelID("gpt-5.4-mini")
+
+    // MARK: GPT-5.2 Series
+
+    /// GPT-5.2 - Previous flagship API model.
+    public static let gpt5_2 = OpenAIModelID("gpt-5.2")
+
+    /// GPT-5.2 Chat Latest - Latest chat alias.
+    public static let gpt5_2ChatLatest = OpenAIModelID("gpt-5.2-chat-latest")
+
+    /// GPT-5.2 Codex - Coding-focused model.
+    public static let gpt5_2Codex = OpenAIModelID("gpt-5.2-codex")
+
+    /// GPT-5.2 Pro - Higher-capability general model.
+    public static let gpt5_2Pro = OpenAIModelID("gpt-5.2-pro")
+
+    /// GPT-5.1 - Previous current-generation model.
+    public static let gpt5_1 = OpenAIModelID("gpt-5.1")
+
+    /// GPT-5.1 Codex - Previous coding-focused model.
+    public static let gpt5_1Codex = OpenAIModelID("gpt-5.1-codex")
+
+    /// GPT-5.1 Codex Max - Higher-capacity coding model.
+    public static let gpt5_1CodexMax = OpenAIModelID("gpt-5.1-codex-max")
+
+    /// GPT-5 - Base flagship model.
+    public static let gpt5 = OpenAIModelID("gpt-5")
+
+    /// GPT-5 Mini - Smaller GPT-5 variant.
+    public static let gpt5Mini = OpenAIModelID("gpt-5-mini")
+
+    /// GPT-5 Nano - Fastest GPT-5 variant.
+    public static let gpt5Nano = OpenAIModelID("gpt-5-nano")
 }
 
 // MARK: - OpenRouter Helpers

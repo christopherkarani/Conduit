@@ -49,7 +49,7 @@ import Foundation
 /// - `Sendable`: Thread-safe across concurrency boundaries
 /// - `Hashable`: Can be used in sets and as dictionary keys
 /// - `Codable`: Full JSON encoding/decoding support
-public struct AnthropicConfiguration: Sendable, Hashable, Codable {
+struct AnthropicConfiguration: Sendable, Hashable, Codable {
 
     // MARK: - Core Settings
 
@@ -57,19 +57,19 @@ public struct AnthropicConfiguration: Sendable, Hashable, Codable {
     ///
     /// Determines how API requests are authenticated.
     /// Default: `.auto` (checks ANTHROPIC_API_KEY environment variable)
-    public var authentication: AnthropicAuthentication
+    var authentication: AnthropicAuthentication
 
     /// The base URL for the Anthropic API.
     ///
     /// Default: `https://api.anthropic.com`
-    public var baseURL: URL
+    var baseURL: URL
 
     /// The API version to use.
     ///
     /// Anthropic uses versioned API endpoints. Specify the version
     /// in the `anthropic-version` header.
     /// Default: `"2023-06-01"`
-    public var apiVersion: String
+    var apiVersion: String
 
     // MARK: - Network Settings
 
@@ -77,14 +77,14 @@ public struct AnthropicConfiguration: Sendable, Hashable, Codable {
     ///
     /// How long to wait for a response before timing out.
     /// Default: 60.0
-    public var timeout: TimeInterval
+    var timeout: TimeInterval
 
     /// Maximum number of retry attempts.
     ///
     /// How many times to retry failed requests.
     /// Set to 0 to disable retries.
     /// Default: 3
-    public var maxRetries: Int
+    var maxRetries: Int
 
     // MARK: - Feature Flags
 
@@ -92,20 +92,20 @@ public struct AnthropicConfiguration: Sendable, Hashable, Codable {
     ///
     /// Anthropic supports Server-Sent Events (SSE) for streaming.
     /// Default: `true`
-    public var supportsStreaming: Bool
+    var supportsStreaming: Bool
 
     /// Whether the provider supports vision (image) inputs.
     ///
     /// Claude 3+ models support vision capabilities.
     /// Default: `true`
-    public var supportsVision: Bool
+    var supportsVision: Bool
 
     /// Whether the provider supports extended thinking mode.
     ///
     /// Extended thinking allows the model to reason longer before responding.
     /// Available on select models.
     /// Default: `true`
-    public var supportsExtendedThinking: Bool
+    var supportsExtendedThinking: Bool
 
     /// Configuration for extended thinking mode.
     ///
@@ -119,7 +119,7 @@ public struct AnthropicConfiguration: Sendable, Hashable, Codable {
     /// let config = AnthropicConfiguration.standard(apiKey: "sk-ant-...")
     ///     .extendedThinking(.standard)
     /// ```
-    public var thinkingConfig: ThinkingConfiguration?
+    var thinkingConfig: ThinkingConfiguration?
 
     // MARK: - Initialization
 
@@ -137,7 +137,7 @@ public struct AnthropicConfiguration: Sendable, Hashable, Codable {
     ///
     /// - Throws: `AIError.invalidInput` if the base URL does not use HTTPS
     ///   (localhost URLs are exempt for development purposes).
-    public init(
+    init(
         authentication: AnthropicAuthentication = .auto,
         baseURL: URL = URL(string: "https://api.anthropic.com")!,
         apiVersion: String = "2023-06-01",
@@ -190,7 +190,7 @@ public struct AnthropicConfiguration: Sendable, Hashable, Codable {
     ///
     /// - Parameter apiKey: Your Anthropic API key (starts with "sk-ant-").
     /// - Returns: A standard configuration with the specified API key.
-    public static func standard(apiKey: String) -> AnthropicConfiguration {
+    static func standard(apiKey: String) -> AnthropicConfiguration {
         let config: AnthropicConfiguration
         do {
             config = try AnthropicConfiguration(
@@ -213,7 +213,7 @@ public struct AnthropicConfiguration: Sendable, Hashable, Codable {
     /// Combines authentication, API version, and content type headers.
     ///
     /// - Returns: Dictionary of header names to values.
-    public func buildHeaders() -> [String: String] {
+    func buildHeaders() -> [String: String] {
         var headers: [String: String] = [
             "Content-Type": "application/json",
             "anthropic-version": apiVersion
@@ -232,7 +232,7 @@ public struct AnthropicConfiguration: Sendable, Hashable, Codable {
     /// Whether authentication is properly configured.
     ///
     /// Returns `true` if the authentication has a valid API key.
-    public var hasValidAuthentication: Bool {
+    var hasValidAuthentication: Bool {
         authentication.isValid
     }
 }
@@ -245,7 +245,7 @@ extension AnthropicConfiguration {
     ///
     /// - Parameter auth: The authentication configuration.
     /// - Returns: A new configuration with the updated authentication.
-    public func authentication(_ auth: AnthropicAuthentication) -> AnthropicConfiguration {
+    func authentication(_ auth: AnthropicAuthentication) -> AnthropicConfiguration {
         var copy = self
         copy.authentication = auth
         return copy
@@ -255,7 +255,7 @@ extension AnthropicConfiguration {
     ///
     /// - Parameter apiKey: The API key.
     /// - Returns: A new configuration with the updated API key.
-    public func apiKey(_ apiKey: String) -> AnthropicConfiguration {
+    func apiKey(_ apiKey: String) -> AnthropicConfiguration {
         var copy = self
         copy.authentication = .apiKey(apiKey)
         return copy
@@ -266,7 +266,7 @@ extension AnthropicConfiguration {
     /// - Parameter url: The base URL. Must use HTTPS (localhost exempt for development).
     /// - Returns: A new configuration with the updated URL.
     /// - Throws: `AIError.invalidInput` if the URL does not use HTTPS.
-    public func baseURL(_ url: URL) throws -> AnthropicConfiguration {
+    func baseURL(_ url: URL) throws -> AnthropicConfiguration {
         try Self.validateSecureURL(url)
         var copy = self
         copy.baseURL = url
@@ -277,7 +277,7 @@ extension AnthropicConfiguration {
     ///
     /// - Parameter version: The API version string.
     /// - Returns: A new configuration with the updated version.
-    public func apiVersion(_ version: String) -> AnthropicConfiguration {
+    func apiVersion(_ version: String) -> AnthropicConfiguration {
         var copy = self
         copy.apiVersion = version
         return copy
@@ -287,7 +287,7 @@ extension AnthropicConfiguration {
     ///
     /// - Parameter seconds: Request timeout in seconds.
     /// - Returns: A new configuration with the updated timeout.
-    public func timeout(_ seconds: TimeInterval) -> AnthropicConfiguration {
+    func timeout(_ seconds: TimeInterval) -> AnthropicConfiguration {
         var copy = self
         copy.timeout = max(0, seconds)
         return copy
@@ -297,7 +297,7 @@ extension AnthropicConfiguration {
     ///
     /// - Parameter count: Maximum retry attempts.
     /// - Returns: A new configuration with the updated retry count.
-    public func maxRetries(_ count: Int) -> AnthropicConfiguration {
+    func maxRetries(_ count: Int) -> AnthropicConfiguration {
         var copy = self
         copy.maxRetries = max(0, count)
         return copy
@@ -307,7 +307,7 @@ extension AnthropicConfiguration {
     ///
     /// - Parameter enabled: Whether to enable streaming.
     /// - Returns: A new configuration with the updated setting.
-    public func streaming(_ enabled: Bool) -> AnthropicConfiguration {
+    func streaming(_ enabled: Bool) -> AnthropicConfiguration {
         var copy = self
         copy.supportsStreaming = enabled
         return copy
@@ -317,7 +317,7 @@ extension AnthropicConfiguration {
     ///
     /// - Parameter enabled: Whether to enable vision.
     /// - Returns: A new configuration with the updated setting.
-    public func vision(_ enabled: Bool) -> AnthropicConfiguration {
+    func vision(_ enabled: Bool) -> AnthropicConfiguration {
         var copy = self
         copy.supportsVision = enabled
         return copy
@@ -327,7 +327,7 @@ extension AnthropicConfiguration {
     ///
     /// - Parameter enabled: Whether to enable extended thinking.
     /// - Returns: A new configuration with the updated setting.
-    public func extendedThinking(_ enabled: Bool) -> AnthropicConfiguration {
+    func extendedThinking(_ enabled: Bool) -> AnthropicConfiguration {
         var copy = self
         copy.supportsExtendedThinking = enabled
         return copy
@@ -355,7 +355,7 @@ extension AnthropicConfiguration {
     ///
     /// - Parameter config: The thinking configuration, or `nil` to disable.
     /// - Returns: A new configuration with updated thinking settings.
-    public func extendedThinking(_ config: ThinkingConfiguration?) -> AnthropicConfiguration {
+    func extendedThinking(_ config: ThinkingConfiguration?) -> AnthropicConfiguration {
         var copy = self
         copy.thinkingConfig = config
         return copy
@@ -401,7 +401,7 @@ extension AnthropicConfiguration {
 /// - `Sendable`: Thread-safe across concurrency boundaries
 /// - `Hashable`: Can be used in sets and as dictionary keys
 /// - `Codable`: Full JSON encoding/decoding support
-public struct ThinkingConfiguration: Sendable, Hashable, Codable {
+struct ThinkingConfiguration: Sendable, Hashable, Codable {
 
     // MARK: - Properties
 
@@ -409,7 +409,7 @@ public struct ThinkingConfiguration: Sendable, Hashable, Codable {
     ///
     /// When `true`, Claude will perform internal reasoning before responding.
     /// When `false`, thinking is disabled (default behavior).
-    public let enabled: Bool
+    let enabled: Bool
 
     /// Maximum tokens allocated for thinking process.
     ///
@@ -425,7 +425,7 @@ public struct ThinkingConfiguration: Sendable, Hashable, Codable {
     /// - **Complex reasoning**: 2048-4096 tokens
     ///
     /// Default: 1024
-    public let budgetTokens: Int
+    let budgetTokens: Int
 
     // MARK: - Static Factories
 
@@ -441,7 +441,7 @@ public struct ThinkingConfiguration: Sendable, Hashable, Codable {
     /// let config = AnthropicConfiguration.standard(apiKey: "sk-ant-...")
     ///     .extendedThinking(.standard)
     /// ```
-    public static let standard = ThinkingConfiguration(
+    static let standard = ThinkingConfiguration(
         enabled: true,
         budgetTokens: 1024
     )
@@ -456,7 +456,7 @@ public struct ThinkingConfiguration: Sendable, Hashable, Codable {
     ///
     /// - Note: The budget is validated to ensure it's not negative.
     ///   Negative values are clamped to 0.
-    public init(enabled: Bool = true, budgetTokens: Int = 1024) {
+    init(enabled: Bool = true, budgetTokens: Int = 1024) {
         self.enabled = enabled
         self.budgetTokens = max(0, budgetTokens)
     }

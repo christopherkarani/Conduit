@@ -103,7 +103,7 @@ public actor HuggingFaceProvider: AIProvider, TextGenerator, EmbeddingGenerator,
     // MARK: - Properties
 
     /// Configuration for HuggingFace API access.
-    public let configuration: HFConfiguration
+    let configuration: HFConfiguration
 
     /// Internal HTTP client for API communication.
     private let client: HFInferenceClient
@@ -141,13 +141,20 @@ public actor HuggingFaceProvider: AIProvider, TextGenerator, EmbeddingGenerator,
     ///     defaultImageModel: "stabilityai/stable-diffusion-xl-base-1.0"
     /// )
     /// ```
-    public init(
+    init(
         configuration: HFConfiguration = .default,
         defaultImageModel: String = "stabilityai/stable-diffusion-3"
     ) {
         self.configuration = configuration
         self.client = HFInferenceClient(configuration: configuration)
         self.defaultImageModel = defaultImageModel
+    }
+
+    /// Creates a HuggingFace provider using environment-driven token resolution.
+    ///
+    /// This initializer is the concise public entry point after config-family pruning.
+    public init(defaultImageModel: String = "stabilityai/stable-diffusion-3") {
+        self.init(configuration: .default, defaultImageModel: defaultImageModel)
     }
 
     /// Creates a HuggingFace provider with an explicit API token.
@@ -175,9 +182,7 @@ public actor HuggingFaceProvider: AIProvider, TextGenerator, EmbeddingGenerator,
         defaultImageModel: String = "stabilityai/stable-diffusion-3"
     ) {
         let config = HFConfiguration.default.token(.static(token))
-        self.configuration = config
-        self.client = HFInferenceClient(configuration: config)
-        self.defaultImageModel = defaultImageModel
+        self.init(configuration: config, defaultImageModel: defaultImageModel)
     }
 
     // MARK: - AIProvider: Availability
@@ -921,4 +926,3 @@ extension HuggingFaceProvider: ImageGenerator {
         }
     }
 }
-

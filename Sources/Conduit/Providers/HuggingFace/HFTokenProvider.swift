@@ -50,7 +50,7 @@ import Security
 ///
 /// `HFTokenProvider` conforms to `Sendable` and is safe to share across actors.
 /// Keychain reads are synchronous and thread-safe.
-public enum HFTokenProvider: Sendable, Hashable {
+enum HFTokenProvider: Sendable, Hashable {
 
     /// Automatically resolve token from environment variables.
     ///
@@ -95,7 +95,7 @@ public enum HFTokenProvider: Sendable, Hashable {
     ///
     /// - Note: This property performs I/O for `.keychain` and is not cached.
     ///   Consider caching the result if called frequently.
-    public var token: String? {
+    var token: String? {
         switch self {
         case .auto:
             return resolveFromEnvironment()
@@ -117,7 +117,7 @@ public enum HFTokenProvider: Sendable, Hashable {
     /// Use this for quick availability checks without resolving the full token.
     ///
     /// - Returns: `true` if a token is available, `false` otherwise.
-    public var isConfigured: Bool {
+    var isConfigured: Bool {
         guard let resolved = token else { return false }
         return !resolved.isEmpty
     }
@@ -171,7 +171,7 @@ public enum HFTokenProvider: Sendable, Hashable {
 
 extension HFTokenProvider {
 
-    public func hash(into hasher: inout Hasher) {
+    func hash(into hasher: inout Hasher) {
         // Only hash token presence, not value, to prevent credential leakage in logs/debug output
         switch self {
         case .auto:
@@ -188,7 +188,7 @@ extension HFTokenProvider {
         }
     }
 
-    public static func == (lhs: HFTokenProvider, rhs: HFTokenProvider) -> Bool {
+    static func == (lhs: HFTokenProvider, rhs: HFTokenProvider) -> Bool {
         switch (lhs, rhs) {
         case (.auto, .auto):
             return true
@@ -217,7 +217,7 @@ extension HFTokenProvider {
 extension HFTokenProvider: CustomStringConvertible {
 
     /// A description that does not expose the actual token value.
-    public var description: String {
+    var description: String {
         switch self {
         case .auto:
             return "HFTokenProvider.auto"

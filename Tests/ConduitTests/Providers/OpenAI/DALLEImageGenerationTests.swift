@@ -6,7 +6,7 @@
 #if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
 import Testing
 import Foundation
-@testable import Conduit
+@testable import ConduitAdvanced
 
 // MARK: - DALLEImageSize Tests
 

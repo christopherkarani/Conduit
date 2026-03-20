@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Conduit
+@testable import ConduitAdvanced
 
 actor TerminationRecorder<T: Sendable> {
     private var value: T?

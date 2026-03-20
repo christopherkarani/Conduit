@@ -221,11 +221,12 @@ public struct Message: Sendable, Hashable, Codable, Identifiable {
     ///
     /// ## Usage
     /// ```swift
-    /// let userMsg = Message.user(text: "Hello!")
+    /// let userMsg = Message.user("Hello!")
     /// ```
     ///
     /// - Parameter text: The user's message text.
     /// - Returns: A message with `role: .user`.
+    @available(*, deprecated, renamed: "user")
     public static func user(text: String) -> Message {
         Message(role: .user, content: .text(text))
     }
