@@ -259,7 +259,7 @@ public struct Provider {
     }
     #endif
 
-    #if CONDUIT_TRAIT_MLX
+    #if CONDUIT_TRAIT_MLX && canImport(MLX)
     public struct MLXOptions {
         public var memoryLimit: ConduitAdvanced.ByteCount?
         public var prefillStepSize: Int
