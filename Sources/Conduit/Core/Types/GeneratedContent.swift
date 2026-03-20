@@ -252,7 +252,8 @@ public struct GeneratedContent: Sendable, Equatable, Generable, CustomDebugStrin
         case .bool(let value):
             return value
         case .number(let value):
-            return value
+            // JSON cannot represent NaN or infinities; map them to null.
+            return value.isFinite ? value : NSNull()
         case .string(let value):
             return value
         case .array(let elements):

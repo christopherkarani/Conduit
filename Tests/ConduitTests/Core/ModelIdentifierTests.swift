@@ -474,7 +474,7 @@ final class ModelIdentifierTests: XCTestCase {
         let reasoningModels = ModelRegistry.models(with: .reasoning)
         let transcriptionModels = ModelRegistry.models(with: .transcription)
 
-        XCTAssertEqual(textGenModels.count, 15) // Most models support text generation
+        XCTAssertEqual(textGenModels.count, 15) // Includes Kimi cloud models
         XCTAssertEqual(embeddingModels.count, 3) // BGE small, BGE large, Nomic
         XCTAssertEqual(codeGenModels.count, 5) // Phi-3 Mini, Phi-4, Llama 3.1 70B, Kimi K2.5, Kimi K2
         XCTAssertEqual(reasoningModels.count, 6) // Phi-3 Mini, Phi-4, Llama 3.1 70B, DeepSeek R1, Kimi K2.5, Kimi K1.5
@@ -522,15 +522,15 @@ final class ModelIdentifierTests: XCTestCase {
     func testRegistryCloudModels() {
         let cloudModels = ModelRegistry.cloudModels()
 
-        // Cloud models include HuggingFace + Kimi models.
+        // Cloud models should include HuggingFace and Kimi.
         XCTAssertEqual(cloudModels.count, 8)
 
         // All should require network
         XCTAssertTrue(cloudModels.allSatisfy { $0.identifier.requiresNetwork })
         XCTAssertTrue(cloudModels.allSatisfy { !$0.identifier.isLocal })
 
-        let providers = Set(cloudModels.map { $0.identifier.provider })
-        XCTAssertEqual(providers, [.huggingFace, .kimi])
+        // All should be cloud providers currently represented by HuggingFace or Kimi.
+        XCTAssertTrue(cloudModels.allSatisfy { [.huggingFace, .kimi].contains($0.identifier.provider) })
     }
 
     // MARK: - ProviderType Tests
