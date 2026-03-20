@@ -1,5 +1,5 @@
 import XCTest
-@testable import Conduit
+@testable import ConduitAdvanced
 
 final class ServerSentEventParserParityTests: XCTestCase {
 
@@ -82,9 +82,9 @@ final class ServerSentEventParserParityTests: XCTestCase {
                 expected: [ServerSentEvent(id: nil, event: nil, data: "hello", retry: nil)]
             ),
             .init(
-                name: "EOF flushes empty data-only",
+                name: "EOF does not flush empty data-only",
                 bytes: Array("data:\n".utf8),
-                expected: [ServerSentEvent(id: nil, event: nil, data: "", retry: nil)]
+                expected: []
             ),
             .init(
                 name: "BOM stripped",

@@ -2,7 +2,7 @@
 // Conduit
 
 import Testing
-@testable import Conduit
+@testable import ConduitAdvanced
 
 @Suite("ImageGenerationProgress Tests")
 struct ImageGenerationProgressTests {

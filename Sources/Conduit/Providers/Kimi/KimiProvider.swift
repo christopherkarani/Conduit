@@ -45,11 +45,11 @@ public actor KimiProvider: AIProvider, TextGenerator {
 
     public typealias Response = GenerationResult
     public typealias StreamChunk = GenerationChunk
-    public typealias ModelID = KimiModelID
+    public typealias ModelID = ModelIdentifier
 
     // MARK: - Properties
 
-    public let configuration: KimiConfiguration
+    let configuration: KimiConfiguration
 
     /// Internal OpenAI-compatible provider for request handling.
     private let internalProvider: OpenAIProvider
@@ -63,10 +63,27 @@ public actor KimiProvider: AIProvider, TextGenerator {
         self.init(configuration: .standard(apiKey: apiKey))
     }
 
+    /// Creates a provider with explicit network tuning settings.
+    public init(
+        apiKey: String,
+        baseURL: URL,
+        timeout: TimeInterval = 120,
+        maxRetries: Int = 3
+    ) {
+        self.init(
+            configuration: KimiConfiguration(
+                authentication: .apiKey(apiKey),
+                baseURL: baseURL,
+                timeout: timeout,
+                maxRetries: maxRetries
+            )
+        )
+    }
+
     /// Creates a provider with a full configuration.
     ///
     /// - Parameter configuration: The provider configuration.
-    public init(configuration: KimiConfiguration) {
+    init(configuration: KimiConfiguration) {
         self.configuration = configuration
 
         // Create OpenAI-compatible internal configuration
@@ -104,44 +121,73 @@ public actor KimiProvider: AIProvider, TextGenerator {
 
     public nonisolated func stream(
         messages: [Message],
-        model: KimiModelID,
+        model: ModelIdentifier,
         config: GenerateConfig
     ) -> AsyncThrowingStream<GenerationChunk, Error> {
-        internalProvider.stream(messages: messages, model: OpenAIModelID(model.rawValue), config: config)
+        do {
+            try validateModel(model)
+        } catch {
+            return AsyncThrowingStream { continuation in
+                continuation.finish(throwing: error)
+            }
+        }
+        internalProvider.stream(messages: messages, model: .openAI(model.rawValue), config: config)
     }
 
     // MARK: - TextGenerator Protocol
 
     public func generate(
         _ prompt: String,
-        model: KimiModelID,
+        model: ModelIdentifier,
         config: GenerateConfig
     ) async throws -> String {
-        try await internalProvider.generate(prompt, model: OpenAIModelID(model.rawValue), config: config)
+        try validateModel(model)
+        try await internalProvider.generate(prompt, model: .openAI(model.rawValue), config: config)
     }
 
     public func generate(
         messages: [Message],
-        model: KimiModelID,
+        model: ModelIdentifier,
         config: GenerateConfig
     ) async throws -> GenerationResult {
-        try await internalProvider.generate(messages: messages, model: OpenAIModelID(model.rawValue), config: config)
+        try validateModel(model)
+        try await internalProvider.generate(messages: messages, model: .openAI(model.rawValue), config: config)
     }
 
     public nonisolated func stream(
         _ prompt: String,
-        model: KimiModelID,
+        model: ModelIdentifier,
         config: GenerateConfig
     ) -> AsyncThrowingStream<String, Error> {
-        internalProvider.stream(prompt, model: OpenAIModelID(model.rawValue), config: config)
+        do {
+            try validateModel(model)
+        } catch {
+            return AsyncThrowingStream { continuation in
+                continuation.finish(throwing: error)
+            }
+        }
+        internalProvider.stream(prompt, model: .openAI(model.rawValue), config: config)
     }
 
     public nonisolated func streamWithMetadata(
         messages: [Message],
-        model: KimiModelID,
+        model: ModelIdentifier,
         config: GenerateConfig
     ) -> AsyncThrowingStream<GenerationChunk, Error> {
-        internalProvider.streamWithMetadata(messages: messages, model: OpenAIModelID(model.rawValue), config: config)
+        do {
+            try validateModel(model)
+        } catch {
+            return AsyncThrowingStream { continuation in
+                continuation.finish(throwing: error)
+            }
+        }
+        internalProvider.streamWithMetadata(messages: messages, model: .openAI(model.rawValue), config: config)
+    }
+
+    private nonisolated func validateModel(_ model: ModelIdentifier) throws {
+        guard model.provider == .kimi else {
+            throw AIError.invalidInput("KimiProvider only supports Kimi model identifiers")
+        }
     }
 }
 

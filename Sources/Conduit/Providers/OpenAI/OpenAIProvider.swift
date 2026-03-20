@@ -80,12 +80,12 @@ public actor OpenAIProvider: AIProvider, TextGenerator, EmbeddingGenerator, Toke
     public typealias StreamChunk = GenerationChunk
 
     /// The model identifier type for this provider.
-    public typealias ModelID = OpenAIModelID
+    public typealias ModelID = ModelIdentifier
 
     // MARK: - Properties
 
     /// The configuration for this provider.
-    public nonisolated let configuration: OpenAIConfiguration
+    nonisolated let configuration: OpenAIConfiguration
 
     /// The URLSession used for HTTP requests.
     internal let session: URLSession
@@ -107,7 +107,7 @@ public actor OpenAIProvider: AIProvider, TextGenerator, EmbeddingGenerator, Toke
     /// Creates a provider with a full configuration.
     ///
     /// - Parameter configuration: The provider configuration.
-    public init(configuration: OpenAIConfiguration) {
+    init(configuration: OpenAIConfiguration) {
         self.configuration = configuration
 
         let sessionConfig = URLSessionConfiguration.default
@@ -203,7 +203,7 @@ public actor OpenAIProvider: AIProvider, TextGenerator, EmbeddingGenerator, Toke
     /// Generates text from a simple string prompt.
     public func generate(
         _ prompt: String,
-        model: OpenAIModelID,
+        model: ModelIdentifier,
         config: GenerateConfig
     ) async throws -> String {
         let messages = [Message.user(prompt)]
@@ -214,7 +214,7 @@ public actor OpenAIProvider: AIProvider, TextGenerator, EmbeddingGenerator, Toke
     /// Generates text from a conversation.
     public func generate(
         messages: [Message],
-        model: OpenAIModelID,
+        model: ModelIdentifier,
         config: GenerateConfig
     ) async throws -> GenerationResult {
         try await performGeneration(messages: messages, model: model, config: config, stream: false)
@@ -243,7 +243,7 @@ public actor OpenAIProvider: AIProvider, TextGenerator, EmbeddingGenerator, Toke
     /// - Note: Estimates assume English prose. Actual counts may vary by ±50% or more.
     public func countTokens(
         in text: String,
-        for model: OpenAIModelID
+        for model: ModelIdentifier
     ) async throws -> TokenCount {
         // Use a simple estimation: ~4 characters per token
         let estimatedTokens = max(1, text.count / 4)
@@ -272,7 +272,7 @@ public actor OpenAIProvider: AIProvider, TextGenerator, EmbeddingGenerator, Toke
     ///   Actual counts may vary by ±50% or more depending on content characteristics.
     public func countTokens(
         in messages: [Message],
-        for model: OpenAIModelID
+        for model: ModelIdentifier
     ) async throws -> TokenCount {
         // Estimate tokens for each message plus overhead
         var totalTokens = 0
@@ -284,12 +284,12 @@ public actor OpenAIProvider: AIProvider, TextGenerator, EmbeddingGenerator, Toke
     }
 
     /// Encodes text to tokens (not supported - throws error).
-    public func encode(_ text: String, for model: OpenAIModelID) async throws -> [Int] {
+    public func encode(_ text: String, for model: ModelIdentifier) async throws -> [Int] {
         throw AIError.providerUnavailable(reason: .unknown("Token encoding not supported for OpenAI provider"))
     }
 
     /// Decodes tokens to text (not supported - throws error).
-    public func decode(_ tokens: [Int], for model: OpenAIModelID, skipSpecialTokens: Bool) async throws -> String {
+    public func decode(_ tokens: [Int], for model: ModelIdentifier, skipSpecialTokens: Bool) async throws -> String {
         throw AIError.providerUnavailable(reason: .unknown("Token decoding not supported for OpenAI provider"))
     }
 
@@ -323,6 +323,15 @@ extension OpenAIProvider {
     /// - Parameter apiKey: Your OpenRouter API key.
     public init(openRouterKey apiKey: String) {
         self.init(configuration: .openRouter(apiKey: apiKey))
+    }
+
+    /// Creates an OpenRouter provider with explicit routing configuration.
+    ///
+    /// - Parameters:
+    ///   - apiKey: Your OpenRouter API key.
+    ///   - routing: OpenRouter routing preferences and metadata.
+    public init(openRouterKey apiKey: String, routing: OpenRouterRoutingConfig) {
+        self.init(configuration: .openRouter(apiKey: apiKey).routing(routing))
     }
 
     /// Creates an OpenRouter provider optimized for Claude models.
@@ -381,6 +390,20 @@ extension OpenAIProvider {
     ) -> OpenAIProvider {
         let routing = OpenRouterRoutingConfig(providers: providers.isEmpty ? nil : providers, fallbacks: fallbacks)
         return OpenAIProvider(configuration: .openRouter(apiKey: apiKey).routing(routing))
+    }
+
+    /// Creates an Ollama provider with explicit Ollama runtime configuration.
+    ///
+    /// - Parameters:
+    ///   - host: The Ollama host. Default: `"localhost"`.
+    ///   - port: The Ollama port. Default: `11434`.
+    ///   - ollamaConfig: Additional Ollama runtime configuration.
+    public init(
+        ollamaHost host: String = "localhost",
+        port: Int = 11434,
+        ollamaConfig: OllamaConfiguration = .default
+    ) {
+        self.init(configuration: .ollama(host: host, port: port).ollama(ollamaConfig))
     }
 }
 

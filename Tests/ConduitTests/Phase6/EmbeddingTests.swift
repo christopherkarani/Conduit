@@ -2,7 +2,7 @@
 // Conduit
 
 import XCTest
-@testable import Conduit
+@testable import ConduitAdvanced
 
 /// Comprehensive test suite for embedding types.
 ///

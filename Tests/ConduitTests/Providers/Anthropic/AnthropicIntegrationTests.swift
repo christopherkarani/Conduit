@@ -7,7 +7,7 @@
 #if CONDUIT_TRAIT_ANTHROPIC
 import Testing
 import Foundation
-@testable import Conduit
+@testable import ConduitAdvanced
 
 /// Integration tests for Anthropic provider with live API.
 ///

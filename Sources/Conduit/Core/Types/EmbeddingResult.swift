@@ -2,7 +2,6 @@
 // Conduit
 
 import Foundation
-import ConduitCore
 
 /// The result of an embedding operation.
 ///
@@ -73,11 +72,19 @@ public struct EmbeddingResult: Sendable, Hashable {
     ///            Returns 0 if vectors have different dimensions.
     public func cosineSimilarity(with other: EmbeddingResult) -> Float {
         guard vector.count == other.vector.count else { return 0 }
-        return vector.withUnsafeBufferPointer { a in
-            other.vector.withUnsafeBufferPointer { b in
-                conduit_cosine_similarity(a.baseAddress, b.baseAddress, a.count)
-            }
+
+        var dotProduct: Float = 0
+        var normA: Float = 0
+        var normB: Float = 0
+
+        for i in vector.indices {
+            dotProduct += vector[i] * other.vector[i]
+            normA += vector[i] * vector[i]
+            normB += other.vector[i] * other.vector[i]
         }
+
+        let denominator = sqrt(normA) * sqrt(normB)
+        return denominator > 0 ? dotProduct / denominator : 0
     }
 
     /// Computes Euclidean distance to another embedding.
@@ -92,11 +99,13 @@ public struct EmbeddingResult: Sendable, Hashable {
     ///            Returns `.infinity` if vectors have different dimensions.
     public func euclideanDistance(to other: EmbeddingResult) -> Float {
         guard vector.count == other.vector.count else { return .infinity }
-        return vector.withUnsafeBufferPointer { a in
-            other.vector.withUnsafeBufferPointer { b in
-                conduit_euclidean_distance(a.baseAddress, b.baseAddress, a.count)
-            }
+
+        var sum: Float = 0
+        for i in vector.indices {
+            let diff = vector[i] - other.vector[i]
+            sum += diff * diff
         }
+        return sqrt(sum)
     }
 
     /// Computes dot product with another embedding.
@@ -111,10 +120,6 @@ public struct EmbeddingResult: Sendable, Hashable {
     ///            Returns 0 if vectors have different dimensions.
     public func dotProduct(with other: EmbeddingResult) -> Float {
         guard vector.count == other.vector.count else { return 0 }
-        return vector.withUnsafeBufferPointer { a in
-            other.vector.withUnsafeBufferPointer { b in
-                conduit_dot_product(a.baseAddress, b.baseAddress, a.count)
-            }
-        }
+        return zip(vector, other.vector).reduce(0) { $0 + $1.0 * $1.1 }
     }
 }

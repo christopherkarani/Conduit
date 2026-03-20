@@ -2,7 +2,7 @@
 // Conduit Tests
 
 import XCTest
-@testable import Conduit
+@testable import ConduitAdvanced
 
 #if os(iOS) || os(visionOS)
 import UIKit

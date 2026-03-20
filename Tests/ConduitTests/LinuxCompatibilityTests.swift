@@ -9,7 +9,7 @@
 
 import Foundation
 import Testing
-@testable import Conduit
+@testable import ConduitAdvanced
 
 @Generable
 private struct SchemaCompatibilityType {

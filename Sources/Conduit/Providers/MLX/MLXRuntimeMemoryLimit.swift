@@ -12,10 +12,7 @@ import Foundation
 /// MLX GPU memory limits are process-global. We capture the initial value once so
 /// `MLXConfiguration.memoryLimit == nil` can explicitly restore that baseline.
 internal enum MLXRuntimeMemoryLimit {
-    static let systemDefaultMemoryLimit: Int = {
-        try? MLXMetalLibraryBootstrap.ensureAvailable()
-        return MLX.GPU.memoryLimit
-    }()
+    static let systemDefaultMemoryLimit: Int = MLX.GPU.memoryLimit
 
     static func resolved(
         memoryLimit: ByteCount?,

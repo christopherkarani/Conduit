@@ -3,7 +3,7 @@
 
 import Testing
 import XCTest
-@testable import Conduit
+@testable import ConduitAdvanced
 
 /// Comprehensive test suite for HuggingFace provider components.
 ///

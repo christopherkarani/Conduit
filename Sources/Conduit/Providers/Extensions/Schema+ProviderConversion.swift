@@ -86,7 +86,7 @@ extension ToolChoice {
         case .none:
             // Anthropic doesn't have explicit "none" - omit tools instead
             return ["type": "auto"]
-        case .tool(let name):
+        case .named(let name):
             return ["type": "tool", "name": name]
         }
     }
@@ -102,7 +102,7 @@ extension ToolChoice {
             return ["type": "required"]
         case .none:
             return ["type": "none"]
-        case .tool(let name):
+        case .named(let name):
             return [
                 "type": "function",
                 "function": ["name": name]

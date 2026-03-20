@@ -18,34 +18,34 @@ import Foundation
 /// let auth = KimiAuthentication.apiKey("sk-moonshot-...")
 /// let auth = KimiAuthentication.auto  // Checks MOONSHOT_API_KEY
 /// ```
-public struct KimiAuthentication: Sendable, Hashable, Codable {
+struct KimiAuthentication: Sendable, Hashable, Codable {
 
-    public enum AuthType: Sendable, Hashable, Codable {
+    enum AuthType: Sendable, Hashable, Codable {
         case apiKey(String)
         case auto
     }
 
-    public let type: AuthType
+    let type: AuthType
 
-    public init(type: AuthType) {
+    init(type: AuthType) {
         self.type = type
     }
 
-    public static func apiKey(_ key: String) -> KimiAuthentication {
+    static func apiKey(_ key: String) -> KimiAuthentication {
         KimiAuthentication(type: .apiKey(key))
     }
 
     /// Auto-detect from `MOONSHOT_API_KEY` environment variable.
-    public static let auto = KimiAuthentication(type: .auto)
+    static let auto = KimiAuthentication(type: .auto)
 
-    public var apiKey: String? {
+    var apiKey: String? {
         switch type {
         case .apiKey(let key): return key
         case .auto: return ProcessInfo.processInfo.environment["MOONSHOT_API_KEY"]
         }
     }
 
-    public var isValid: Bool {
+    var isValid: Bool {
         apiKey?.isEmpty == false
     }
 }
@@ -53,7 +53,7 @@ public struct KimiAuthentication: Sendable, Hashable, Codable {
 // MARK: - Debug
 
 extension KimiAuthentication: CustomDebugStringConvertible {
-    public var debugDescription: String {
+    var debugDescription: String {
         switch type {
         case .apiKey: return "KimiAuthentication.apiKey(***)"
         case .auto: return "KimiAuthentication.auto"

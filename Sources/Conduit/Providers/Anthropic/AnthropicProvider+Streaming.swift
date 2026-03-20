@@ -93,7 +93,7 @@ extension AnthropicProvider {
     ///   when the stream is iterated.
     nonisolated public func streamWithMetadata(
         messages: [Message],
-        model: AnthropicModelID,
+        model: ModelIdentifier,
         config: GenerateConfig
     ) -> AsyncThrowingStream<GenerationChunk, Error> {
         AsyncThrowingStream { continuation in
@@ -149,7 +149,7 @@ extension AnthropicProvider {
     ///   when the stream is iterated.
     nonisolated public func stream(
         messages: [Message],
-        model: AnthropicModelID,
+        model: ModelIdentifier,
         config: GenerateConfig
     ) -> AsyncThrowingStream<GenerationChunk, Error> {
         streamWithMetadata(messages: messages, model: model, config: config)
@@ -196,7 +196,7 @@ extension AnthropicProvider {
     ///   when the stream is iterated.
     nonisolated public func stream(
         _ prompt: String,
-        model: AnthropicModelID,
+        model: ModelIdentifier,
         config: GenerateConfig
     ) -> AsyncThrowingStream<String, Error> {
         let messages = [Message.user(prompt)]
@@ -280,7 +280,7 @@ extension AnthropicProvider {
     /// - Throws: `AIError` if the request fails or response is invalid.
     internal func performStreamingGeneration(
         messages: [Message],
-        model: AnthropicModelID,
+        model: ModelIdentifier,
         config: GenerateConfig,
         continuation: AsyncThrowingStream<GenerationChunk, Error>.Continuation
     ) async throws {
@@ -290,7 +290,7 @@ extension AnthropicProvider {
         }
 
         // Build request with stream=true
-        let request = buildRequestBody(messages: messages, model: model, config: config, stream: true)
+        let request = try buildRequestBody(messages: messages, model: model, config: config, stream: true)
 
         // Build URLRequest
         let url = configuration.baseURL.appending(path: "v1/messages")
@@ -357,43 +357,31 @@ extension AnthropicProvider {
         var completedToolCalls: [Transcript.ToolCall] = []
 
         var sseParser = ServerSentEventParser()
-        var didReceiveDoneMarker = false
-        var didEmitCompletionChunk = false
-
-        func processSSEEventData(_ jsonString: String) throws -> Bool {
-            if jsonString == "[DONE]" {
-                return true
-            }
-
-            guard let eventData = jsonString.data(using: .utf8) else { return false }
-
-            if let event = try parseStreamEvent(from: eventData) {
-                if let chunk = try processStreamEvent(
-                    event,
-                    startTime: startTime,
-                    totalTokens: &totalTokens,
-                    activeToolCalls: &activeToolCalls,
-                    completedToolCalls: &completedToolCalls
-                ) {
-                    if chunk.isComplete {
-                        didEmitCompletionChunk = true
-                    }
-                    continuation.yield(chunk)
-                }
-            }
-
-            return false
-        }
 
         sse: for try await line in bytes.lines {
             // Check for task cancellation at the start of each iteration
             try Task.checkCancellation()
 
             for event in sseParser.ingestLine(line) {
+                let jsonString = event.data
+
+                // Skip [DONE] marker
+                if jsonString == "[DONE]" { break sse }
+
+                guard let eventData = jsonString.data(using: .utf8) else { continue }
+
+                // Issue 12.11: Parse event with error logging for diagnostics
                 do {
-                    if try processSSEEventData(event.data) {
-                        didReceiveDoneMarker = true
-                        break sse
+                    if let event = try parseStreamEvent(from: eventData) {
+                        if let chunk = try processStreamEvent(
+                            event,
+                            startTime: startTime,
+                            totalTokens: &totalTokens,
+                            activeToolCalls: &activeToolCalls,
+                            completedToolCalls: &completedToolCalls
+                        ) {
+                            continuation.yield(chunk)
+                        }
                     }
                 } catch let error as AIError {
                     // Stream error events throw AIError - propagate to consumer
@@ -409,26 +397,8 @@ extension AnthropicProvider {
             }
         }
 
-        if !didReceiveDoneMarker {
-            for event in sseParser.finish() {
-                do {
-                    if try processSSEEventData(event.data) {
-                        break
-                    }
-                } catch let error as AIError {
-                    throw error
-                } catch {
-                    logger.debug(
-                        "Failed to parse stream event",
-                        metadata: ["error": .string("\(error)")]
-                    )
-                }
-            }
-        }
-
-        if !didEmitCompletionChunk {
-            continuation.yield(GenerationChunk.completion(finishReason: .stop))
-        }
+        // Send final completion chunk
+        continuation.yield(GenerationChunk.completion(finishReason: .stop))
         continuation.finish()
     }
 

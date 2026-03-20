@@ -6,7 +6,6 @@ DerivedData/
 .swiftpm/configuration/registries.json
 .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 .netrc
-.mcp.json
 
 # Claude Code - ignore completely
 CLAUDE.md
@@ -22,3 +21,12 @@ clone/
 node_modules/
 docs/.vitepress/dist/
 docs/.vitepress/cache/
+
+# API audit working documents
+docs/reference/
+
+# Git worktrees
+.worktrees/
+docs/
+tasks/
+scripts/

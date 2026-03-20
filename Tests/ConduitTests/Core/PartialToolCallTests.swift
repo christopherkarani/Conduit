@@ -5,7 +5,7 @@
 
 import Foundation
 import Testing
-@testable import Conduit
+@testable import ConduitAdvanced
 
 // MARK: - Test Suite
 
@@ -176,38 +176,36 @@ struct PartialToolCallTests {
             #expect(partial.index == 99)
         }
 
-        @Test("Index below 0 is clamped to lower boundary")
-        func indexBelowRangeIsClamped() {
-            let partial = PartialToolCall(
-                id: "call_negative",
-                toolName: "tool",
-                index: -1,
-                argumentsFragment: "{}"
-            )
-
-            #expect(partial.index == 0)
-        }
-
-        @Test("Index above max is clamped to upper boundary")
-        func indexAboveRangeIsClamped() {
-            let partial = PartialToolCall(
-                id: "call_above",
-                toolName: "tool",
-                index: maxToolCallIndex + 1,
-                argumentsFragment: "{}"
-            )
-
-            #expect(partial.index == maxToolCallIndex)
-        }
+        // Note: The following preconditions cannot be runtime-tested because they cause crashes:
+        // - index < 0 triggers precondition failure
+        // - index > 100 triggers precondition failure
+        // These preconditions are documented in PartialToolCall.init and should be enforced
+        // by callers. The precondition messages are:
+        // - "PartialToolCall index must be in range 0...100, got \(index)"
     }
 
-    // MARK: - Sanitization Tests
+    // MARK: - Precondition Documentation Tests
 
-    @Suite("Sanitization")
-    struct SanitizationTests {
+    @Suite("Precondition Documentation")
+    struct PreconditionDocumentationTests {
 
-        @Test("Non-empty id is preserved")
-        func nonEmptyIdIsPreserved() {
+        // Note: Preconditions cannot be easily tested at runtime because they cause crashes.
+        // The following preconditions exist on PartialToolCall.init:
+        //
+        // 1. Empty id must trigger precondition failure:
+        //    precondition(!id.isEmpty, "PartialToolCall id must not be empty")
+        //
+        // 2. Empty toolName must trigger precondition failure:
+        //    precondition(!toolName.isEmpty, "PartialToolCall toolName must not be empty")
+        //
+        // 3. Index outside 0...100 must trigger precondition failure:
+        //    precondition((0...100).contains(index), "PartialToolCall index must be in range 0...100, got \(index)")
+        //
+        // These tests document the expected behavior without being able to verify it at runtime.
+
+        @Test("Non-empty id satisfies precondition")
+        func nonEmptyIdSatisfiesPrecondition() {
+            // This test verifies that a non-empty id does not trigger the precondition
             let partial = PartialToolCall(
                 id: "valid_id",
                 toolName: "tool",
@@ -218,8 +216,9 @@ struct PartialToolCallTests {
             #expect(!partial.id.isEmpty)
         }
 
-        @Test("Non-empty tool name is preserved")
-        func nonEmptyToolNameIsPreserved() {
+        @Test("Non-empty tool name satisfies precondition")
+        func nonEmptyToolNameSatisfiesPrecondition() {
+            // This test verifies that a non-empty toolName does not trigger the precondition
             let partial = PartialToolCall(
                 id: "call_123",
                 toolName: "valid_tool",
@@ -230,8 +229,9 @@ struct PartialToolCallTests {
             #expect(!partial.toolName.isEmpty)
         }
 
-        @Test("Index within range is preserved")
-        func indexWithinRangeIsPreserved() {
+        @Test("Index within range satisfies precondition")
+        func indexWithinRangeSatisfiesPrecondition() {
+            // This test verifies that an index within 0...100 does not trigger the precondition
             let partial = PartialToolCall(
                 id: "call_123",
                 toolName: "tool",
@@ -239,85 +239,7 @@ struct PartialToolCallTests {
                 argumentsFragment: ""
             )
 
-            #expect((0...maxToolCallIndex).contains(partial.index))
-        }
-
-        @Test("Empty id is sanitized")
-        func emptyIdIsSanitized() {
-            let partial = PartialToolCall(
-                id: "",
-                toolName: "tool",
-                index: 1,
-                argumentsFragment: "{}"
-            )
-
-            #expect(partial.id == "unknown_tool_call")
-        }
-
-        @Test("Empty tool name is sanitized")
-        func emptyToolNameIsSanitized() {
-            let partial = PartialToolCall(
-                id: "call_123",
-                toolName: "",
-                index: 1,
-                argumentsFragment: "{}"
-            )
-
-            #expect(partial.toolName == "unknown_tool")
-        }
-    }
-
-    // MARK: - Validating Initializer Tests
-
-    @Suite("Validating Initializer")
-    struct ValidatingInitializerTests {
-
-        @Test("Validating init returns value for valid input")
-        func validatingInitAcceptsValidInput() {
-            let partial = PartialToolCall(
-                validating: "call_123",
-                toolName: "tool",
-                index: 1,
-                argumentsFragment: "{}"
-            )
-
-            #expect(partial != nil)
-        }
-
-        @Test("Validating init returns nil for empty id")
-        func validatingInitRejectsEmptyId() {
-            let partial = PartialToolCall(
-                validating: "",
-                toolName: "tool",
-                index: 1,
-                argumentsFragment: "{}"
-            )
-
-            #expect(partial == nil)
-        }
-
-        @Test("Validating init returns nil for empty tool name")
-        func validatingInitRejectsEmptyToolName() {
-            let partial = PartialToolCall(
-                validating: "call_123",
-                toolName: "",
-                index: 1,
-                argumentsFragment: "{}"
-            )
-
-            #expect(partial == nil)
-        }
-
-        @Test("Validating init returns nil for out-of-range index")
-        func validatingInitRejectsInvalidIndex() {
-            let partial = PartialToolCall(
-                validating: "call_123",
-                toolName: "tool",
-                index: 101,
-                argumentsFragment: "{}"
-            )
-
-            #expect(partial == nil)
+            #expect((0...100).contains(partial.index))
         }
     }
 

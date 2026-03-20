@@ -5,7 +5,7 @@
 
 import Foundation
 import Testing
-@testable import Conduit
+@testable import ConduitAdvanced
 
 #if canImport(MLX)
 @preconcurrency import MLXLMCommon
@@ -92,29 +92,42 @@ struct MLXConfigurationRuntimeMemoryLimitTests {
     }
 }
 
-@Suite("MLXConfiguration Application - Model Cache")
-struct MLXConfigurationModelCacheApplicationTests {
+@Suite("MLXConfiguration Application - Runtime Features")
+struct MLXConfigurationRuntimeFeaturesTests {
 
-    @Test("MLXModelCache applies updated limits")
-    func testCacheAppliesConfiguration() async {
-        let cache = MLXModelCache(configuration: .default)
-        let before = await cache._testing_limits()
+    @Test("runtime feature overrides can enable quantized KV bits")
+    func testRuntimeFeatureOverridesApplyQuantizedKV() async {
+        let base = MLXConfiguration.default.withoutQuantizedKVCache()
+        let runtime = ProviderRuntimeFeatureConfiguration(
+            kvQuantization: .init(enabled: true, bits: 8)
+        )
 
-        #expect(before.countLimit == 3)
-        #expect(before.totalCostLimit == 0)
-
-        await cache.apply(configuration: MLXConfiguration.lowMemory.cacheConfiguration())
-        let after = await cache._testing_limits()
-
-        #expect(after.countLimit == 1)
-        #expect(after.totalCostLimit == Int(ByteCount.gigabytes(4).bytes))
+        let applied = base.applying(runtimeFeatures: runtime)
+        #expect(applied.useQuantizedKVCache == true)
+        #expect(applied.kvQuantizationBits == 8)
     }
 
-    @Test("cacheConfiguration() converts MLXConfiguration to cache config")
-    func testCacheConfigurationConversion() async {
-        let config = MLXConfiguration.lowMemory.cacheConfiguration()
-        #expect(config.maxCachedModels == 1)
-        #expect(config.maxCacheSize == .gigabytes(4))
+    @Test("runtime policy fluent setter updates policy")
+    func testRuntimePolicySetter() async {
+        let policy = ProviderRuntimePolicy(
+            featureFlags: ProviderRuntimeFeatureFlags(
+                kvQuantization: false,
+                attentionSinks: true,
+                kvSwap: true,
+                incrementalPrefill: true,
+                speculativeScheduling: true
+            ),
+            modelAllowlist: ProviderRuntimeModelAllowlist(
+                kvQuantizationModels: ["mlx-community/allowlisted"]
+            )
+        )
+
+        let config = MLXConfiguration.default.runtimePolicy(policy)
+        #expect(config.runtimePolicy.isEnabled(feature: .kvQuantization) == false)
+        #expect(config.runtimePolicy.isModelAllowed(
+            feature: .kvQuantization,
+            modelID: "mlx-community/allowlisted"
+        ) == true)
     }
 }
 

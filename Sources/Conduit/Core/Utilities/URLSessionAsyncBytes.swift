@@ -93,15 +93,6 @@ public struct AsyncLineSequence: AsyncSequence, Sendable {
                 // Check if we have a complete line in the buffer
                 if let newlineIndex = buffer.firstIndex(where: { $0 == UInt8(ascii: "\n") || $0 == UInt8(ascii: "\r") }) {
                     let delimiter = buffer[newlineIndex]
-
-                    // Handle CRLF split across chunk boundaries by peeking one extra byte.
-                    if delimiter == UInt8(ascii: "\r"), newlineIndex == buffer.count - 1 {
-                        if let nextByte = try await bytesIterator.next() {
-                            buffer.append(nextByte)
-                            continue
-                        }
-                    }
-
                     let lineBytes = Array(buffer[..<newlineIndex])
                     var removeCount = newlineIndex + 1
                     if delimiter == UInt8(ascii: "\r"),
@@ -354,15 +345,6 @@ public struct AsyncLineSequence: AsyncSequence, Sendable {
                 // Check if we have a complete line in the buffer
                 if let newlineIndex = buffer.firstIndex(where: { $0 == UInt8(ascii: "\n") || $0 == UInt8(ascii: "\r") }) {
                     let delimiter = buffer[newlineIndex]
-
-                    // Handle CRLF split across chunk boundaries by peeking one extra byte.
-                    if delimiter == UInt8(ascii: "\r"), newlineIndex == buffer.count - 1 {
-                        if let nextByte = try await bytesIterator.next() {
-                            buffer.append(nextByte)
-                            continue
-                        }
-                    }
-
                     let lineBytes = Array(buffer[..<newlineIndex])
                     var removeCount = newlineIndex + 1
                     if delimiter == UInt8(ascii: "\r"),

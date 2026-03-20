@@ -6,7 +6,7 @@
 // and can be conformed to by concrete types.
 
 import XCTest
-@testable import Conduit
+@testable import ConduitAdvanced
 
 // MARK: - Mock Types
 
@@ -257,80 +257,6 @@ actor MockTokenCounter: TokenCounter {
     }
 }
 
-/// Mock model manager for testing ModelManaging protocol conformance.
-@available(iOS 17.0, macOS 14.0, visionOS 1.0, *)
-actor MockModelManager: ModelManaging {
-    typealias ModelID = MockModelID
-
-    private var cachedModelIds: Set<String> = []
-
-    func availableModels() async throws -> [ModelInfo] {
-        [
-            ModelInfo(
-                identifier: .mlx("test/model-1"),
-                name: "Test Model 1",
-                description: "A test model",
-                size: .small,
-                diskSize: .megabytes(100),
-                contextWindow: 4096,
-                capabilities: [.textGeneration]
-            ),
-            ModelInfo(
-                identifier: .mlx("test/model-2"),
-                name: "Test Model 2",
-                description: "Another test model",
-                size: .medium,
-                diskSize: .gigabytes(2),
-                contextWindow: 8192,
-                capabilities: [.textGeneration, .codeGeneration]
-            )
-        ]
-    }
-
-    func cachedModels() async -> [CachedModelInfo] {
-        cachedModelIds.map { id in
-            CachedModelInfo(
-                identifier: .mlx(id),
-                path: URL(fileURLWithPath: "/tmp/models/\(id)"),
-                size: .megabytes(50),
-                downloadedAt: Date(),
-                lastAccessedAt: Date()
-            )
-        }
-    }
-
-    func isCached(_ model: MockModelID) async -> Bool {
-        cachedModelIds.contains(model.rawValue)
-    }
-
-    func download(
-        _ model: MockModelID,
-        progress: @escaping @Sendable (DownloadProgress) -> Void
-    ) async throws -> URL {
-        // Simulate progress updates
-        progress(DownloadProgress(bytesDownloaded: 0, totalBytes: 100, filesCompleted: 0, totalFiles: 1))
-        progress(DownloadProgress(bytesDownloaded: 50, totalBytes: 100, filesCompleted: 0, totalFiles: 1))
-        progress(DownloadProgress(bytesDownloaded: 100, totalBytes: 100, filesCompleted: 1, totalFiles: 1))
-        cachedModelIds.insert(model.rawValue)
-        return URL(fileURLWithPath: "/tmp/models/\(model.rawValue)")
-    }
-
-    nonisolated func download(_ model: MockModelID) -> DownloadTask {
-        DownloadTask(model: ModelIdentifier.mlx(model.rawValue))
-    }
-
-    func delete(_ model: MockModelID) async throws {
-        cachedModelIds.remove(model.rawValue)
-    }
-
-    func clearCache() async throws {
-        cachedModelIds.removeAll()
-    }
-
-    func cacheSize() async -> ByteCount {
-        .megabytes(cachedModelIds.count * 50)
-    }
-}
 
 // MARK: - Protocol Compilation Tests
 
@@ -675,7 +601,7 @@ final class ProtocolCompilationTests: XCTestCase {
 
     func testProviderTypeIsCaseIterable() {
         let allCases = ProviderType.allCases
-        XCTAssertEqual(allCases.count, 12)
+        XCTAssertEqual(allCases.count, 10)
         XCTAssertTrue(allCases.contains(.mlx))
         XCTAssertTrue(allCases.contains(.coreml))
         XCTAssertTrue(allCases.contains(.llama))
@@ -685,8 +611,6 @@ final class ProtocolCompilationTests: XCTestCase {
         XCTAssertTrue(allCases.contains(.openRouter))
         XCTAssertTrue(allCases.contains(.ollama))
         XCTAssertTrue(allCases.contains(.anthropic))
-        XCTAssertTrue(allCases.contains(.kimi))
-        XCTAssertTrue(allCases.contains(.minimax))
         XCTAssertTrue(allCases.contains(.azure))
     }
 
@@ -877,109 +801,4 @@ final class ProtocolCompilationTests: XCTestCase {
         XCTAssertFalse(text.isEmpty)
     }
 
-    // MARK: - ModelManaging Protocol Tests
-
-    @available(iOS 17.0, macOS 14.0, visionOS 1.0, *)
-    func testModelManagerAvailableModels() async throws {
-        let manager = MockModelManager()
-
-        let models = try await manager.availableModels()
-
-        XCTAssertEqual(models.count, 2)
-        XCTAssertEqual(models[0].name, "Test Model 1")
-        XCTAssertNotNil(models[0].size)
-    }
-
-    @available(iOS 17.0, macOS 14.0, visionOS 1.0, *)
-    func testModelManagerCachedModels() async {
-        let manager = MockModelManager()
-
-        let cached = await manager.cachedModels()
-
-        XCTAssertTrue(cached.isEmpty, "Initially no models cached")
-    }
-
-    @available(iOS 17.0, macOS 14.0, visionOS 1.0, *)
-    func testModelManagerDownloadAndCache() async throws {
-        let manager = MockModelManager()
-        let model = MockModelID(rawValue: "test-model")
-
-        // Initially not cached
-        let isCachedBefore = await manager.isCached(model)
-        XCTAssertFalse(isCachedBefore)
-
-        // Download (progress callback is @Sendable so we can't safely mutate outside)
-        _ = try await manager.download(model) { progress in
-            // Just verify progress callback is called (we can't easily count in Sendable closure)
-            _ = progress.fractionCompleted
-        }
-
-        // Now cached
-        let isCachedAfter = await manager.isCached(model)
-        XCTAssertTrue(isCachedAfter)
-
-        let cached = await manager.cachedModels()
-        XCTAssertEqual(cached.count, 1)
-    }
-
-    @available(iOS 17.0, macOS 14.0, visionOS 1.0, *)
-    func testModelManagerDelete() async throws {
-        let manager = MockModelManager()
-        let model = MockModelID(rawValue: "test-model")
-
-        // Download first
-        _ = try await manager.download(model) { _ in }
-        let isCachedAfterDownload = await manager.isCached(model)
-        XCTAssertTrue(isCachedAfterDownload)
-
-        // Delete
-        try await manager.delete(model)
-        let isCachedAfterDelete = await manager.isCached(model)
-        XCTAssertFalse(isCachedAfterDelete)
-    }
-
-    @available(iOS 17.0, macOS 14.0, visionOS 1.0, *)
-    func testModelManagerClearCache() async throws {
-        let manager = MockModelManager()
-        let model1 = MockModelID(rawValue: "model-1")
-        let model2 = MockModelID(rawValue: "model-2")
-
-        // Download multiple models
-        _ = try await manager.download(model1) { _ in }
-        _ = try await manager.download(model2) { _ in }
-
-        let cachedBefore = await manager.cachedModels()
-        XCTAssertEqual(cachedBefore.count, 2)
-
-        // Clear cache
-        try await manager.clearCache()
-
-        let cachedAfter = await manager.cachedModels()
-        XCTAssertTrue(cachedAfter.isEmpty)
-    }
-
-    @available(iOS 17.0, macOS 14.0, visionOS 1.0, *)
-    func testModelManagerCacheSize() async throws {
-        let manager = MockModelManager()
-        let model = MockModelID(rawValue: "test-model")
-
-        let sizeBefore = await manager.cacheSize()
-        XCTAssertEqual(sizeBefore.bytes, 0)
-
-        _ = try await manager.download(model) { _ in }
-
-        let sizeAfter = await manager.cacheSize()
-        XCTAssertGreaterThan(sizeAfter.bytes, 0)
-    }
-
-    @available(iOS 17.0, macOS 14.0, visionOS 1.0, *)
-    func testModelManagerDownloadTask() async {
-        let manager = MockModelManager()
-        let model = MockModelID(rawValue: "test-model")
-
-        let task = manager.download(model)  // This is now nonisolated, no await needed
-
-        // Task should exist and be in pending or downloading state
-        XCTAssertTrue(task.state.isActive)
-    }
 }

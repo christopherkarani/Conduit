@@ -31,7 +31,7 @@ import Foundation
 /// ## Protocol Conformances
 /// - `Sendable`: Thread-safe across concurrency boundaries
 /// - `Hashable`: Can be used in sets and as dictionary keys
-public struct HFConfiguration: Sendable, Hashable {
+struct HFConfiguration: Sendable, Hashable {
 
     // MARK: - Authentication
 
@@ -45,7 +45,7 @@ public struct HFConfiguration: Sendable, Hashable {
     /// ```swift
     /// let config = HFConfiguration.default.token(.static("hf_..."))
     /// ```
-    public var tokenProvider: HFTokenProvider
+    var tokenProvider: HFTokenProvider
 
     // MARK: - Network Settings
 
@@ -59,7 +59,7 @@ public struct HFConfiguration: Sendable, Hashable {
     /// ```swift
     /// let config = HFConfiguration.endpoint(URL(string: "https://custom.example.com")!)
     /// ```
-    public var baseURL: URL
+    var baseURL: URL
 
     /// Request timeout in seconds.
     ///
@@ -72,7 +72,7 @@ public struct HFConfiguration: Sendable, Hashable {
     /// ```swift
     /// let config = HFConfiguration.default.timeout(120)
     /// ```
-    public var timeout: TimeInterval
+    var timeout: TimeInterval
 
     // MARK: - Retry Settings
 
@@ -87,7 +87,7 @@ public struct HFConfiguration: Sendable, Hashable {
     /// ```swift
     /// let config = HFConfiguration.default.maxRetries(5)
     /// ```
-    public var maxRetries: Int
+    var maxRetries: Int
 
     /// Base delay for exponential backoff retry strategy (in seconds).
     ///
@@ -100,7 +100,7 @@ public struct HFConfiguration: Sendable, Hashable {
     /// ```swift
     /// let config = HFConfiguration.default.retryBaseDelay(0.5)
     /// ```
-    public var retryBaseDelay: TimeInterval
+    var retryBaseDelay: TimeInterval
 
     // MARK: - Initialization
 
@@ -112,7 +112,7 @@ public struct HFConfiguration: Sendable, Hashable {
     ///   - timeout: Request timeout in seconds (default: 60).
     ///   - maxRetries: Maximum retry attempts (default: 3).
     ///   - retryBaseDelay: Base delay for exponential backoff (default: 1.0).
-    public init(
+    init(
         tokenProvider: HFTokenProvider = .auto,
         baseURL: URL = URL(string: "https://api-inference.huggingface.co")!,
         timeout: TimeInterval = 60,
@@ -144,7 +144,7 @@ public struct HFConfiguration: Sendable, Hashable {
     /// ```
     ///
     /// - Returns: `true` if a token is available, `false` otherwise.
-    public var hasToken: Bool {
+    var hasToken: Bool {
         tokenProvider.isConfigured
     }
 
@@ -160,7 +160,7 @@ public struct HFConfiguration: Sendable, Hashable {
     /// - timeout: 60 seconds
     /// - maxRetries: 3
     /// - retryBaseDelay: 1.0 second
-    public static let `default` = HFConfiguration()
+    static let `default` = HFConfiguration()
 
     /// Configuration optimized for long-running models.
     ///
@@ -174,7 +174,7 @@ public struct HFConfiguration: Sendable, Hashable {
     /// ```swift
     /// let provider = HuggingFaceProvider(configuration: .longRunning)
     /// ```
-    public static let longRunning = HFConfiguration(
+    static let longRunning = HFConfiguration(
         timeout: 120
     )
 
@@ -190,7 +190,7 @@ public struct HFConfiguration: Sendable, Hashable {
     ///
     /// - Parameter url: The custom endpoint base URL.
     /// - Returns: A configuration with the specified endpoint.
-    public static func endpoint(_ url: URL) -> HFConfiguration {
+    static func endpoint(_ url: URL) -> HFConfiguration {
         HFConfiguration(baseURL: url)
     }
 }
@@ -208,7 +208,7 @@ extension HFConfiguration {
     ///
     /// - Parameter provider: The token provider to use.
     /// - Returns: A new configuration with the updated token provider.
-    public func token(_ provider: HFTokenProvider) -> HFConfiguration {
+    func token(_ provider: HFTokenProvider) -> HFConfiguration {
         var copy = self
         copy.tokenProvider = provider
         return copy
@@ -223,7 +223,7 @@ extension HFConfiguration {
     ///
     /// - Parameter url: The API base URL.
     /// - Returns: A new configuration with the updated base URL.
-    public func baseURL(_ url: URL) -> HFConfiguration {
+    func baseURL(_ url: URL) -> HFConfiguration {
         var copy = self
         copy.baseURL = url
         return copy
@@ -240,7 +240,7 @@ extension HFConfiguration {
     ///
     /// - Parameter seconds: Request timeout in seconds.
     /// - Returns: A new configuration with the updated timeout.
-    public func timeout(_ seconds: TimeInterval) -> HFConfiguration {
+    func timeout(_ seconds: TimeInterval) -> HFConfiguration {
         var copy = self
         copy.timeout = max(0, seconds)
         return copy
@@ -257,7 +257,7 @@ extension HFConfiguration {
     ///
     /// - Parameter count: Maximum number of retry attempts.
     /// - Returns: A new configuration with the updated retry count.
-    public func maxRetries(_ count: Int) -> HFConfiguration {
+    func maxRetries(_ count: Int) -> HFConfiguration {
         var copy = self
         copy.maxRetries = max(0, count)
         return copy
@@ -274,7 +274,7 @@ extension HFConfiguration {
     ///
     /// - Parameter delay: Base delay in seconds for exponential backoff.
     /// - Returns: A new configuration with the updated base delay.
-    public func retryBaseDelay(_ delay: TimeInterval) -> HFConfiguration {
+    func retryBaseDelay(_ delay: TimeInterval) -> HFConfiguration {
         var copy = self
         copy.retryBaseDelay = max(0, delay)
         return copy

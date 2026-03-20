@@ -3,11 +3,11 @@
 //
 // This file requires the MLX trait (Hub) to be enabled.
 
-#if CONDUIT_TRAIT_MLX && canImport(MLX) && (canImport(Hub) || canImport(HuggingFace))
+#if CONDUIT_TRAIT_MLX && canImport(MLX) && canImport(Hub)
 
 import Foundation
 import Testing
-@testable import Conduit
+@testable import ConduitAdvanced
 
 @Suite("DiffusionModelDownloader Tests", .serialized)
 struct DiffusionModelDownloaderTests {
@@ -773,4 +773,4 @@ struct DiffusionModelDownloaderTests {
     }
 }
 
-#endif // CONDUIT_TRAIT_MLX
+#endif // canImport(Hub)

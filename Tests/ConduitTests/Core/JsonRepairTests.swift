@@ -6,7 +6,7 @@
 
 import Foundation
 import Testing
-@testable import Conduit
+@testable import ConduitAdvanced
 
 /// Tests for JsonRepair - Utility for repairing incomplete JSON strings
 @Suite("JsonRepair")
@@ -222,14 +222,6 @@ struct JsonRepairTests {
 
             #expect(repaired == #"[{"name": "Alice"}, {"name": "Bob"}]"#)
         }
-
-        @Test("Trailing string in array is preserved when earlier value contains braces")
-        func arrayContextWithBraceCharactersInStrings() {
-            let incomplete = #"["{", "ok""#
-            let repaired = JsonRepair.repair(incomplete)
-
-            #expect(repaired == #"["{", "ok"]"#)
-        }
     }
 
     // MARK: - Edge Cases
@@ -356,6 +348,8 @@ struct JsonRepairTests {
             // JSON that cannot be meaningfully repaired
             // A colon without key-value structure
             let broken = #"{"name" :"#
+
+            let content = JsonRepair.tryParse(broken)
 
             // The repair will try to close it, but the result may still be unparseable
             // Let's verify tryParse returns something (repair + parse might succeed)

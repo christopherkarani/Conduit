@@ -186,9 +186,8 @@ extension DeviceCapabilities {
         if size > 0 {
             var buffer = [CChar](repeating: 0, count: size)
             sysctlbyname("machdep.cpu.brand_string", &buffer, &size, nil, 0)
-            // Convert C-string bytes by trimming at null terminator.
-            let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
-            return String(decoding: bytes, as: UTF8.self)
+            // Use failable String initializer with null-terminated C string
+            return String(cString: buffer)
         }
         return nil
         #elseif os(Linux)

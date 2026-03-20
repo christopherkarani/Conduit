@@ -30,18 +30,18 @@ import Foundation
 /// print("Cached models: \(stats.cachedModelCount)")
 /// print("Memory usage: \(stats.totalMemoryUsage)")
 /// ```
-public struct CacheStats: Sendable {
+struct CacheStats: Sendable {
     /// Number of models currently in cache
-    public let cachedModelCount: Int
+    let cachedModelCount: Int
 
     /// Total memory used by cached models
-    public let totalMemoryUsage: ByteCount
+    let totalMemoryUsage: ByteCount
 
     /// ID of the currently active model, if any
-    public let currentModelId: String?
+    let currentModelId: String?
 
     /// List of all cached model IDs
-    public let modelIds: [String]
+    let modelIds: [String]
 }
 
 // MARK: - MLXModelCache
@@ -62,12 +62,7 @@ public struct CacheStats: Sendable {
 /// let cache = MLXModelCache.shared
 ///
 /// // Cache a model
-/// let model = CachedModel(
-///     modelId: "llama-3.2-1B",
-///     container: container,
-///     capabilities: caps,
-///     weightsSize: .gigabytes(2)
-/// )
+/// let model = CachedModel(container: container, capabilities: caps, weightsSize: .gigabytes(2))
 /// await cache.set(model, forKey: "llama-3.2-1B")
 ///
 /// // Retrieve a model
@@ -79,12 +74,12 @@ public struct CacheStats: Sendable {
 /// let stats = await cache.cacheStats()
 /// print("Using \(stats.totalMemoryUsage) across \(stats.cachedModelCount) models")
 /// ```
-public actor MLXModelCache {
+actor MLXModelCache {
 
     // MARK: - Singleton
 
     /// Shared singleton instance
-    public static let shared = MLXModelCache()
+    static let shared = MLXModelCache()
 
     // MARK: - CachedModel
 
@@ -97,10 +92,7 @@ public actor MLXModelCache {
     /// - `ModelContainer` is from MLX (imported via `@preconcurrency`)
     /// - Access is always through the `MLXModelCache` actor, providing isolation
     /// - The container is immutable after initialization
-    public final class CachedModel: NSObject, @unchecked Sendable {
-        /// Model ID used to reconcile NSCache evictions with actor tracking.
-        let modelId: String
-
+    final class CachedModel: NSObject, @unchecked Sendable {
         /// The loaded MLX model container
         let container: ModelContainer
 
@@ -113,8 +105,7 @@ public actor MLXModelCache {
         /// Size of model weights in memory
         let weightsSize: ByteCount
 
-        init(modelId: String, container: ModelContainer, capabilities: ModelCapabilities, weightsSize: ByteCount) {
-            self.modelId = modelId
+        init(container: ModelContainer, capabilities: ModelCapabilities, weightsSize: ByteCount) {
             self.container = container
             self.capabilities = capabilities
             self.loadedAt = Date()
@@ -152,8 +143,8 @@ public actor MLXModelCache {
         var onEviction: ((String) -> Void)?
 
         func cache(_ cache: NSCache<AnyObject, AnyObject>, willEvictObject obj: Any) {
-            guard let model = obj as? CachedModel else { return }
-            onEviction?(model.modelId)
+            // NSCache eviction callback - we'll clean up tracking asynchronously
+            // Actual cleanup happens in get() when we detect the model is gone
         }
     }
 
@@ -162,20 +153,20 @@ public actor MLXModelCache {
     /// Configuration options for the model cache.
     ///
     /// Controls cache size limits and eviction behavior.
-    public struct Configuration: Sendable {
+    struct Configuration: Sendable {
         /// Maximum number of models to keep in cache
-        public var maxCachedModels: Int
+        var maxCachedModels: Int
 
         /// Maximum total memory for cached models (nil = unlimited)
-        public var maxCacheSize: ByteCount?
+        var maxCacheSize: ByteCount?
 
         /// Default configuration: 3 models, no size limit
-        public static let `default` = Configuration(maxCachedModels: 3, maxCacheSize: nil)
+        static let `default` = Configuration(maxCachedModels: 3, maxCacheSize: nil)
 
         /// Low memory configuration: 1 model, 4GB limit
-        public static let lowMemory = Configuration(maxCachedModels: 1, maxCacheSize: .gigabytes(4))
+        static let lowMemory = Configuration(maxCachedModels: 1, maxCacheSize: .gigabytes(4))
 
-        public init(maxCachedModels: Int = 3, maxCacheSize: ByteCount? = nil) {
+        init(maxCachedModels: Int = 3, maxCacheSize: ByteCount? = nil) {
             self.maxCachedModels = maxCachedModels
             self.maxCacheSize = maxCacheSize
         }
@@ -191,9 +182,6 @@ public actor MLXModelCache {
     /// caches without mutating the process-global `shared` singleton.
     internal init(configuration: Configuration = .default) {
         self.delegate = CacheDelegate()
-        self.delegate.onEviction = { [weak self] modelId in
-            Task { await self?.handleEviction(of: modelId) }
-        }
         cacheWrapper.cache.delegate = delegate
         cacheWrapper.cache.countLimit = configuration.maxCachedModels
         if let maxSize = configuration.maxCacheSize {
@@ -209,7 +197,7 @@ public actor MLXModelCache {
     ///
     /// - Parameter modelId: Unique identifier for the model
     /// - Returns: The cached model, or nil if not found or evicted
-    public func get(_ modelId: String) -> CachedModel? {
+    func get(_ modelId: String) -> CachedModel? {
         let key = modelId as NSString
         let model = cache.object(forKey: key)
         if model == nil {
@@ -228,7 +216,7 @@ public actor MLXModelCache {
     /// - Parameters:
     ///   - model: The cached model container
     ///   - modelId: Unique identifier for the model
-    public func set(_ model: CachedModel, forKey modelId: String) {
+    func set(_ model: CachedModel, forKey modelId: String) {
         let key = modelId as NSString
         cache.setObject(model, forKey: key, cost: Int(model.weightsSize.bytes))
         cachedModelIds.insert(modelId)
@@ -238,7 +226,7 @@ public actor MLXModelCache {
     /// Removes a model from the cache.
     ///
     /// - Parameter modelId: The model ID to remove
-    public func remove(_ modelId: String) {
+    func remove(_ modelId: String) {
         let key = modelId as NSString
         cache.removeObject(forKey: key)
         cachedModelIds.remove(modelId)
@@ -251,7 +239,7 @@ public actor MLXModelCache {
     /// Removes all models from the cache.
     ///
     /// Clears both the NSCache and all tracking structures.
-    public func removeAll() {
+    func removeAll() {
         cache.removeAllObjects()
         cachedModelIds.removeAll()
         modelSizes.removeAll()
@@ -265,7 +253,7 @@ public actor MLXModelCache {
     ///
     /// - Parameter modelId: The model ID to check
     /// - Returns: true if the model is currently cached
-    public func contains(_ modelId: String) -> Bool {
+    func contains(_ modelId: String) -> Bool {
         // Verify it's actually still in cache (may have been evicted)
         let key = modelId as NSString
         if cache.object(forKey: key) != nil {
@@ -283,7 +271,7 @@ public actor MLXModelCache {
     /// cached model count, and the currently active model.
     ///
     /// - Returns: Cache statistics structure
-    public func cacheStats() -> CacheStats {
+    func cacheStats() -> CacheStats {
         let totalMemory = modelSizes.values.reduce(ByteCount(0)) {
             ByteCount($0.bytes + $1.bytes)
         }
@@ -300,23 +288,15 @@ public actor MLXModelCache {
     /// Used to track which model is currently in use for statistics.
     ///
     /// - Parameter modelId: The model ID to mark as active, or nil to clear
-    public func setCurrentModel(_ modelId: String?) {
+    func setCurrentModel(_ modelId: String?) {
         currentModelId = modelId
     }
 
     /// Gets the currently active model ID.
     ///
     /// - Returns: The active model ID, or nil if no model is active
-    public func getCurrentModelId() -> String? {
+    func getCurrentModelId() -> String? {
         currentModelId
-    }
-
-    private func handleEviction(of modelId: String) {
-        cachedModelIds.remove(modelId)
-        modelSizes.removeValue(forKey: modelId)
-        if currentModelId == modelId {
-            currentModelId = nil
-        }
     }
 
     // MARK: - Test Hooks

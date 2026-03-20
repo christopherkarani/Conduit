@@ -21,15 +21,13 @@ import Foundation
 /// ## Overview
 ///
 /// `MLXModelLoader` is an internal actor that handles the low-level details of loading
-/// and managing MLX model instances. It integrates with `ModelManager` for downloading
-/// and caching model files, and provides LRU eviction when memory is constrained.
+/// and managing MLX model instances. It relies on mlx-swift-lm model loading paths
+/// and provides in-memory caching/eviction when memory is constrained.
 ///
 /// ## Architecture
 ///
 /// ```
-/// MLXProvider → MLXModelLoader → ModelManager
-///                    ↓
-///           LLMModelFactory (mlx-swift-lm)
+/// MLXProvider → MLXModelLoader → LLMModelFactory / VLMModelFactory
 /// ```
 ///
 /// ## LRU Eviction
@@ -94,26 +92,36 @@ internal actor MLXModelLoader {
     /// - `AIError.modelNotCached` if download fails
     /// - `AIError.generationFailed` if model loading fails
     func loadModel(identifier: ModelIdentifier) async throws -> ModelContainer {
-        // Validate it's an MLX model
-        guard case .mlx(let modelId) = identifier else {
-            throw AIError.invalidInput("MLXModelLoader only supports .mlx() model identifiers")
+        // Validate it's an MLX model (either HF Hub or local path)
+        let (cacheKey, modelConfig): (String, ModelConfiguration)
+
+        switch identifier {
+        case .mlx(let modelId):
+            // HuggingFace Hub model
+            cacheKey = modelId
+            modelConfig = ModelConfiguration(id: modelId)
+
+        case .mlxLocal(let path):
+            // Local filesystem model
+            cacheKey = path
+            let directoryURL = URL(fileURLWithPath: path)
+            modelConfig = ModelConfiguration(directory: directoryURL)
+
+        default:
+            throw AIError.invalidInput("MLXModelLoader only supports .mlx() and .mlxLocal() model identifiers")
         }
 
-        try applyRuntimeConfiguration()
+        applyRuntimeConfiguration()
 
         // Check cache first
-        if let cached = await MLXModelCache.shared.get(modelId) {
+        if let cached = await MLXModelCache.shared.get(cacheKey) {
             // Set as current model
-            await MLXModelCache.shared.setCurrentModel(modelId)
+            await MLXModelCache.shared.setCurrentModel(cacheKey)
             return cached.container
         }
 
         // Detect model capabilities using VLMDetector
         let capabilities = await VLMDetector.shared.detectCapabilities(identifier)
-
-        // Prefer a locally cached Hugging Face snapshot when present so local MLX
-        // inference works offline and doesn't stall on Hub resolution.
-        let modelConfig = localModelConfiguration(for: modelId) ?? ModelConfiguration(id: modelId)
 
         // Load the model using the appropriate factory based on capabilities
         do {
@@ -139,21 +147,17 @@ internal actor MLXModelLoader {
                 )
             }
 
-            // Estimate model size (rough estimate based on model name or default to 2GB)
-            let estimatedSize = estimateModelSize(modelId: modelId)
+            // Estimate model size (rough estimate based on name/path or default to 2GB)
+            let estimatedSize = estimateModelSize(modelId: cacheKey)
 
             // Cache the loaded model with its capabilities
             let cachedModel = MLXModelCache.CachedModel(
-                modelId: modelId,
                 container: container,
                 capabilities: capabilities,
                 weightsSize: estimatedSize
             )
-            await MLXModelCache.shared.set(cachedModel, forKey: modelId)
-            await MLXModelCache.shared.setCurrentModel(modelId)
-
-            // Mark as accessed in ModelManager for LRU tracking
-            await ModelManager.shared.markAccessed(identifier)
+            await MLXModelCache.shared.set(cachedModel, forKey: cacheKey)
+            await MLXModelCache.shared.setCurrentModel(cacheKey)
 
             return container
 
@@ -167,8 +171,7 @@ internal actor MLXModelLoader {
     ///
     /// MLX GPU memory limits are global process-level settings, so this is
     /// applied opportunistically before model loading.
-    private func applyRuntimeConfiguration() throws {
-        try MLXMetalLibraryBootstrap.ensureAvailable()
+    private func applyRuntimeConfiguration() {
         let resolvedLimit = MLXRuntimeMemoryLimit.resolved(from: configuration)
         MLX.GPU.set(memoryLimit: resolvedLimit)
     }
@@ -180,8 +183,16 @@ internal actor MLXModelLoader {
     ///
     /// - Parameter identifier: The model to unload.
     func unloadModel(identifier: ModelIdentifier) async {
-        guard case .mlx(let modelId) = identifier else { return }
-        await MLXModelCache.shared.remove(modelId)
+        let cacheKey: String
+        switch identifier {
+        case .mlx(let modelId):
+            cacheKey = modelId
+        case .mlxLocal(let path):
+            cacheKey = path
+        default:
+            return
+        }
+        await MLXModelCache.shared.remove(cacheKey)
     }
 
     /// Unloads all models from memory.
@@ -197,8 +208,16 @@ internal actor MLXModelLoader {
     /// - Parameter identifier: The model to check.
     /// - Returns: `true` if the model is loaded, `false` otherwise.
     func isLoaded(_ identifier: ModelIdentifier) async -> Bool {
-        guard case .mlx(let modelId) = identifier else { return false }
-        return await MLXModelCache.shared.contains(modelId)
+        let cacheKey: String
+        switch identifier {
+        case .mlx(let modelId):
+            cacheKey = modelId
+        case .mlxLocal(let path):
+            cacheKey = path
+        default:
+            return false
+        }
+        return await MLXModelCache.shared.contains(cacheKey)
     }
 
     /// Returns the capabilities of a loaded model.
@@ -219,8 +238,16 @@ internal actor MLXModelLoader {
     /// }
     /// ```
     func getCapabilities(_ identifier: ModelIdentifier) async -> ModelCapabilities? {
-        guard case .mlx(let modelId) = identifier else { return nil }
-        if let cached = await MLXModelCache.shared.get(modelId) {
+        let cacheKey: String
+        switch identifier {
+        case .mlx(let modelId):
+            cacheKey = modelId
+        case .mlxLocal(let path):
+            cacheKey = path
+        default:
+            return nil
+        }
+        if let cached = await MLXModelCache.shared.get(cacheKey) {
             return cached.capabilities
         }
         return nil
@@ -299,80 +326,6 @@ internal actor MLXModelLoader {
     }
     #endif
 
-    private func localModelConfiguration(for modelId: String) -> ModelConfiguration? {
-        let fileManager = FileManager.default
-        let sanitized = modelId.replacingOccurrences(of: "/", with: "--")
-        let roots = [
-            NSString(string: "~/.cache/huggingface/hub/models--\(sanitized)").expandingTildeInPath,
-            NSString(string: "~/Library/Caches/huggingface/hub/models--\(sanitized)").expandingTildeInPath,
-            NSString(string: "~/Library/Caches/Conduit/Models/mlx/\(sanitized)").expandingTildeInPath
-        ]
-
-        for rootPath in roots {
-            let rootURL = URL(fileURLWithPath: rootPath, isDirectory: true)
-            if let snapshot = preferredSnapshotDirectory(in: rootURL, fileManager: fileManager) {
-                return ModelConfiguration(directory: snapshot)
-            }
-        }
-
-        return nil
-    }
-
-    private func preferredSnapshotDirectory(in rootURL: URL, fileManager: FileManager) -> URL? {
-        guard fileManager.fileExists(atPath: rootURL.path) else { return nil }
-
-        let refsMain = rootURL.appendingPathComponent("refs").appendingPathComponent("main")
-        if let ref = try? String(contentsOf: refsMain, encoding: .utf8)
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           !ref.isEmpty {
-            let snapshot = rootURL.appendingPathComponent("snapshots").appendingPathComponent(ref, isDirectory: true)
-            if fileManager.fileExists(atPath: snapshot.path) {
-                return snapshot
-            }
-        }
-
-        let snapshotsRoot = rootURL.appendingPathComponent("snapshots", isDirectory: true)
-        guard let candidates = try? fileManager.contentsOfDirectory(
-            at: snapshotsRoot,
-            includingPropertiesForKeys: [.contentModificationDateKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return nil
-        }
-
-        return candidates
-            .filter { url in
-                var isDirectory: ObjCBool = false
-                return fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) && isDirectory.boolValue
-            }
-            .sorted {
-                let lhsDate = (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-                let rhsDate = (try? $1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-                return lhsDate > rhsDate
-            }
-            .first
-    }
-
-    /// Resolves the local file path for a model, downloading if necessary.
-    ///
-    /// - Parameter identifier: The model to resolve.
-    /// - Returns: The local file URL for the model.
-    /// - Throws: `AIError.modelNotCached` if download fails.
-    private func resolveModelPath(for identifier: ModelIdentifier) async throws -> URL {
-        // Check if already cached
-        if await ModelManager.shared.isCached(identifier) {
-            if let path = await ModelManager.shared.localPath(for: identifier) {
-                return path
-            }
-        }
-
-        // Not cached - download it
-        do {
-            return try await ModelManager.shared.download(identifier, progress: nil)
-        } catch {
-            throw AIError.modelNotCached(identifier)
-        }
-    }
 }
 
 // MARK: - Non-arm64 Stubs

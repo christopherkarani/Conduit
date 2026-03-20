@@ -6,7 +6,7 @@
 
 import Foundation
 import Testing
-@testable import Conduit
+@testable import ConduitAdvanced
 
 // MARK: - Test Suite
 

@@ -14,17 +14,34 @@ public actor MiniMaxProvider: AIProvider, TextGenerator {
 
     public typealias Response = GenerationResult
     public typealias StreamChunk = GenerationChunk
-    public typealias ModelID = MiniMaxModelID
+    public typealias ModelID = ModelIdentifier
 
-    public let configuration: MiniMaxConfiguration
+    let configuration: MiniMaxConfiguration
 
     private let internalProvider: OpenAIProvider
 
-    public init(apiKey: String) {
+    public init(apiKey: String? = nil) {
         self.init(configuration: .standard(apiKey: apiKey))
     }
 
-    public init(configuration: MiniMaxConfiguration) {
+    /// Creates a provider with explicit network tuning settings.
+    public init(
+        apiKey: String? = nil,
+        baseURL: URL,
+        timeout: TimeInterval = 120,
+        maxRetries: Int = 3
+    ) {
+        self.init(
+            configuration: MiniMaxConfiguration(
+                authentication: apiKey.map(MiniMaxAuthentication.apiKey) ?? .auto,
+                baseURL: baseURL,
+                timeout: timeout,
+                maxRetries: maxRetries
+            )
+        )
+    }
+
+    init(configuration: MiniMaxConfiguration) {
         self.configuration = configuration
 
         let openAIConfig = OpenAIConfiguration(
@@ -57,42 +74,71 @@ public actor MiniMaxProvider: AIProvider, TextGenerator {
 
     public nonisolated func stream(
         messages: [Message],
-        model: MiniMaxModelID,
+        model: ModelIdentifier,
         config: GenerateConfig
     ) -> AsyncThrowingStream<GenerationChunk, Error> {
-        internalProvider.stream(messages: messages, model: OpenAIModelID(model.rawValue), config: config)
+        do {
+            try validateModel(model)
+        } catch {
+            return AsyncThrowingStream { continuation in
+                continuation.finish(throwing: error)
+            }
+        }
+        return internalProvider.stream(messages: messages, model: .openAI(model.rawValue), config: config)
     }
 
     public func generate(
         _ prompt: String,
-        model: MiniMaxModelID,
+        model: ModelIdentifier,
         config: GenerateConfig
     ) async throws -> String {
-        try await internalProvider.generate(prompt, model: OpenAIModelID(model.rawValue), config: config)
+        try validateModel(model)
+        return try await internalProvider.generate(prompt, model: .openAI(model.rawValue), config: config)
     }
 
     public func generate(
         messages: [Message],
-        model: MiniMaxModelID,
+        model: ModelIdentifier,
         config: GenerateConfig
     ) async throws -> GenerationResult {
-        try await internalProvider.generate(messages: messages, model: OpenAIModelID(model.rawValue), config: config)
+        try validateModel(model)
+        return try await internalProvider.generate(messages: messages, model: .openAI(model.rawValue), config: config)
     }
 
     public nonisolated func stream(
         _ prompt: String,
-        model: MiniMaxModelID,
+        model: ModelIdentifier,
         config: GenerateConfig
     ) -> AsyncThrowingStream<String, Error> {
-        internalProvider.stream(prompt, model: OpenAIModelID(model.rawValue), config: config)
+        do {
+            try validateModel(model)
+        } catch {
+            return AsyncThrowingStream { continuation in
+                continuation.finish(throwing: error)
+            }
+        }
+        return internalProvider.stream(prompt, model: .openAI(model.rawValue), config: config)
     }
 
     public nonisolated func streamWithMetadata(
         messages: [Message],
-        model: MiniMaxModelID,
+        model: ModelIdentifier,
         config: GenerateConfig
     ) -> AsyncThrowingStream<GenerationChunk, Error> {
-        internalProvider.streamWithMetadata(messages: messages, model: OpenAIModelID(model.rawValue), config: config)
+        do {
+            try validateModel(model)
+        } catch {
+            return AsyncThrowingStream { continuation in
+                continuation.finish(throwing: error)
+            }
+        }
+        return internalProvider.streamWithMetadata(messages: messages, model: .openAI(model.rawValue), config: config)
+    }
+
+    private nonisolated func validateModel(_ model: ModelIdentifier) throws {
+        guard model.provider == .minimax else {
+            throw AIError.invalidInput("MiniMaxProvider only supports MiniMax model identifiers")
+        }
     }
 }
 

@@ -18,18 +18,18 @@ import Foundation
 /// let config = KimiConfiguration.standard(apiKey: "sk-moonshot-...")
 /// let provider = KimiProvider(configuration: config)
 /// ```
-public struct KimiConfiguration: Sendable, Hashable, Codable {
+struct KimiConfiguration: Sendable, Hashable, Codable {
 
     // MARK: - Properties
 
-    public var authentication: KimiAuthentication
-    public var baseURL: URL
-    public var timeout: TimeInterval
-    public var maxRetries: Int
+    var authentication: KimiAuthentication
+    var baseURL: URL
+    var timeout: TimeInterval
+    var maxRetries: Int
 
     // MARK: - Initialization
 
-    public init(
+    init(
         authentication: KimiAuthentication = .auto,
         baseURL: URL = URL(string: "https://api.moonshot.cn/v1")!,
         timeout: TimeInterval = 120.0,
@@ -43,13 +43,13 @@ public struct KimiConfiguration: Sendable, Hashable, Codable {
 
     // MARK: - Static Factories
 
-    public static func standard(apiKey: String) -> KimiConfiguration {
+    static func standard(apiKey: String) -> KimiConfiguration {
         KimiConfiguration(authentication: .apiKey(apiKey))
     }
 
     // MARK: - Computed
 
-    public var hasValidAuthentication: Bool {
+    var hasValidAuthentication: Bool {
         authentication.isValid
     }
 }
@@ -57,19 +57,19 @@ public struct KimiConfiguration: Sendable, Hashable, Codable {
 // MARK: - Fluent API
 
 extension KimiConfiguration {
-    public func apiKey(_ key: String) -> KimiConfiguration {
+    func apiKey(_ key: String) -> KimiConfiguration {
         var copy = self
         copy.authentication = .apiKey(key)
         return copy
     }
 
-    public func timeout(_ seconds: TimeInterval) -> KimiConfiguration {
+    func timeout(_ seconds: TimeInterval) -> KimiConfiguration {
         var copy = self
         copy.timeout = max(0, seconds)
         return copy
     }
 
-    public func maxRetries(_ count: Int) -> KimiConfiguration {
+    func maxRetries(_ count: Int) -> KimiConfiguration {
         var copy = self
         copy.maxRetries = max(0, count)
         return copy
