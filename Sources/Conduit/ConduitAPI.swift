@@ -363,7 +363,7 @@ extension Provider {
     }
     #endif
 
-    #if CONDUIT_TRAIT_MLX
+    #if CONDUIT_TRAIT_MLX && canImport(MLX)
     public static func mlx(
         configure: (inout MLXOptions) -> Void = { _ in }
     ) -> Self {
