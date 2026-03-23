@@ -343,7 +343,7 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
     ///
     /// - Parameter model: The model identifier to prepare.
     public func prepare(model: ModelID) async throws {
-        try await warmUp(model: model, prefillChars: 50, maxTokens: 5, keepLoaded: true)
+        try await warmUp(model: model, prefillText: "The quick brown fox jumps over the lazy dog.", maxTokens: 5)
     }
 
     /// Releases provider-managed runtime resources.
@@ -412,18 +412,11 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
     ///   as a no-op. It's safe to call multiple times.
     public func warmUp(
         model: ModelID,
-        prefillChars: Int = 50,
-        maxTokens: Int = 5,
-        keepLoaded: Bool = true
+        prefillText: String = "Hello",
+        maxTokens: Int = 1
     ) async throws {
         #if arch(arm64)
         try validateMLXModel(model)
-
-        // Create warmup prompt with specified length
-        // Use repeating pattern that's representative of real text
-        let basePattern = "The quick brown fox. "
-        let repeatCount = max(1, prefillChars / basePattern.count)
-        let prefillText = String(repeating: basePattern, count: repeatCount).prefix(prefillChars)
 
         // Create minimal config for warmup
         // Temperature 0 ensures deterministic, fast generation
@@ -434,12 +427,7 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
         )
 
         // Perform minimal generation to trigger all initialization
-        _ = try await generate(String(prefillText), model: model, config: warmupConfig)
-
-        // Optionally unload model if not keeping it loaded
-        if !keepLoaded {
-            await MLXModelCache.shared.remove(model.rawValue)
-        }
+        _ = try await generate(prefillText, model: model, config: warmupConfig)
         #else
         throw AIError.providerUnavailable(reason: .deviceNotSupported)
         #endif

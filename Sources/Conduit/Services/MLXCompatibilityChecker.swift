@@ -83,12 +83,12 @@ import Foundation
 /// - Extended Models: deepseek, yi, internlm, baichuan, chatglm, falcon, mpt
 /// - Vision-Language Models: llava, llava_next, qwen2_vl, pixtral, paligemma
 ///
-public actor MLXCompatibilityChecker {
+internal actor MLXCompatibilityChecker {
 
     // MARK: - Singleton
 
     /// Shared singleton instance.
-    public static let shared = MLXCompatibilityChecker()
+    internal static let shared = MLXCompatibilityChecker()
 
     // MARK: - Private Initialization
 
@@ -320,7 +320,7 @@ public actor MLXCompatibilityChecker {
 ///
 /// Provides detailed information about compatibility status including
 /// confidence levels for compatible models and specific reasons for incompatibility.
-public enum CompatibilityResult: Sendable {
+internal enum CompatibilityResult: Sendable {
 
     /// Model is compatible with MLX.
     ///
@@ -366,7 +366,7 @@ public enum CompatibilityResult: Sendable {
 ///
 /// Provides detailed information about what's missing or unsupported
 /// in a model that prevents MLX compatibility.
-public enum IncompatibilityReason: Sendable, CustomStringConvertible {
+internal enum IncompatibilityReason: Sendable, CustomStringConvertible {
 
     /// Model is missing required `config.json` file.
     case missingConfigJSON

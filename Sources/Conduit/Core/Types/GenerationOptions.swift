@@ -60,12 +60,6 @@ public struct GenerationOptions: Sendable, Equatable, Codable {
     }
 }
 
-/// A protocol for model-specific generation options.
-public protocol CustomGenerationOptions: Equatable, Sendable {}
-
-extension Never: CustomGenerationOptions {}
-extension Dictionary: CustomGenerationOptions where Key == String, Value == JSONValue {}
-
 // MARK: - GenerateConfig Bridge
 
 extension GenerationOptions {

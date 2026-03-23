@@ -47,7 +47,6 @@ import Foundation
 
 // Streaming
 // TODO: @_exported import when implemented
-// - GenerationStream
 // - GenerationChunk
 
 // Errors

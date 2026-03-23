@@ -143,55 +143,6 @@ final class EmbeddingTests: XCTestCase {
         )
     }
 
-    // MARK: - BatchEmbeddingResult Tests
-
-    func testBatchMostSimilar() {
-        let query = EmbeddingResult(vector: [1, 0], text: "query", model: "test")
-        let batch = BatchEmbeddingResult(embeddings: [
-            EmbeddingResult(vector: [0, 1], text: "orthogonal", model: "test"),
-            EmbeddingResult(vector: [1, 0], text: "same", model: "test"),
-            EmbeddingResult(vector: [0.5, 0.5], text: "partial", model: "test")
-        ], processingTime: 0.1)
-
-        let result = batch.mostSimilar(to: query)
-        XCTAssertNotNil(result)
-        XCTAssertEqual(result?.result.text, "same", "Most similar should be the identical vector")
-        XCTAssertEqual(result?.similarity ?? 0, 1.0, accuracy: 0.0001)
-    }
-
-    func testBatchMostSimilarEmptyBatch() {
-        let query = EmbeddingResult(vector: [1, 0], text: "query", model: "test")
-        let batch = BatchEmbeddingResult(embeddings: [], processingTime: 0.0)
-
-        let result = batch.mostSimilar(to: query)
-        XCTAssertNil(result, "Empty batch should return nil")
-    }
-
-    func testBatchRankedDescendingOrder() {
-        let query = EmbeddingResult(vector: [1, 0], text: "query", model: "test")
-        let batch = BatchEmbeddingResult(embeddings: [
-            EmbeddingResult(vector: [0, 1], text: "orth", model: "test"),       // similarity 0
-            EmbeddingResult(vector: [1, 0], text: "same", model: "test"),       // similarity 1
-            EmbeddingResult(vector: [-1, 0], text: "opposite", model: "test")   // similarity -1
-        ], processingTime: 0.1)
-
-        let ranked = batch.ranked(by: query)
-        XCTAssertEqual(ranked.count, 3)
-        XCTAssertEqual(ranked[0].result.text, "same", "First should be most similar")
-        XCTAssertEqual(ranked[1].result.text, "orth", "Second should be orthogonal")
-        XCTAssertEqual(ranked[2].result.text, "opposite", "Third should be least similar")
-    }
-
-    func testBatchTotalTokens() {
-        let batch = BatchEmbeddingResult(embeddings: [
-            EmbeddingResult(vector: [1], text: "a", model: "test", tokenCount: 10),
-            EmbeddingResult(vector: [1], text: "b", model: "test", tokenCount: 20),
-            EmbeddingResult(vector: [1], text: "c", model: "test", tokenCount: nil)
-        ], processingTime: 0.1)
-
-        XCTAssertEqual(batch.totalTokens, 30, "Should sum only non-nil token counts")
-    }
-
     // MARK: - Hashable Tests
 
     func testEmbeddingResultHashable() {

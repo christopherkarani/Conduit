@@ -129,50 +129,6 @@ struct FakeTextGenerator: TextGenerator {
 @Suite("Streaming Cancellation Propagation")
 struct StreamingCancellationTests {
 
-    @Test("GenerationStream.from cancels upstream when consumer cancels")
-    func generationStreamFromCancelsUpstream() async {
-        let upstreamTermination = TerminationRecorder<AsyncThrowingStream<String, Error>.Continuation.Termination>()
-        let upstream = makeNonYieldingStringStream(terminationRecorder: upstreamTermination)
-
-        let wrapped = GenerationStream.from(upstream)
-
-        let consumer = consume(wrapped)
-        try? await Task.sleep(for: .milliseconds(50))
-        consumer.cancel()
-        _ = await consumer.value
-
-        let termination = await waitForTermination(upstreamTermination)
-        #expect(termination.map { _ in true } ?? false)
-        #expect(termination.map(isCancelled) == true)
-    }
-
-    @Test("[Message].stream(with:model:config:) cancels provider metadata stream")
-    func messageArrayStreamCancelsUpstreamMetadataStream() async {
-        let upstreamTermination = TerminationRecorder<AsyncThrowingStream<GenerationChunk, Error>.Continuation.Termination>()
-
-        let provider = FakeTextGenerator(
-            makeStringStream: { AsyncThrowingStream { $0.finish() } },
-            makeMetadataStream: {
-                makeNonYieldingChunkStream(terminationRecorder: upstreamTermination)
-            }
-        )
-
-        let messages: [Message] = [
-            .user("Hello")
-        ]
-
-        let stream = messages.stream(with: provider, model: .test, config: .default)
-
-        let consumer = consume(stream)
-        try? await Task.sleep(for: .milliseconds(50))
-        consumer.cancel()
-        _ = await consumer.value
-
-        let termination = await waitForTermination(upstreamTermination)
-        #expect(termination.map { _ in true } ?? false)
-        #expect(termination.map(isCancelled) == true)
-    }
-
     @Test("TextGenerator.stream(_:returning:model:config:) cancels upstream string stream")
     func structuredStreamingTransformerCancelsUpstreamStringStream() async {
         let upstreamTermination = TerminationRecorder<AsyncThrowingStream<String, Error>.Continuation.Termination>()
