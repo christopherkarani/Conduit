@@ -45,8 +45,25 @@ jobs:
       - name: Build
         run: swift build -v
 
-      - name: Test
-        run: swift test -v
+      - name: Test with Coverage
+        run: swift test --enable-code-coverage -v
+
+      - name: Generate Coverage Report
+        run: |
+          BIN_PATH=$(swift build --show-bin-path)
+          XCTEST_PATH=$(find "$BIN_PATH" -name "*.xctest" -type f | head -1)
+          PROFDATA=$(find .build -name "default.profdata" | head -1)
+          if [ -n "$XCTEST_PATH" ] && [ -n "$PROFDATA" ]; then
+            llvm-cov export -format=lcov \
+              -instr-profile="$PROFDATA" "$XCTEST_PATH" \
+              -ignore-filename-regex='.build|Tests' > coverage.lcov
+          fi
+
+      - name: Upload Coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.lcov
+          fail_ci_if_error: false
 
   test-macros:
     name: Verify Macros on Linux
@@ -77,3 +94,30 @@ jobs:
 
       - name: Test Macros
         run: swift test --filter ConduitMacrosTests
+
+  test-with-providers:
+    name: Test with Provider Traits
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Swift
+        uses: vapor/swiftly-action@v0.2
+        with:
+          toolchain: "6.2"
+
+      - name: Cache SPM
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/org.swift.swiftpm
+            .build
+          key: linux-swift-6.2-spm-providers-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            linux-swift-6.2-spm-providers-
+
+      - name: Test with traits
+        run: swift test --traits OpenAI,Anthropic,Kimi,MiniMax -v

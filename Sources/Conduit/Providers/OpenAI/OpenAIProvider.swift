@@ -325,6 +325,15 @@ extension OpenAIProvider {
         self.init(configuration: .openRouter(apiKey: apiKey))
     }
 
+    /// Creates an OpenRouter provider with explicit routing configuration.
+    ///
+    /// - Parameters:
+    ///   - apiKey: Your OpenRouter API key.
+    ///   - routing: OpenRouter routing preferences and metadata.
+    public init(openRouterKey apiKey: String, routing: OpenRouterRoutingConfig) {
+        self.init(configuration: .openRouter(apiKey: apiKey).routing(routing))
+    }
+
     /// Creates an OpenRouter provider optimized for Claude models.
     ///
     /// Configures routing to prefer Anthropic with fallbacks enabled.
@@ -381,6 +390,20 @@ extension OpenAIProvider {
     ) -> OpenAIProvider {
         let routing = OpenRouterRoutingConfig(providers: providers.isEmpty ? nil : providers, fallbacks: fallbacks)
         return OpenAIProvider(configuration: .openRouter(apiKey: apiKey).routing(routing))
+    }
+
+    /// Creates an Ollama provider with explicit Ollama runtime configuration.
+    ///
+    /// - Parameters:
+    ///   - host: The Ollama host. Default: `"localhost"`.
+    ///   - port: The Ollama port. Default: `11434`.
+    ///   - ollamaConfig: Additional Ollama runtime configuration.
+    public init(
+        ollamaHost host: String = "localhost",
+        port: Int = 11434,
+        ollamaConfig: OllamaConfiguration = .default
+    ) {
+        self.init(configuration: .ollama(host: host, port: port).ollama(ollamaConfig))
     }
 }
 
