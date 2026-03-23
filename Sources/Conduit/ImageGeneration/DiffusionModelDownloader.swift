@@ -1,16 +1,12 @@
 // DiffusionModelDownloader.swift
 // Conduit
 //
-// This file is only available when MLX is available, and can download models
-// using either `Hub` (swift-transformers) or `HuggingFace` (swift-huggingface,
-// via the HuggingFaceHub trait).
+// This file is only available when MLX and Hub are available.
 
-#if CONDUIT_TRAIT_MLX && canImport(MLX) && (canImport(Hub) || canImport(HuggingFace))
+#if CONDUIT_TRAIT_MLX && canImport(MLX) && canImport(Hub)
 
 import Foundation
-#if canImport(Hub)
 import Hub
-#endif
 import CryptoKit
 
 /// Downloads diffusion models from HuggingFace Hub.
@@ -99,29 +95,6 @@ public actor DiffusionModelDownloader {
                 try Task.checkCancellation()
 
                 let localURL: URL
-                #if canImport(HuggingFace)
-                // Prefer swift-huggingface when available (HuggingFaceHub trait).
-                let destinationDir = try Self.destinationDirectory(for: modelId)
-                let foundationProgress = Progress(totalUnitCount: 1)
-                localURL = try await HuggingFaceHubDownloader.shared.downloadSnapshot(
-                    repoId: modelId,
-                    kind: .model,
-                    to: destinationDir,
-                    revision: "main",
-                    matching: ["*.safetensors", "*.json", "tokenizer*", "*.txt", "*.model"],
-                    token: token,
-                    progressHandler: { snapshot in
-                        if let totalBytes = snapshot.totalBytes {
-                            foundationProgress.totalUnitCount = totalBytes
-                            foundationProgress.completedUnitCount = snapshot.bytesDownloaded
-                        } else {
-                            foundationProgress.totalUnitCount = Int64(snapshot.totalFiles)
-                            foundationProgress.completedUnitCount = Int64(snapshot.filesCompleted)
-                        }
-                        progressHandler?(foundationProgress)
-                    }
-                )
-                #else
                 localURL = try await hubApi.snapshot(
                     from: Hub.Repo(id: modelId),
                     matching: ["*.safetensors", "*.json", "tokenizer*", "*.txt", "*.model"],
@@ -129,7 +102,6 @@ public actor DiffusionModelDownloader {
                         progressHandler?(progress)
                     }
                 )
-                #endif
 
                 // Check for cancellation after download
                 try Task.checkCancellation()
@@ -260,14 +232,6 @@ public actor DiffusionModelDownloader {
     }
 
     // MARK: - Helpers
-
-    private nonisolated static func destinationDirectory(for modelId: String) throws -> URL {
-        let baseDir = ModelCache.defaultCacheDirectory
-        let repoName = modelId.replacingOccurrences(of: "/", with: "--")
-        return baseDir
-            .appendingPathComponent("diffusion", isDirectory: true)
-            .appendingPathComponent(repoName, isDirectory: true)
-    }
 
     /// Calculates the allocated size of a directory.
     private nonisolated func allocatedSizeOfDirectory(at url: URL) throws -> Int64 {

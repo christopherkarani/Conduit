@@ -5,7 +5,7 @@
 
 import Foundation
 import Testing
-@testable import Conduit
+@testable import ConduitAdvanced
 
 #if canImport(MLX)
 @preconcurrency import MLXLMCommon
@@ -89,32 +89,6 @@ struct MLXConfigurationRuntimeMemoryLimitTests {
         )
 
         #expect(resolved == Int(ByteCount.gigabytes(4).bytes))
-    }
-}
-
-@Suite("MLXConfiguration Application - Model Cache")
-struct MLXConfigurationModelCacheApplicationTests {
-
-    @Test("MLXModelCache applies updated limits")
-    func testCacheAppliesConfiguration() async {
-        let cache = MLXModelCache(configuration: .default)
-        let before = await cache._testing_limits()
-
-        #expect(before.countLimit == 3)
-        #expect(before.totalCostLimit == 0)
-
-        await cache.apply(configuration: MLXConfiguration.lowMemory.cacheConfiguration())
-        let after = await cache._testing_limits()
-
-        #expect(after.countLimit == 1)
-        #expect(after.totalCostLimit == Int(ByteCount.gigabytes(4).bytes))
-    }
-
-    @Test("cacheConfiguration() converts MLXConfiguration to cache config")
-    func testCacheConfigurationConversion() async {
-        let config = MLXConfiguration.lowMemory.cacheConfiguration()
-        #expect(config.maxCachedModels == 1)
-        #expect(config.maxCacheSize == .gigabytes(4))
     }
 }
 

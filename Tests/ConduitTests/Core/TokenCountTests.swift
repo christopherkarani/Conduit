@@ -2,7 +2,7 @@
 // Conduit Tests
 
 import XCTest
-@testable import Conduit
+@testable import ConduitAdvanced
 
 /// Comprehensive test suite for TokenCount and context size helpers.
 ///

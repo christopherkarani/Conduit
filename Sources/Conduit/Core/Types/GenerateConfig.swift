@@ -3,6 +3,170 @@
 
 import Foundation
 
+// MARK: - LocalGenerateConfig
+
+/// Local provider configuration for text generation.
+///
+/// Contains parameters common to all local providers (MLX, Llama, CoreML, etc.).
+public struct LocalGenerateConfig: Sendable, Codable {
+    // MARK: - Token Limits
+
+    /// Maximum number of tokens to generate.
+    public var maxTokens: Int?
+
+    /// Minimum number of tokens to generate before stopping.
+    public var minTokens: Int?
+
+    // MARK: - Sampling Parameters
+
+    /// Controls randomness in token selection (0.0-2.0, clamped automatically).
+    public var temperature: Float
+
+    /// Nucleus sampling threshold (0.0-1.0, clamped automatically).
+    public var topP: Float
+
+    /// Only consider the top K most likely tokens at each step.
+    public var topK: Int?
+
+    // MARK: - Penalty Parameters
+
+    /// Penalty for repeating tokens (0.0-2.0).
+    public var repetitionPenalty: Float
+
+    /// Stop sequences that will terminate generation.
+    public var stopSequences: [String]
+
+    /// Random seed for reproducible generation.
+    public var seed: UInt64?
+
+    // MARK: - Logprobs Output
+
+    /// Whether to return log probabilities for generated tokens.
+    public var returnLogprobs: Bool
+
+    /// Number of top log probabilities to return per token.
+    public var topLogprobs: Int?
+
+    // MARK: - Tool Use
+
+    /// Tools available for the model to use during generation.
+    public var tools: [Transcript.ToolDefinition]
+
+    /// Controls how the model chooses which tool to use.
+    public var toolChoice: ToolChoice
+
+    /// Whether to allow parallel tool calls.
+    public var parallelToolCalls: Bool?
+
+    /// Maximum number of tool calls allowed in a single model response.
+    public var maxToolCalls: Int?
+
+    // MARK: - Provider Runtime Features
+
+    /// Provider/runtime feature overrides for local execution.
+    public var runtimeFeatures: ProviderRuntimeFeatureConfiguration?
+
+    /// Runtime policy overrides merged with provider-level policy.
+    public var runtimePolicyOverride: ProviderRuntimePolicyOverride?
+
+    // MARK: - Initialization
+
+    public init(
+        maxTokens: Int? = 1024,
+        minTokens: Int? = nil,
+        temperature: Float = 0.7,
+        topP: Float = 0.9,
+        topK: Int? = nil,
+        repetitionPenalty: Float = 1.0,
+        stopSequences: [String] = [],
+        seed: UInt64? = nil,
+        returnLogprobs: Bool = false,
+        topLogprobs: Int? = nil,
+        tools: [Transcript.ToolDefinition] = [],
+        toolChoice: ToolChoice = .auto,
+        parallelToolCalls: Bool? = nil,
+        maxToolCalls: Int? = nil,
+        runtimeFeatures: ProviderRuntimeFeatureConfiguration? = nil,
+        runtimePolicyOverride: ProviderRuntimePolicyOverride? = nil
+    ) {
+        self.maxTokens = maxTokens
+        self.minTokens = minTokens
+        self.temperature = max(0, min(2, temperature))
+        self.topP = max(0, min(1, topP))
+        self.topK = topK
+        self.repetitionPenalty = repetitionPenalty
+        self.stopSequences = stopSequences
+        self.seed = seed
+        self.returnLogprobs = returnLogprobs
+        self.topLogprobs = topLogprobs
+        self.tools = tools
+        self.toolChoice = toolChoice
+        self.parallelToolCalls = parallelToolCalls
+        self.maxToolCalls = maxToolCalls
+        self.runtimeFeatures = runtimeFeatures
+        self.runtimePolicyOverride = runtimePolicyOverride
+    }
+
+    // MARK: - Static Presets
+
+    public static let `default` = LocalGenerateConfig()
+}
+
+// MARK: - CloudGenerateConfig
+
+/// Cloud provider configuration for text generation.
+///
+/// Contains parameters specific to cloud API providers (OpenAI, Anthropic, etc.).
+public struct CloudGenerateConfig: Sendable, Codable {
+    // MARK: - Penalty Parameters
+
+    /// Penalty based on token frequency in the generated text (-2.0 to 2.0).
+    public var frequencyPenalty: Float
+
+    /// Penalty based on token presence in the generated text (-2.0 to 2.0).
+    public var presencePenalty: Float
+
+    // MARK: - Provider Analytics
+
+    /// User ID for tracking usage per user in provider analytics.
+    public var userId: String?
+
+    /// Service tier selection for capacity management.
+    public var serviceTier: ServiceTier?
+
+    // MARK: - Reasoning
+
+    /// Configuration for extended thinking/reasoning mode.
+    public var reasoning: ReasoningConfig?
+
+    // MARK: - Response Format
+
+    /// Response format for structured output.
+    public var responseFormat: ResponseFormat?
+
+    // MARK: - Initialization
+
+    public init(
+        frequencyPenalty: Float = 0.0,
+        presencePenalty: Float = 0.0,
+        userId: String? = nil,
+        serviceTier: ServiceTier? = nil,
+        reasoning: ReasoningConfig? = nil,
+        responseFormat: ResponseFormat? = nil
+    ) {
+        self.frequencyPenalty = frequencyPenalty
+        self.presencePenalty = presencePenalty
+        self.userId = userId
+        self.serviceTier = serviceTier
+        self.reasoning = reasoning
+        self.responseFormat = responseFormat
+    }
+
+    // MARK: - Static Presets
+
+    public static let `default` = CloudGenerateConfig()
+}
+
 // MARK: - GenerateConfig
 
 /// Configuration parameters for text generation.
@@ -43,246 +207,130 @@ import Foundation
 /// - `Codable`: Full JSON encoding/decoding support
 public struct GenerateConfig: Sendable, Codable {
 
-    // MARK: - Token Limits
+    // MARK: - Composed Configuration
 
-    /// Maximum number of tokens to generate.
-    ///
-    /// If `nil`, the provider's default limit is used.
-    ///
-    /// - Note: Actual generation may stop earlier due to stop sequences
-    ///         or natural completion.
-    public var maxTokens: Int?
+    /// Local provider configuration.
+    public var local: LocalGenerateConfig
 
-    /// Minimum number of tokens to generate before stopping.
-    ///
-    /// Useful for ensuring the model produces substantive output.
-    public var minTokens: Int?
+    /// Cloud provider configuration.
+    public var cloud: CloudGenerateConfig
 
-    // MARK: - Sampling Parameters
+    // MARK: - Forwarded Properties (Local)
 
-    /// Controls randomness in token selection.
-    ///
-    /// - Range: 0.0 to 2.0 (clamped automatically)
-    /// - Low (0.0-0.3): Deterministic, focused output
-    /// - Medium (0.4-0.7): Balanced creativity and coherence
-    /// - High (0.8-2.0): More random and creative output
-    ///
-    /// - Note: Values outside 0-2 range are automatically clamped.
-    public var temperature: Float
+    public var maxTokens: Int? {
+        get { local.maxTokens }
+        set { local.maxTokens = newValue }
+    }
 
-    /// Nucleus sampling: only consider tokens with cumulative probability mass of topP.
-    ///
-    /// - Range: 0.0 to 1.0 (clamped automatically)
-    /// - Low (0.1-0.5): Conservative, predictable output
-    /// - Medium (0.6-0.8): Balanced diversity
-    /// - High (0.9-1.0): Maximum diversity
-    ///
-    /// - Note: Values outside 0-1 range are automatically clamped.
-    public var topP: Float
+    public var minTokens: Int? {
+        get { local.minTokens }
+        set { local.minTokens = newValue }
+    }
 
-    /// Only consider the top K most likely tokens at each step.
-    ///
-    /// If `nil`, no top-K filtering is applied.
-    ///
-    /// - Note: Lower values make output more focused; higher values
-    ///         allow more diversity.
-    public var topK: Int?
+    public var temperature: Float {
+        get { local.temperature }
+        set { local.temperature = max(0, min(2, newValue)) }
+    }
 
-    // MARK: - Penalty Parameters
+    public var topP: Float {
+        get { local.topP }
+        set { local.topP = max(0, min(1, newValue)) }
+    }
 
-    /// Penalty for repeating tokens (exponential).
-    ///
-    /// - Range: 0.0 to 2.0
-    /// - 1.0: No penalty (default)
-    /// - Greater than 1.0: Discourage repetition
-    /// - Less than 1.0: Encourage repetition
-    public var repetitionPenalty: Float
+    public var topK: Int? {
+        get { local.topK }
+        set { local.topK = newValue }
+    }
 
-    /// Penalty based on token frequency in the generated text.
-    ///
-    /// - Range: -2.0 to 2.0
-    /// - Positive: Discourage frequent tokens
-    /// - Negative: Encourage frequent tokens
-    /// - 0.0: No penalty (default)
-    public var frequencyPenalty: Float
+    public var repetitionPenalty: Float {
+        get { local.repetitionPenalty }
+        set { local.repetitionPenalty = newValue }
+    }
 
-    /// Penalty based on token presence in the generated text.
-    ///
-    /// - Range: -2.0 to 2.0
-    /// - Positive: Discourage repeated tokens
-    /// - Negative: Encourage repeated tokens
-    /// - 0.0: No penalty (default)
-    public var presencePenalty: Float
+    public var stopSequences: [String] {
+        get { local.stopSequences }
+        set { local.stopSequences = newValue }
+    }
 
-    // MARK: - Stop Conditions
+    public var seed: UInt64? {
+        get { local.seed }
+        set { local.seed = newValue }
+    }
 
-    /// Sequences that will stop generation when encountered.
-    ///
-    /// ## Usage
-    /// ```swift
-    /// let config = GenerateConfig.default
-    ///     .stopSequences(["END", "\n\n\n", "User:"])
-    /// ```
-    ///
-    /// - Note: Generation stops when any stop sequence is generated.
-    public var stopSequences: [String]
+    public var returnLogprobs: Bool {
+        get { local.returnLogprobs }
+        set { local.returnLogprobs = newValue }
+    }
 
-    // MARK: - Reproducibility
+    public var topLogprobs: Int? {
+        get { local.topLogprobs }
+        set { local.topLogprobs = newValue }
+    }
 
-    /// Random seed for reproducible generation.
-    ///
-    /// If `nil`, generation is non-deterministic.
-    ///
-    /// ## Usage
-    /// ```swift
-    /// let config = GenerateConfig.default.seed(42)
-    /// // Same seed + same config + same prompt = same output
-    /// ```
-    public var seed: UInt64?
+    public var tools: [Transcript.ToolDefinition] {
+        get { local.tools }
+        set { local.tools = newValue }
+    }
 
-    // MARK: - Logprobs Output
+    public var toolChoice: ToolChoice {
+        get { local.toolChoice }
+        set { local.toolChoice = newValue }
+    }
 
-    /// Whether to return log probabilities for generated tokens.
-    public var returnLogprobs: Bool
+    public var parallelToolCalls: Bool? {
+        get { local.parallelToolCalls }
+        set { local.parallelToolCalls = newValue }
+    }
 
-    /// Number of top log probabilities to return per token.
-    ///
-    /// Only used if `returnLogprobs` is `true`.
-    ///
-    /// ## Usage
-    /// ```swift
-    /// let config = GenerateConfig.default.withLogprobs(top: 5)
-    /// ```
-    public var topLogprobs: Int?
+    public var maxToolCalls: Int? {
+        get { local.maxToolCalls }
+        set { local.maxToolCalls = newValue }
+    }
 
-    // MARK: - Provider Analytics
+    public var runtimeFeatures: ProviderRuntimeFeatureConfiguration? {
+        get { local.runtimeFeatures }
+        set { local.runtimeFeatures = newValue }
+    }
 
-    /// User ID for tracking usage per user in provider analytics.
-    ///
-    /// When set, allows tracking usage and costs by user in provider
-    /// dashboards (e.g., Anthropic console).
-    ///
-    /// ## Usage
-    /// ```swift
-    /// let config = GenerateConfig.default.userId("user_12345")
-    /// ```
-    public var userId: String?
+    public var runtimePolicyOverride: ProviderRuntimePolicyOverride? {
+        get { local.runtimePolicyOverride }
+        set { local.runtimePolicyOverride = newValue }
+    }
 
-    /// Service tier selection for capacity management.
-    ///
-    /// Controls routing priority for the request. Some providers
-    /// offer different service tiers with varying capacity guarantees.
-    ///
-    /// ## Usage
-    /// ```swift
-    /// let config = GenerateConfig.default.serviceTier(.auto)
-    /// ```
-    public var serviceTier: ServiceTier?
+    // MARK: - Forwarded Properties (Cloud)
 
-    // MARK: - Tool Use
+    public var frequencyPenalty: Float {
+        get { cloud.frequencyPenalty }
+        set { cloud.frequencyPenalty = newValue }
+    }
 
-    /// Tools available for the model to use during generation.
-    ///
-    /// When tools are provided, the model may choose to call them instead of
-    /// generating text, returning tool call requests in the response.
-    ///
-    /// ## Usage
-    /// ```swift
-    /// let config = GenerateConfig.default
-    ///     .tools([WeatherTool(), SearchTool()])
-    ///     .toolChoice(.auto)
-    /// ```
-    public var tools: [Transcript.ToolDefinition]
+    public var presencePenalty: Float {
+        get { cloud.presencePenalty }
+        set { cloud.presencePenalty = newValue }
+    }
 
-    /// Controls how the model chooses which tool to use.
-    ///
-    /// - `.auto`: Model decides whether to use a tool (default)
-    /// - `.required`: Model must use a tool
-    /// - `.none`: Model should not use any tools
-    /// - `.tool(name:)`: Model must use the specified tool
-    public var toolChoice: ToolChoice
+    public var userId: String? {
+        get { cloud.userId }
+        set { cloud.userId = newValue }
+    }
 
-    /// Whether to allow parallel tool calls.
-    ///
-    /// When `true`, the model may call multiple tools in a single response.
-    /// Default is `true` for most providers.
-    public var parallelToolCalls: Bool?
+    public var serviceTier: ServiceTier? {
+        get { cloud.serviceTier }
+        set { cloud.serviceTier = newValue }
+    }
 
-    /// Maximum number of tool calls allowed in a single model response.
-    ///
-    /// When set, providers that support this option (for example, OpenAI Responses)
-    /// can cap how many tool invocations the model emits before returning control.
-    public var maxToolCalls: Int?
+    public var reasoning: ReasoningConfig? {
+        get { cloud.reasoning }
+        set { cloud.reasoning = newValue }
+    }
 
-    // MARK: - Response Format
-
-    /// Response format for structured output.
-    ///
-    /// Controls whether the model returns plain text, JSON, or schema-validated JSON.
-    ///
-    /// ## Usage
-    /// ```swift
-    /// let config = GenerateConfig.default.responseFormat(.jsonObject)
-    /// ```
-    public var responseFormat: ResponseFormat?
-
-    // MARK: - Reasoning
-
-    /// Configuration for extended thinking/reasoning mode.
-    ///
-    /// When set, enables the model to perform extended reasoning before responding.
-    ///
-    /// ## Usage
-    /// ```swift
-    /// let config = GenerateConfig.default.reasoning(.high)
-    /// ```
-    public var reasoning: ReasoningConfig?
-
-    // MARK: - Provider Runtime Features
-
-    /// Provider/runtime feature controls for advanced local execution paths.
-    ///
-    /// These controls are provider-owned runtime hints (for example MLX runtime
-    /// features) and may be ignored by providers that do not support them.
-    ///
-    /// `nil` means no per-request runtime overrides are requested.
-    public var runtimeFeatures: ProviderRuntimeFeatureConfiguration?
-
-    /// Optional per-request runtime policy overrides.
-    ///
-    /// These overrides are merged with provider-level runtime policy to support
-    /// task-local feature flags and allowlists.
-    public var runtimePolicyOverride: ProviderRuntimePolicyOverride?
+    public var responseFormat: ResponseFormat? {
+        get { cloud.responseFormat }
+        set { cloud.responseFormat = newValue }
+    }
 
     // MARK: - Initialization
 
-    /// Creates a generation configuration with the specified parameters.
-    ///
-    /// - Parameters:
-    ///   - maxTokens: Maximum tokens to generate (default: 1024).
-    ///   - minTokens: Minimum tokens to generate (default: nil).
-    ///   - temperature: Sampling temperature, 0-2 range (default: 0.7).
-    ///   - topP: Nucleus sampling threshold, 0-1 range (default: 0.9).
-    ///   - topK: Top-K filtering (default: nil).
-    ///   - repetitionPenalty: Repetition penalty multiplier (default: 1.0).
-    ///   - frequencyPenalty: Frequency penalty, -2 to 2 (default: 0.0).
-    ///   - presencePenalty: Presence penalty, -2 to 2 (default: 0.0).
-    ///   - stopSequences: Sequences that stop generation (default: []).
-    ///   - seed: Random seed for reproducibility (default: nil).
-    ///   - returnLogprobs: Whether to return log probabilities (default: false).
-    ///   - topLogprobs: Number of top logprobs per token (default: nil).
-    ///   - userId: User ID for per-user usage tracking (default: nil).
-    ///   - serviceTier: Service tier for capacity management (default: nil).
-    ///   - tools: Tools available for the model to use (default: []).
-    ///   - toolChoice: How the model should choose tools (default: .auto).
-    ///   - parallelToolCalls: Whether to allow parallel tool calls (default: nil).
-    ///   - maxToolCalls: Maximum number of tool calls per response (default: nil).
-    ///   - responseFormat: Response format for structured output (default: nil).
-    ///   - reasoning: Configuration for reasoning mode (default: nil).
-    ///   - runtimeFeatures: Provider/runtime feature overrides (default: nil).
-    ///   - runtimePolicyOverride: Provider/runtime policy overrides (default: nil).
-    ///
-    /// - Note: Dont set temperature and topP for Anthropic models
     public init(
         maxTokens: Int? = 1024,
         minTokens: Int? = nil,
@@ -307,106 +355,142 @@ public struct GenerateConfig: Sendable, Codable {
         runtimeFeatures: ProviderRuntimeFeatureConfiguration? = nil,
         runtimePolicyOverride: ProviderRuntimePolicyOverride? = nil
     ) {
-        self.maxTokens = maxTokens
-        self.minTokens = minTokens
-        self.temperature = max(0, min(2, temperature))
-        self.topP = max(0, min(1, topP))
-        self.topK = topK
-        self.repetitionPenalty = repetitionPenalty
-        self.frequencyPenalty = frequencyPenalty
-        self.presencePenalty = presencePenalty
-        self.stopSequences = stopSequences
-        self.seed = seed
-        self.returnLogprobs = returnLogprobs
-        self.topLogprobs = topLogprobs
-        self.userId = userId
-        self.serviceTier = serviceTier
-        self.tools = tools
-        self.toolChoice = toolChoice
-        self.parallelToolCalls = parallelToolCalls
-        self.maxToolCalls = maxToolCalls
-        self.responseFormat = responseFormat
-        self.reasoning = reasoning
-        self.runtimeFeatures = runtimeFeatures
-        self.runtimePolicyOverride = runtimePolicyOverride
+        self.local = LocalGenerateConfig(
+            maxTokens: maxTokens,
+            minTokens: minTokens,
+            temperature: temperature,
+            topP: topP,
+            topK: topK,
+            repetitionPenalty: repetitionPenalty,
+            stopSequences: stopSequences,
+            seed: seed,
+            returnLogprobs: returnLogprobs,
+            topLogprobs: topLogprobs,
+            tools: tools,
+            toolChoice: toolChoice,
+            parallelToolCalls: parallelToolCalls,
+            maxToolCalls: maxToolCalls,
+            runtimeFeatures: runtimeFeatures,
+            runtimePolicyOverride: runtimePolicyOverride
+        )
+        self.cloud = CloudGenerateConfig(
+            frequencyPenalty: frequencyPenalty,
+            presencePenalty: presencePenalty,
+            userId: userId,
+            serviceTier: serviceTier,
+            reasoning: reasoning,
+            responseFormat: responseFormat
+        )
+    }
+
+    // MARK: - Codable
+
+    private enum CodingKeys: String, CodingKey {
+        case maxTokens, minTokens, temperature, topP, topK
+        case repetitionPenalty, frequencyPenalty, presencePenalty
+        case stopSequences, seed
+        case returnLogprobs, topLogprobs
+        case userId, serviceTier
+        case tools, toolChoice, parallelToolCalls, maxToolCalls
+        case responseFormat, reasoning
+        case runtimeFeatures, runtimePolicyOverride
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let maxTokens = try container.decodeIfPresent(Int.self, forKey: .maxTokens)
+        let minTokens = try container.decodeIfPresent(Int.self, forKey: .minTokens)
+        let temperature = try container.decode(Float.self, forKey: .temperature)
+        let topP = try container.decode(Float.self, forKey: .topP)
+        let topK = try container.decodeIfPresent(Int.self, forKey: .topK)
+        let repetitionPenalty = try container.decode(Float.self, forKey: .repetitionPenalty)
+        let frequencyPenalty = try container.decode(Float.self, forKey: .frequencyPenalty)
+        let presencePenalty = try container.decode(Float.self, forKey: .presencePenalty)
+        let stopSequences = try container.decode([String].self, forKey: .stopSequences)
+        let seed = try container.decodeIfPresent(UInt64.self, forKey: .seed)
+        let returnLogprobs = try container.decode(Bool.self, forKey: .returnLogprobs)
+        let topLogprobs = try container.decodeIfPresent(Int.self, forKey: .topLogprobs)
+        let userId = try container.decodeIfPresent(String.self, forKey: .userId)
+        let serviceTier = try container.decodeIfPresent(ServiceTier.self, forKey: .serviceTier)
+        let tools = try container.decode([Transcript.ToolDefinition].self, forKey: .tools)
+        let toolChoice = try container.decode(ToolChoice.self, forKey: .toolChoice)
+        let parallelToolCalls = try container.decodeIfPresent(Bool.self, forKey: .parallelToolCalls)
+        let maxToolCalls = try container.decodeIfPresent(Int.self, forKey: .maxToolCalls)
+        let responseFormat = try container.decodeIfPresent(ResponseFormat.self, forKey: .responseFormat)
+        let reasoning = try container.decodeIfPresent(ReasoningConfig.self, forKey: .reasoning)
+        let runtimeFeatures = try container.decodeIfPresent(ProviderRuntimeFeatureConfiguration.self, forKey: .runtimeFeatures)
+        let runtimePolicyOverride = try container.decodeIfPresent(ProviderRuntimePolicyOverride.self, forKey: .runtimePolicyOverride)
+
+        self.local = LocalGenerateConfig(
+            maxTokens: maxTokens,
+            minTokens: minTokens,
+            temperature: temperature,
+            topP: topP,
+            topK: topK,
+            repetitionPenalty: repetitionPenalty,
+            stopSequences: stopSequences,
+            seed: seed,
+            returnLogprobs: returnLogprobs,
+            topLogprobs: topLogprobs,
+            tools: tools,
+            toolChoice: toolChoice,
+            parallelToolCalls: parallelToolCalls,
+            maxToolCalls: maxToolCalls,
+            runtimeFeatures: runtimeFeatures,
+            runtimePolicyOverride: runtimePolicyOverride
+        )
+        self.cloud = CloudGenerateConfig(
+            frequencyPenalty: frequencyPenalty,
+            presencePenalty: presencePenalty,
+            userId: userId,
+            serviceTier: serviceTier,
+            reasoning: reasoning,
+            responseFormat: responseFormat
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(maxTokens, forKey: .maxTokens)
+        try container.encodeIfPresent(minTokens, forKey: .minTokens)
+        try container.encode(temperature, forKey: .temperature)
+        try container.encode(topP, forKey: .topP)
+        try container.encodeIfPresent(topK, forKey: .topK)
+        try container.encode(repetitionPenalty, forKey: .repetitionPenalty)
+        try container.encode(frequencyPenalty, forKey: .frequencyPenalty)
+        try container.encode(presencePenalty, forKey: .presencePenalty)
+        try container.encode(stopSequences, forKey: .stopSequences)
+        try container.encodeIfPresent(seed, forKey: .seed)
+        try container.encode(returnLogprobs, forKey: .returnLogprobs)
+        try container.encodeIfPresent(topLogprobs, forKey: .topLogprobs)
+        try container.encodeIfPresent(userId, forKey: .userId)
+        try container.encodeIfPresent(serviceTier, forKey: .serviceTier)
+        try container.encode(tools, forKey: .tools)
+        try container.encode(toolChoice, forKey: .toolChoice)
+        try container.encodeIfPresent(parallelToolCalls, forKey: .parallelToolCalls)
+        try container.encodeIfPresent(maxToolCalls, forKey: .maxToolCalls)
+        try container.encodeIfPresent(responseFormat, forKey: .responseFormat)
+        try container.encodeIfPresent(reasoning, forKey: .reasoning)
+        try container.encodeIfPresent(runtimeFeatures, forKey: .runtimeFeatures)
+        try container.encodeIfPresent(runtimePolicyOverride, forKey: .runtimePolicyOverride)
     }
 
     // MARK: - Static Presets
 
-    /// Default balanced configuration.
-    ///
-    /// Good for general-purpose text generation with moderate creativity.
-    ///
-    /// ## Configuration
-    /// - maxTokens: 1024
-    /// - temperature: 0.7
-    /// - topP: 0.9
-    /// - repetitionPenalty: 1.0
     public static let `default` = GenerateConfig()
 
-    /// Creative configuration with high randomness.
-    ///
-    /// Optimized for creative writing, brainstorming, and diverse outputs.
-    ///
-    /// ## Configuration
-    /// - temperature: 0.9
-    /// - topP: 0.95
-    /// - frequencyPenalty: 0.5
-    ///
-    /// ## Usage
-    /// ```swift
-    /// let story = try await provider.generate(
-    ///     "Write a sci-fi story:",
-    ///     model: .llama3_2_1b,
-    ///     config: .creative
-    /// )
-    /// ```
     public static let creative = GenerateConfig(
         temperature: 0.9,
         topP: 0.95,
         frequencyPenalty: 0.5
     )
 
-    /// Precise configuration with low randomness.
-    ///
-    /// Optimized for factual responses, instructions, and deterministic output.
-    ///
-    /// ## Configuration
-    /// - temperature: 0.1
-    /// - topP: 0.5
-    /// - repetitionPenalty: 1.1
-    ///
-    /// ## Usage
-    /// ```swift
-    /// let answer = try await provider.generate(
-    ///     "Explain quantum entanglement:",
-    ///     model: .llama3_2_1b,
-    ///     config: .precise
-    /// )
-    /// ```
     public static let precise = GenerateConfig(
         temperature: 0.1,
         topP: 0.5,
         repetitionPenalty: 1.1
     )
 
-    /// Code generation configuration.
-    ///
-    /// Optimized for generating code with appropriate stop sequences.
-    ///
-    /// ## Configuration
-    /// - temperature: 0.2
-    /// - topP: 0.9
-    /// - stopSequences: ["```", "\n\n\n"]
-    ///
-    /// ## Usage
-    /// ```swift
-    /// let code = try await provider.generate(
-    ///     "Write a Swift function to sort an array:",
-    ///     model: .llama3_2_1b,
-    ///     config: .code
-    /// )
-    /// ```
     public static let code = GenerateConfig(
         temperature: 0.2,
         topP: 0.9,
@@ -837,7 +921,7 @@ extension GenerateConfig {
 /// // Use a specific tool
 /// let config = GenerateConfig.default
 ///     .tools([WeatherTool(), SearchTool()])
-///     .toolChoice(.tool(name: "get_weather"))
+///     .toolChoice(.named("get_weather"))
 /// ```
 public enum ToolChoice: Sendable, Hashable, Codable {
 
@@ -863,7 +947,17 @@ public enum ToolChoice: Sendable, Hashable, Codable {
     /// Forces the model to call a specific tool by name.
     ///
     /// - Parameter name: The name of the tool to use.
-    case tool(name: String)
+    case named(String)
+
+    /// Model must use the specified tool.
+    ///
+    /// Forces the model to call a specific tool by name.
+    ///
+    /// - Parameter name: The name of the tool to use.
+    @available(*, deprecated, renamed: "named")
+    public static func tool(name: String) -> ToolChoice {
+        .named(name)
+    }
 }
 
 // MARK: - ServiceTier

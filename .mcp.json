@@ -39,6 +39,18 @@
         "-y",
         "@modelcontextprotocol/server-fetch"
       ]
+    },
+    "minimax": {
+      "command": "uvx",
+      "args": [
+        "minimax-coding-plan-mcp",
+        "-y"
+      ],
+      "env": {
+        "MINIMAX_API_KEY": "${MINIMAX_API_KEY}",
+        "MINIMAX_API_HOST": "https://api.minimax.io"
+      },
+      "description": "MiniMax web search and image understanding"
     }
   }
 }

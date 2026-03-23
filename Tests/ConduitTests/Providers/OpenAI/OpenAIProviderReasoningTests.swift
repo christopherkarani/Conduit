@@ -6,7 +6,7 @@
 #if CONDUIT_TRAIT_OPENAI || CONDUIT_TRAIT_OPENROUTER
 import Foundation
 import Testing
-@testable import Conduit
+@testable import ConduitAdvanced
 
 // MARK: - Test Suite
 

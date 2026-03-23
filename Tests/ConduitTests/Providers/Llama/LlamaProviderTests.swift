@@ -2,7 +2,7 @@
 // Conduit
 
 import XCTest
-@testable import Conduit
+@testable import ConduitAdvanced
 
 final class LlamaProviderTests: XCTestCase {
 

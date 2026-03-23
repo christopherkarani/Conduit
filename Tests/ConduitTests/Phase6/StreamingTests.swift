@@ -3,7 +3,7 @@
 
 import Foundation
 import Testing
-@testable import Conduit
+@testable import ConduitAdvanced
 
 /// Comprehensive test suite for Phase 6 streaming and result types.
 ///

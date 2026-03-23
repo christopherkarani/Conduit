@@ -205,6 +205,23 @@ public enum AIError: Error, Sendable, LocalizedError, CustomStringConvertible {
     ///   - reason: Description of why the name is invalid.
     case invalidToolName(name: String, reason: String)
 
+    // MARK: - Domain-Specific Error Wrappers
+
+    /// A cloud-specific error (network, auth, billing).
+    ///
+    /// Providers can throw this for cloud-related failures.
+    case cloudError(CloudError)
+
+    /// A resource-specific error (memory, disk, download).
+    ///
+    /// Providers can throw this for resource-related failures.
+    case resourceError(ResourceError)
+
+    /// A tool-specific error.
+    ///
+    /// Providers can throw this for tool-related failures.
+    case toolError(ToolError)
+
     // MARK: - LocalizedError
 
     /// A localized description of the error.
@@ -297,6 +314,15 @@ public enum AIError: Error, Sendable, LocalizedError, CustomStringConvertible {
 
         case .modelNotLoaded(let message):
             return "Model not loaded: \(message)"
+
+        case .cloudError(let error):
+            return error.errorDescription
+
+        case .resourceError(let error):
+            return error.errorDescription
+
+        case .toolError(let error):
+            return error.errorDescription
         }
     }
 
@@ -310,7 +336,7 @@ public enum AIError: Error, Sendable, LocalizedError, CustomStringConvertible {
             return "Check the model identifier and try again. Use ModelIdentifier static properties for known models."
 
         case .modelNotCached:
-            return "Download the model using ModelManager.shared.download() before using it."
+            return "Download the model assets locally before using this model."
 
         case .incompatibleModel:
             return "Use an MLX-optimized version from mlx-community or choose a compatible model architecture."
@@ -386,6 +412,15 @@ public enum AIError: Error, Sendable, LocalizedError, CustomStringConvertible {
 
         case .modelNotLoaded:
             return "Load a model using the provider's loadModel() method before attempting this operation."
+
+        case .cloudError(let error):
+            return error.recoverySuggestion
+
+        case .resourceError(let error):
+            return error.recoverySuggestion
+
+        case .toolError(let error):
+            return error.recoverySuggestion
         }
     }
 
@@ -404,7 +439,7 @@ public enum AIError: Error, Sendable, LocalizedError, CustomStringConvertible {
             return "Wait for the download to complete."
 
         case .modelNotDownloaded:
-            return "Download the model using ModelManager before using it."
+            return "Download the model assets locally before using this provider."
 
         case .noNetwork:
             return "Connect to the internet to use this cloud provider."
@@ -456,6 +491,15 @@ public enum AIError: Error, Sendable, LocalizedError, CustomStringConvertible {
             return true
 
         case .unsupportedPlatform, .modelNotLoaded, .billingError:
+            return false
+
+        case .cloudError(let error):
+            return error.isRetryable
+
+        case .resourceError(let error):
+            return error.isRetryable
+
+        case .toolError:
             return false
 
         default:
@@ -516,6 +560,12 @@ extension AIError {
         case .insufficientMemory, .downloadFailed, .fileError, .insufficientDiskSpace, .checksumMismatch:
             return .resource
         case .invalidInput, .unsupportedAudioFormat, .unsupportedLanguage, .invalidToolName:
+            return .input
+        case .cloudError:
+            return .network
+        case .resourceError:
+            return .resource
+        case .toolError:
             return .input
         }
     }

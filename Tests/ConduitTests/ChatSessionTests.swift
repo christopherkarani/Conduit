@@ -2,7 +2,7 @@
 // ConduitTests
 
 import Testing
-@testable import Conduit
+@testable import ConduitAdvanced
 
 // MARK: - Mock Provider
 

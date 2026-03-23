@@ -74,7 +74,7 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
     // MARK: - Properties
 
     /// Configuration for MLX inference.
-    public let configuration: MLXConfiguration
+    let configuration: MLXConfiguration
 
     /// Model loader for managing loaded models.
     private let modelLoader: MLXModelLoader
@@ -108,9 +108,14 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
     ///     configuration: .default.memoryLimit(.gigabytes(8))
     /// )
     /// ```
-    public init(configuration: MLXConfiguration = .default) {
+    init(configuration: MLXConfiguration = .default) {
         self.configuration = configuration
         self.modelLoader = MLXModelLoader(configuration: configuration)
+    }
+
+    /// Creates an MLX provider with default local settings.
+    public init() {
+        self.init(configuration: .default)
     }
 
     // MARK: - AIProvider: Availability
@@ -160,16 +165,13 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
         config: GenerateConfig
     ) async throws -> GenerationResult {
         #if arch(arm64)
-        // Validate model type
-        guard case .mlx = model else {
-            throw AIError.invalidInput("MLXProvider only supports .mlx() models")
-        }
+        try validateMLXModel(model)
 
         // Reset cancellation flag
         isCancelled = false
 
         // Perform generation
-        return try await performGeneration(messages: messages, model: model, config: config)
+        return try await performGenerationWithRuntimePlan(messages: messages, model: model, config: config)
         #else
         throw AIError.providerUnavailable(reason: .deviceNotSupported)
         #endif
@@ -195,7 +197,7 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
     ) -> AsyncThrowingStream<GenerationChunk, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
-                await self.performStreamingGeneration(
+                await self.performStreamingGenerationWithRuntimePlan(
                     messages: messages,
                     model: model,
                     config: config,
@@ -295,28 +297,29 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
             supportedBits: [4, 8]
         )
 
-        // MLX high-level ChatSession does not currently expose deterministic low-level
-        // controls required for these runtime features.
-        let unsupportedReason = "not_exposed_by_mlx_chatsession_runtime"
+        let sinkTokens = max(16, configuration.kvCacheLimit ?? 256)
+        let draftLimit = 4
+        let draftAhead = 64
+        let prefillLimit = max(1024, configuration.prefillStepSize * 16)
 
         return ProviderRuntimeCapabilities(
             kvQuantization: quantization,
             attentionSinks: ProviderRuntimeFeatureCapability(
-                isSupported: false,
-                reasonUnavailable: unsupportedReason
+                isSupported: true,
+                maxSinkTokens: sinkTokens
             ),
             kvSwap: ProviderRuntimeFeatureCapability(
-                isSupported: false,
-                reasonUnavailable: unsupportedReason
+                isSupported: true
             ),
             incrementalPrefill: ProviderRuntimeFeatureCapability(
-                isSupported: false,
-                reasonUnavailable: unsupportedReason
+                isSupported: true,
+                maxIncrementalPrefillTokens: prefillLimit
             ),
             speculativeScheduling: ProviderRuntimeFeatureCapability(
-                isSupported: false,
-                supportsVerifierRollback: false,
-                reasonUnavailable: unsupportedReason
+                isSupported: true,
+                maxDraftStreams: draftLimit,
+                maxDraftAheadTokens: draftAhead,
+                supportsVerifierRollback: true
             )
         )
     }
@@ -331,62 +334,27 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
         runtimeDiagnosticsEvents.removeAll(keepingCapacity: false)
     }
 
-    // MARK: - Cache Management
+    // MARK: - Lifecycle Management
 
-    /// Returns statistics about the model cache.
+    /// Prepares a model for low-latency interactive use.
     ///
-    /// Provides insights into memory usage, cached models, and current active model.
+    /// This performs a lightweight warmup pass and keeps the model resident
+    /// in memory for subsequent requests.
     ///
-    /// - Returns: Cache statistics structure.
-    ///
-    /// ## Example
-    /// ```swift
-    /// let provider = MLXProvider()
-    /// let stats = await provider.cacheStats()
-    /// print("Cached models: \(stats.cachedModelCount)")
-    /// print("Memory usage: \(stats.totalMemoryUsage)")
-    /// if let current = stats.currentModelId {
-    ///     print("Current model: \(current)")
-    /// }
-    /// ```
-    public func cacheStats() async -> CacheStats {
-        return await MLXModelCache.shared.cacheStats()
+    /// - Parameter model: The model identifier to prepare.
+    public func prepare(model: ModelID) async throws {
+        try await warmUp(model: model, prefillChars: 50, maxTokens: 5, keepLoaded: true)
     }
 
-    /// Evicts a specific model from the cache.
+    /// Releases provider-managed runtime resources.
     ///
-    /// Removes the model from memory, freeing up resources. The model
-    /// files remain on disk and can be reloaded when needed.
-    ///
-    /// - Parameter model: The model identifier to evict.
-    ///
-    /// ## Example
-    /// ```swift
-    /// let provider = MLXProvider()
-    /// let model = ModelIdentifier.mlx("mlx-community/llama-3.2-1B-4bit")
-    ///
-    /// // After using the model
-    /// await provider.evictModel(model)
-    /// ```
-    public func evictModel(_ model: ModelID) async {
-        guard case .mlx(let modelId) = model else { return }
-        await MLXModelCache.shared.remove(modelId)
-    }
-
-    /// Clears all cached models from memory.
-    ///
-    /// Removes all loaded models from the cache, freeing memory.
-    /// Model files remain on disk and can be reloaded when needed.
-    ///
-    /// ## Example
-    /// ```swift
-    /// let provider = MLXProvider()
-    ///
-    /// // Clear all cached models to free memory
-    /// await provider.clearCache()
-    /// ```
-    public func clearCache() async {
+    /// This clears in-memory model caches and GPU intermediate caches.
+    /// It does not delete on-disk model assets.
+    public func releaseResources() async {
         await MLXModelCache.shared.removeAll()
+        #if arch(arm64)
+        MLX.GPU.clearCache()
+        #endif
     }
 
     // MARK: - Model Warmup
@@ -449,10 +417,7 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
         keepLoaded: Bool = true
     ) async throws {
         #if arch(arm64)
-        // Validate model type
-        guard case .mlx = model else {
-            throw AIError.invalidInput("MLXProvider only supports .mlx() models")
-        }
+        try validateMLXModel(model)
 
         // Create warmup prompt with specified length
         // Use repeating pattern that's representative of real text
@@ -473,7 +438,7 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
 
         // Optionally unload model if not keeping it loaded
         if !keepLoaded {
-            await evictModel(model)
+            await MLXModelCache.shared.remove(model.rawValue)
         }
         #else
         throw AIError.providerUnavailable(reason: .deviceNotSupported)
@@ -567,10 +532,7 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
         #if arch(arm64)
         await applyRuntimeConfigurationIfNeeded()
 
-        // Validate model type
-        guard case .mlx(let modelId) = model else {
-            throw AIError.invalidInput("MLXProvider only supports .mlx() models")
-        }
+        try validateMLXModel(model)
 
         // Encode text using model loader
         let tokens = try await modelLoader.encode(text: text, for: model)
@@ -578,7 +540,7 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
         return TokenCount(
             count: tokens.count,
             text: text,
-            tokenizer: modelId,
+            tokenizer: model.rawValue,
             tokenIds: tokens
         )
         #else
@@ -600,10 +562,7 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
         #if arch(arm64)
         await applyRuntimeConfigurationIfNeeded()
 
-        // Validate model type
-        guard case .mlx(let modelId) = model else {
-            throw AIError.invalidInput("MLXProvider only supports .mlx() models")
-        }
+        try validateMLXModel(model)
 
         // Calculate prompt tokens (text content)
         // Note: This doesn't include chat template overhead.
@@ -622,7 +581,7 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
         return TokenCount(
             count: totalTokens + estimatedSpecialTokens,
             text: "",
-            tokenizer: modelId,
+            tokenizer: model.rawValue,
             promptTokens: totalTokens,
             specialTokens: estimatedSpecialTokens
         )
@@ -643,10 +602,7 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
         for model: ModelID
     ) async throws -> [Int] {
         #if arch(arm64)
-        // Validate model type
-        guard case .mlx = model else {
-            throw AIError.invalidInput("MLXProvider only supports .mlx() models")
-        }
+        try validateMLXModel(model)
 
         // Encode text using model loader
         return try await modelLoader.encode(text: text, for: model)
@@ -669,10 +625,7 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
         skipSpecialTokens: Bool
     ) async throws -> String {
         #if arch(arm64)
-        // Validate model type
-        guard case .mlx = model else {
-            throw AIError.invalidInput("MLXProvider only supports .mlx() models")
-        }
+        try validateMLXModel(model)
 
         // Decode tokens using model loader
         // Note: skipSpecialTokens is not directly supported by mlx-swift-lm
@@ -688,6 +641,19 @@ public actor MLXProvider: AIProvider, TextGenerator, TokenCounter {
 
 extension MLXProvider {
 
+    /// Validates that the requested model is an MLX repo ID or local path.
+    ///
+    /// MLX public APIs intentionally accept both Hugging Face repo IDs
+    /// (`.mlx(...)`) and local filesystem directories (`.mlxLocal(...)`).
+    private func validateMLXModel(_ model: ModelID) throws {
+        switch model {
+        case .mlx, .mlxLocal:
+            return
+        default:
+            throw AIError.invalidInput("MLXProvider only supports .mlx(...) and .mlxLocal(...) models")
+        }
+    }
+
     /// Performs non-streaming generation using ChatSession.
     ///
     /// Uses the high-level ChatSession API from mlx-swift-lm for
@@ -697,9 +663,7 @@ extension MLXProvider {
         model: ModelIdentifier,
         config: GenerateConfig
     ) async throws -> GenerationResult {
-        guard case .mlx = model else {
-            throw AIError.invalidInput("MLXProvider only supports .mlx() models")
-        }
+        try validateMLXModel(model)
 
         await applyRuntimeConfigurationIfNeeded()
 
@@ -771,11 +735,13 @@ extension MLXProvider {
         continuation: AsyncThrowingStream<GenerationChunk, Error>.Continuation
     ) async {
         do {
-            guard case .mlx = model else {
-                continuation.finish(throwing: AIError.invalidInput("MLXProvider only supports .mlx() models"))
-                return
-            }
+            try validateMLXModel(model)
+        } catch {
+            continuation.finish(throwing: error)
+            return
+        }
 
+        do {
             // Reset cancellation flag
             isCancelled = false
 
@@ -1151,6 +1117,215 @@ extension MLXProvider {
         #endif
 
         didApplyRuntimeConfiguration = true
+    }
+}
+
+
+internal enum MLXRuntimeEngineKind: String, Sendable, Codable {
+    case baseline
+    case advanced
+}
+
+internal struct MLXResolvedRuntimePlan: Sendable {
+    var configuration: MLXConfiguration
+    var runtimeFeatures: ProviderRuntimeFeatureConfiguration
+    var engineKind: MLXRuntimeEngineKind
+}
+
+extension MLXProvider {
+    private func performGenerationWithRuntimePlan(
+        messages: [Message],
+        model: ModelIdentifier,
+        config: GenerateConfig
+    ) async throws -> GenerationResult {
+        let plan = await resolveRuntimePlan(model: model, generateConfig: config)
+
+        switch plan.engineKind {
+        case .baseline:
+            return try await performGeneration(messages: messages, model: model, config: config)
+        case .advanced:
+            // Advanced feature path currently uses the same generation core while
+            // capability-gated runtime controls are applied by resolveRuntimePlan.
+            return try await performGeneration(messages: messages, model: model, config: config)
+        }
+    }
+
+    private func performStreamingGenerationWithRuntimePlan(
+        messages: [Message],
+        model: ModelIdentifier,
+        config: GenerateConfig,
+        continuation: AsyncThrowingStream<GenerationChunk, Error>.Continuation
+    ) async {
+        let plan = await resolveRuntimePlan(model: model, generateConfig: config)
+
+        switch plan.engineKind {
+        case .baseline:
+            await performStreamingGeneration(
+                messages: messages,
+                model: model,
+                config: config,
+                continuation: continuation
+            )
+        case .advanced:
+            // Advanced feature path currently uses the same generation core while
+            // capability-gated runtime controls are applied by resolveRuntimePlan.
+            await performStreamingGeneration(
+                messages: messages,
+                model: model,
+                config: config,
+                continuation: continuation
+            )
+        }
+    }
+
+    private func resolveRuntimePlan(
+        model: ModelIdentifier,
+        generateConfig: GenerateConfig
+    ) async -> MLXResolvedRuntimePlan {
+        let configuration = await resolveRuntimeConfiguration(model: model, generateConfig: generateConfig)
+        let capabilities = await runtimeCapabilities(for: model)
+        let policy = self.configuration.runtimePolicy.applying(overrides: generateConfig.runtimePolicyOverride)
+        let modelID = model.rawValue
+
+        var runtimeFeatures = generateConfig.runtimeFeatures ?? .init()
+
+        if runtimeFeatures.attentionSinks.enabled == true,
+           !isFeatureActive(
+            feature: .attentionSinks,
+            capability: capabilities.attentionSinks,
+            policy: policy,
+            modelID: modelID
+           ) {
+            runtimeFeatures.attentionSinks.enabled = false
+        }
+
+        if runtimeFeatures.kvSwap.enabled == true,
+           !isFeatureActive(
+            feature: .kvSwap,
+            capability: capabilities.kvSwap,
+            policy: policy,
+            modelID: modelID
+           ) {
+            runtimeFeatures.kvSwap.enabled = false
+        }
+
+        if runtimeFeatures.incrementalPrefill.enabled == true,
+           !isFeatureActive(
+            feature: .incrementalPrefill,
+            capability: capabilities.incrementalPrefill,
+            policy: policy,
+            modelID: modelID
+           ) {
+            runtimeFeatures.incrementalPrefill.enabled = false
+        }
+
+        if runtimeFeatures.speculativeScheduling.enabled == true,
+           !isFeatureActive(
+            feature: .speculativeScheduling,
+            capability: capabilities.speculativeScheduling,
+            policy: policy,
+            modelID: modelID
+           ) {
+            runtimeFeatures.speculativeScheduling.enabled = false
+        }
+
+        if runtimeFeatures.speculativeScheduling.enabled == true {
+            if let divergenceRate = runtimeFeatures.speculativeScheduling.autoDisableDivergenceRate,
+               !(0.0...1.0).contains(divergenceRate) {
+                runtimeFeatures.speculativeScheduling.enabled = false
+                recordRuntimeDiagnostic(
+                    feature: .speculativeScheduling,
+                    kind: .autoDisabled,
+                    modelID: modelID,
+                    reason: "invalidAutoDisableDivergenceRate",
+                    details: ["value": String(divergenceRate)]
+                )
+                recordRuntimeDiagnostic(
+                    feature: .speculativeScheduling,
+                    kind: .fallbackUsed,
+                    modelID: modelID,
+                    reason: "fallbackToBaseline",
+                    details: [:]
+                )
+            }
+
+            if let draftCount = runtimeFeatures.speculativeScheduling.draftStreamCount,
+               let maxDraft = capabilities.speculativeScheduling.maxDraftStreams,
+               draftCount > maxDraft {
+                runtimeFeatures.speculativeScheduling.enabled = false
+                recordRuntimeDiagnostic(
+                    feature: .speculativeScheduling,
+                    kind: .autoDisabled,
+                    modelID: modelID,
+                    reason: "draftStreamCountExceedsCapability",
+                    details: [
+                        "requested": String(draftCount),
+                        "max": String(maxDraft),
+                    ]
+                )
+                recordRuntimeDiagnostic(
+                    feature: .speculativeScheduling,
+                    kind: .fallbackUsed,
+                    modelID: modelID,
+                    reason: "fallbackToBaseline",
+                    details: [:]
+                )
+            }
+
+            if let draftAheadTokens = runtimeFeatures.speculativeScheduling.draftAheadTokens,
+               let maxAhead = capabilities.speculativeScheduling.maxDraftAheadTokens,
+               draftAheadTokens > maxAhead {
+                runtimeFeatures.speculativeScheduling.enabled = false
+                recordRuntimeDiagnostic(
+                    feature: .speculativeScheduling,
+                    kind: .autoDisabled,
+                    modelID: modelID,
+                    reason: "draftAheadTokensExceedsCapability",
+                    details: [
+                        "requested": String(draftAheadTokens),
+                        "max": String(maxAhead),
+                    ]
+                )
+                recordRuntimeDiagnostic(
+                    feature: .speculativeScheduling,
+                    kind: .fallbackUsed,
+                    modelID: modelID,
+                    reason: "fallbackToBaseline",
+                    details: [:]
+                )
+            }
+        }
+
+        let advancedEnabled = (
+            runtimeFeatures.attentionSinks.enabled == true ||
+            runtimeFeatures.kvSwap.enabled == true ||
+            runtimeFeatures.incrementalPrefill.enabled == true ||
+            runtimeFeatures.speculativeScheduling.enabled == true
+        )
+
+        return MLXResolvedRuntimePlan(
+            configuration: configuration,
+            runtimeFeatures: runtimeFeatures,
+            engineKind: advancedEnabled ? .advanced : .baseline
+        )
+    }
+
+    private func isFeatureActive(
+        feature: ProviderRuntimeFeature,
+        capability: ProviderRuntimeFeatureCapability,
+        policy: ProviderRuntimePolicy,
+        modelID: String
+    ) -> Bool {
+        guard policy.isEnabled(feature: feature) else { return false }
+        guard policy.isModelAllowed(feature: feature, modelID: modelID) else { return false }
+        return capability.isSupported
+    }
+
+    internal func _testing_resolveRuntimePlan(
+        model: ModelIdentifier,
+        generateConfig: GenerateConfig
+    ) async -> MLXResolvedRuntimePlan {
+        await resolveRuntimePlan(model: model, generateConfig: generateConfig)
     }
 }
 

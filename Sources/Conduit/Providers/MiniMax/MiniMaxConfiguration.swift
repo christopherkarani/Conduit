@@ -6,16 +6,16 @@
 #if CONDUIT_TRAIT_MINIMAX && CONDUIT_TRAIT_OPENAI
 import Foundation
 
-public struct MiniMaxConfiguration: Sendable, Hashable, Codable {
+struct MiniMaxConfiguration: Sendable, Hashable, Codable {
 
-    public var authentication: MiniMaxAuthentication
-    public var baseURL: URL
-    public var timeout: TimeInterval
-    public var maxRetries: Int
+    var authentication: MiniMaxAuthentication
+    var baseURL: URL
+    var timeout: TimeInterval
+    var maxRetries: Int
 
-    public init(
+    init(
         authentication: MiniMaxAuthentication = .auto,
-        baseURL: URL = URL(string: "https://minimax-m2.com/api/v1")!,
+        baseURL: URL = URL(string: "https://api.minimax.io/v1")!,
         timeout: TimeInterval = 120.0,
         maxRetries: Int = 3
     ) {
@@ -25,29 +25,29 @@ public struct MiniMaxConfiguration: Sendable, Hashable, Codable {
         self.maxRetries = maxRetries
     }
 
-    public static func standard(apiKey: String) -> MiniMaxConfiguration {
-        MiniMaxConfiguration(authentication: .apiKey(apiKey))
+    static func standard(apiKey: String? = nil) -> MiniMaxConfiguration {
+        MiniMaxConfiguration(authentication: apiKey.map(MiniMaxAuthentication.apiKey) ?? .auto)
     }
 
-    public var hasValidAuthentication: Bool {
+    var hasValidAuthentication: Bool {
         authentication.isValid
     }
 }
 
 extension MiniMaxConfiguration {
-    public func apiKey(_ key: String) -> MiniMaxConfiguration {
+    func apiKey(_ key: String) -> MiniMaxConfiguration {
         var copy = self
         copy.authentication = .apiKey(key)
         return copy
     }
 
-    public func timeout(_ seconds: TimeInterval) -> MiniMaxConfiguration {
+    func timeout(_ seconds: TimeInterval) -> MiniMaxConfiguration {
         var copy = self
         copy.timeout = max(0, seconds)
         return copy
     }
 
-    public func maxRetries(_ count: Int) -> MiniMaxConfiguration {
+    func maxRetries(_ count: Int) -> MiniMaxConfiguration {
         var copy = self
         copy.maxRetries = max(0, count)
         return copy

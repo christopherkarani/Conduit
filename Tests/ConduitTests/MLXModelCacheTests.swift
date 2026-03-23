@@ -5,7 +5,7 @@
 
 import Foundation
 import Testing
-@testable import Conduit
+@testable import ConduitAdvanced
 
 #if canImport(MLX)
 @preconcurrency import MLX

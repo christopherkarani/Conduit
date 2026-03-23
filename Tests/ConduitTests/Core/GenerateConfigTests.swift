@@ -2,7 +2,7 @@
 // Conduit Tests
 
 import XCTest
-@testable import Conduit
+@testable import ConduitAdvanced
 
 @Generable
 private struct PromptBridgeFixture {

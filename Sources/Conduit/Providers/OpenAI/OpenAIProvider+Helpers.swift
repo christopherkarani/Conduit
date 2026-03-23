@@ -22,7 +22,7 @@ extension OpenAIProvider {
     /// Performs a non-streaming generation request.
     internal func performGeneration(
         messages: [Message],
-        model: OpenAIModelID,
+        model: ModelIdentifier,
         config: GenerateConfig,
         stream: Bool
     ) async throws -> GenerationResult {
@@ -57,7 +57,7 @@ extension OpenAIProvider {
     /// Builds the request body for chat completions.
     nonisolated func buildRequestBody(
         messages: [Message],
-        model: OpenAIModelID,
+        model: ModelIdentifier,
         config: GenerateConfig,
         stream: Bool,
         variant: OpenAIAPIVariant = .chatCompletions
@@ -164,7 +164,7 @@ extension OpenAIProvider {
             case .none:
                 // Already handled above - don't include tools
                 break
-            case .tool(let name):
+            case .named(let name):
                 body["tool_choice"] = [
                     "type": "function",
                     "function": ["name": name]
@@ -225,7 +225,7 @@ extension OpenAIProvider {
     /// Note: full response parsing/execution is intentionally guarded elsewhere for now.
     private nonisolated func buildResponsesRequestBody(
         messages: [Message],
-        model: OpenAIModelID,
+        model: ModelIdentifier,
         config: GenerateConfig,
         stream: Bool
     ) -> [String: Any] {
@@ -263,7 +263,7 @@ extension OpenAIProvider {
                 body["tool_choice"] = "required"
             case .none:
                 break
-            case .tool(let name):
+            case .named(let name):
                 body["tool_choice"] = [
                     "type": "function",
                     "name": name

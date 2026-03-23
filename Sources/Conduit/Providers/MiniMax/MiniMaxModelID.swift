@@ -31,6 +31,10 @@ extension MiniMaxModelID {
     public static let minimaxM2 = MiniMaxModelID("MiniMax-M2")
     public static let minimaxM2_1 = MiniMaxModelID("MiniMax-M2.1")
     public static let minimaxM2_5 = MiniMaxModelID("MiniMax-M2.5")
+    public static let minimaxM2_5Highspeed = MiniMaxModelID("MiniMax-M2.5-highspeed")
+    public static let minimaxM2_7 = MiniMaxModelID("MiniMax-M2.7")
+    public static let minimaxM2_7Highspeed = MiniMaxModelID("MiniMax-M2.7-highspeed")
+    public static let minimaxM2_1Lightning = MiniMaxModelID("MiniMax-M2.1-lightning")
 }
 
 extension MiniMaxModelID: ExpressibleByStringLiteral {

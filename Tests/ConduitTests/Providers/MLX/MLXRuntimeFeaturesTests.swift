@@ -2,22 +2,23 @@
 // ConduitTests
 
 import Testing
-@testable import Conduit
+@testable import ConduitAdvanced
 
 #if canImport(MLX)
 @Suite("MLX Runtime Features")
 struct MLXRuntimeFeaturesTests {
-    @Test("runtime capabilities declare quantization support and deny unsupported advanced features")
+    @Test("runtime capabilities declare support for post-v1 feature surface")
     func runtimeCapabilitiesExposeFeatureSurface() async {
         let provider = MLXProvider()
         let caps = await provider.runtimeCapabilities(for: .mlx("mlx-community/test-model"))
 
         #expect(caps.kvQuantization.isSupported == true)
         #expect(caps.kvQuantization.supportedBits == [4, 8])
-        #expect(caps.attentionSinks.isSupported == false)
-        #expect(caps.kvSwap.isSupported == false)
-        #expect(caps.incrementalPrefill.isSupported == false)
-        #expect(caps.speculativeScheduling.isSupported == false)
+        #expect(caps.attentionSinks.isSupported == true)
+        #expect(caps.kvSwap.isSupported == true)
+        #expect(caps.incrementalPrefill.isSupported == true)
+        #expect(caps.speculativeScheduling.isSupported == true)
+        #expect(caps.speculativeScheduling.supportsVerifierRollback == true)
     }
 
     @Test("runtime configuration denies unsupported quantization bit-depth and records fallback diagnostics")

@@ -68,23 +68,25 @@ let provider = MLXProvider(configuration: .m1Optimized)
 let config = MLXConfiguration.default
     .memoryLimit(.gigabytes(8))
     .withQuantizedKVCache(bits: 4)
-    .maxCachedModels(2)
 
 let provider = MLXProvider(configuration: config)
 ```
 
-## Warmup
+## Lifecycle
 
 Pre-warm Metal shaders for fast first responses:
 
 ```swift
 let provider = MLXProvider()
 
-// Warm up before first generation
-try await provider.warmUp(model: .llama3_2_1b, maxTokens: 5)
+// Prepare a model for interactive latency
+try await provider.prepare(model: .llama3_2_1b)
 
 // Now first response is fast
 let response = try await provider.generate("Hello", model: .llama3_2_1b)
+
+// Release provider-managed in-memory resources when done
+await provider.releaseResources()
 ```
 
 ## Streaming
@@ -138,29 +140,10 @@ let config = MLXConfiguration.default
 let provider = MLXProvider(configuration: config)
 ```
 
-## Memory Management
+## Model Asset Resolution
 
-Control memory usage for the model cache:
-
-```swift
-let config = MLXConfiguration.default
-    .memoryLimit(.gigabytes(8))   // Max GPU memory
-    .maxCachedModels(2)            // Keep 2 models in LRU cache
-    .maxCacheSize(.gigabytes(12))  // Max total cache size
-
-let provider = MLXProvider(configuration: config)
-```
-
-## Model Downloading
-
-Models must be downloaded before first use. See [Model Management](/guide/model-management) for details:
-
-```swift
-let manager = ModelManager.shared
-let url = try await manager.download(.llama3_2_1b) { progress in
-    print("Progress: \(progress.percentComplete)%")
-}
-```
+Conduit no longer exposes a model download/cache manager API. Model assets are
+resolved through the configured MLX runtime/tooling path.
 
 ## Platform Requirements
 

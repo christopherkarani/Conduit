@@ -6,7 +6,7 @@
 #if CONDUIT_TRAIT_ANTHROPIC
 import Testing
 import Foundation
-@testable import Conduit
+@testable import ConduitAdvanced
 
 // MARK: - Test Helpers
 
@@ -171,6 +171,8 @@ struct AnthropicModelIDTests {
 
     @Test("Static model properties have correct rawValue")
     func staticModels() {
+        #expect(AnthropicModelID.claudeOpus46.rawValue == "claude-opus-4-6")
+        #expect(AnthropicModelID.claudeSonnet46.rawValue == "claude-sonnet-4-6")
         #expect(AnthropicModelID.claudeOpus45.rawValue == "claude-opus-4-5-20251101")
         #expect(AnthropicModelID.claudeSonnet45.rawValue == "claude-sonnet-4-5-20250929")
         #expect(AnthropicModelID.claude35Sonnet.rawValue == "claude-3-5-sonnet-20241022")
@@ -180,14 +182,14 @@ struct AnthropicModelIDTests {
 
     @Test("Display name exists")
     func displayName() {
-        let model = AnthropicModelID.claudeSonnet45
+        let model = AnthropicModelID.claudeSonnet46
         #expect(!model.displayName.isEmpty)
-        #expect(model.displayName == "claude-sonnet-4-5")
+        #expect(model.displayName == "claude-sonnet-4-6")
     }
 
     @Test("Provider type is anthropic")
     func providerType() {
-        #expect(AnthropicModelID.claudeOpus45.provider == .anthropic)
+        #expect(AnthropicModelID.claudeOpus46.provider == .anthropic)
     }
 
     @Test("String literal initialization")
@@ -198,7 +200,7 @@ struct AnthropicModelIDTests {
 
     @Test("Codable encoding and decoding")
     func codable() throws {
-        let model = AnthropicModelID.claudeSonnet45
+        let model = AnthropicModelID.claudeSonnet46
         let encoder = JSONEncoder()
         let decoder = JSONDecoder()
 

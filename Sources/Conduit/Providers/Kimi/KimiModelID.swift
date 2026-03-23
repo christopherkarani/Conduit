@@ -63,6 +63,24 @@ extension KimiModelID {
 
     /// Kimi K1.5 - Long context specialist.
     public static let kimiK1_5 = KimiModelID("kimi-k1-5")
+
+    /// Kimi Latest - Platform alias for the latest general model.
+    public static let kimiLatest = KimiModelID("kimi-latest")
+
+    /// Kimi Thinking Preview - Original reasoning model.
+    public static let kimiThinkingPreview = KimiModelID("kimi-thinking-preview")
+
+    /// Kimi K2 preview snapshot released in July 2025.
+    public static let kimiK2Preview = KimiModelID("kimi-k2-0711-preview")
+
+    /// Kimi K2 preview snapshot released in September 2025.
+    public static let kimiK2_0905Preview = KimiModelID("kimi-k2-0905-preview")
+
+    /// Kimi K2 Turbo preview - fast K2 variant.
+    public static let kimiK2TurboPreview = KimiModelID("kimi-k2-turbo-preview")
+
+    /// Kimi K2 Thinking Turbo - current latest thinking model.
+    public static let kimiK2ThinkingTurbo = KimiModelID("kimi-k2-thinking-turbo")
 }
 
 // MARK: - Conformances

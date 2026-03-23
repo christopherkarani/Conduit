@@ -72,7 +72,7 @@ public enum OpenAIAPIVariant: String, Sendable, Hashable, Codable {
 /// - `Sendable`: Thread-safe across concurrency boundaries
 /// - `Hashable`: Can be used in sets and as dictionary keys
 /// - `Codable`: Full JSON encoding/decoding support
-public struct OpenAIConfiguration: Sendable, Hashable {
+struct OpenAIConfiguration: Sendable, Hashable {
 
     // MARK: - Core Settings
 
@@ -80,19 +80,19 @@ public struct OpenAIConfiguration: Sendable, Hashable {
     ///
     /// Determines the base URL and default behavior for requests.
     /// Default: `.openAI`
-    public var endpoint: OpenAIEndpoint
+    var endpoint: OpenAIEndpoint
 
     /// Authentication configuration.
     ///
     /// Determines how API requests are authenticated.
     /// Default: `.auto` (checks environment variables)
-    public var authentication: OpenAIAuthentication
+    var authentication: OpenAIAuthentication
 
     /// Text generation API variant.
     ///
     /// Controls whether generation requests target `/chat/completions` or `/responses`.
     /// Default: `.chatCompletions` for backward compatibility.
-    public var apiVariant: OpenAIAPIVariant
+    var apiVariant: OpenAIAPIVariant
 
     // MARK: - Version
 
@@ -106,20 +106,20 @@ public struct OpenAIConfiguration: Sendable, Hashable {
     ///
     /// How long to wait for a response before timing out.
     /// Default: 60.0
-    public var timeout: TimeInterval
+    var timeout: TimeInterval
 
     /// Maximum number of retry attempts.
     ///
     /// How many times to retry failed requests.
     /// Set to 0 to disable retries.
     /// Default: 3
-    public var maxRetries: Int
+    var maxRetries: Int
 
     /// Retry configuration.
     ///
     /// Controls retry behavior including delays and which errors are retryable.
     /// Default: `.default`
-    public var retryConfig: RetryConfiguration
+    var retryConfig: RetryConfiguration
 
     // MARK: - Request Customization
 
@@ -127,37 +127,37 @@ public struct OpenAIConfiguration: Sendable, Hashable {
     ///
     /// These headers are added to every request. Authentication headers
     /// are added separately and will override matching keys.
-    public var defaultHeaders: [String: String]
+    var defaultHeaders: [String: String]
 
     /// Custom User-Agent string.
     ///
     /// If set, overrides the default User-Agent header.
-    public var userAgent: String?
+    var userAgent: String?
 
     /// Organization ID for OpenAI requests.
     ///
     /// If set, includes `OpenAI-Organization` header in requests.
     /// Only applicable to OpenAI endpoint.
-    public var organizationID: String?
+    var organizationID: String?
 
     // MARK: - Backend-Specific Configuration
 
     /// OpenRouter-specific routing configuration.
     ///
     /// Only used when `endpoint` is `.openRouter`.
-    public var openRouterConfig: OpenRouterRoutingConfig?
+    var openRouterConfig: OpenRouterRoutingConfig?
 
     /// Azure-specific configuration.
     ///
     /// Only used when `endpoint` is `.azure`.
     /// Note: Azure endpoint already contains resource/deployment info,
     /// this provides additional options.
-    public var azureConfig: AzureConfiguration?
+    var azureConfig: AzureConfiguration?
 
     /// Ollama-specific configuration.
     ///
     /// Only used when `endpoint` is `.ollama`.
-    public var ollamaConfig: OllamaConfiguration?
+    var ollamaConfig: OllamaConfiguration?
 
     // MARK: - Initialization
 
@@ -176,7 +176,7 @@ public struct OpenAIConfiguration: Sendable, Hashable {
     ///   - openRouterConfig: OpenRouter-specific settings. Default: `nil`
     ///   - azureConfig: Azure-specific settings. Default: `nil`
     ///   - ollamaConfig: Ollama-specific settings. Default: `nil`
-    public init(
+    init(
         endpoint: OpenAIEndpoint = .openAI,
         authentication: OpenAIAuthentication = .auto,
         apiVariant: OpenAIAPIVariant = .chatCompletions,
@@ -209,12 +209,12 @@ public struct OpenAIConfiguration: Sendable, Hashable {
     /// Default OpenAI configuration.
     ///
     /// Uses the official OpenAI API with auto-detected authentication.
-    public static let `default` = OpenAIConfiguration()
+    static let `default` = OpenAIConfiguration()
 
     /// Configuration for OpenRouter.
     ///
     /// Uses OpenRouter endpoint with auto-detected authentication.
-    public static let openRouter = OpenAIConfiguration(
+    static let openRouter = OpenAIConfiguration(
         endpoint: .openRouter,
         authentication: .environment("OPENROUTER_API_KEY"),
         openRouterConfig: .default
@@ -223,7 +223,7 @@ public struct OpenAIConfiguration: Sendable, Hashable {
     /// Configuration for local Ollama server.
     ///
     /// Uses localhost:11434 with no authentication.
-    public static let ollama = OpenAIConfiguration(
+    static let ollama = OpenAIConfiguration(
         endpoint: .ollama(),
         authentication: .none,
         ollamaConfig: .default
@@ -232,7 +232,7 @@ public struct OpenAIConfiguration: Sendable, Hashable {
     /// Configuration for long-running requests.
     ///
     /// Extended timeout (120s) for models with slow cold starts.
-    public static let longRunning = OpenAIConfiguration(
+    static let longRunning = OpenAIConfiguration(
         timeout: 120.0,
         maxRetries: 5,
         retryConfig: .aggressive
@@ -241,7 +241,7 @@ public struct OpenAIConfiguration: Sendable, Hashable {
     /// Configuration with retries disabled.
     ///
     /// Fails immediately without retrying.
-    public static let noRetry = OpenAIConfiguration(
+    static let noRetry = OpenAIConfiguration(
         maxRetries: 0,
         retryConfig: .none
     )
@@ -252,7 +252,7 @@ public struct OpenAIConfiguration: Sendable, Hashable {
     ///
     /// - Parameter apiKey: Your OpenAI API key.
     /// - Returns: A configuration for OpenAI.
-    public static func openAI(apiKey: String) -> OpenAIConfiguration {
+    static func openAI(apiKey: String) -> OpenAIConfiguration {
         OpenAIConfiguration(
             endpoint: .openAI,
             authentication: .bearer(apiKey)
@@ -263,7 +263,7 @@ public struct OpenAIConfiguration: Sendable, Hashable {
     ///
     /// - Parameter apiKey: Your OpenRouter API key.
     /// - Returns: A configuration for OpenRouter.
-    public static func openRouter(apiKey: String) -> OpenAIConfiguration {
+    static func openRouter(apiKey: String) -> OpenAIConfiguration {
         OpenAIConfiguration(
             endpoint: .openRouter,
             authentication: .bearer(apiKey),
@@ -277,7 +277,7 @@ public struct OpenAIConfiguration: Sendable, Hashable {
     ///   - host: The Ollama host. Default: `"localhost"`
     ///   - port: The Ollama port. Default: `11434`
     /// - Returns: A configuration for Ollama.
-    public static func ollama(host: String = "localhost", port: Int = 11434) -> OpenAIConfiguration {
+    static func ollama(host: String = "localhost", port: Int = 11434) -> OpenAIConfiguration {
         OpenAIConfiguration(
             endpoint: .ollama(host: host, port: port),
             authentication: .none,
@@ -293,7 +293,7 @@ public struct OpenAIConfiguration: Sendable, Hashable {
     ///   - apiKey: Your Azure API key.
     ///   - apiVersion: The API version. Default: latest stable
     /// - Returns: A configuration for Azure OpenAI.
-    public static func azure(
+    static func azure(
         resource: String,
         deployment: String,
         apiKey: String,
@@ -312,7 +312,7 @@ public struct OpenAIConfiguration: Sendable, Hashable {
     ///   - url: The base URL of the OpenAI-compatible API.
     ///   - apiKey: Optional API key.
     /// - Returns: A configuration for the custom endpoint.
-    public static func custom(url: URL, apiKey: String? = nil) -> OpenAIConfiguration {
+    static func custom(url: URL, apiKey: String? = nil) -> OpenAIConfiguration {
         let auth: OpenAIAuthentication
         if let key = apiKey {
             auth = .bearer(key)
@@ -332,7 +332,7 @@ public struct OpenAIConfiguration: Sendable, Hashable {
     ///
     /// Returns `true` if the endpoint doesn't require auth, or if
     /// auth is configured and resolvable.
-    public var hasValidAuthentication: Bool {
+    var hasValidAuthentication: Bool {
         if !endpoint.requiresAuthentication {
             return true
         }
@@ -342,7 +342,7 @@ public struct OpenAIConfiguration: Sendable, Hashable {
     /// The capabilities available for this configuration.
     ///
     /// Returns the default capabilities for the endpoint.
-    public var capabilities: OpenAICapabilities {
+    var capabilities: OpenAICapabilities {
         endpoint.defaultCapabilities
     }
 }
@@ -355,7 +355,7 @@ extension OpenAIConfiguration {
     ///
     /// - Parameter endpoint: The API endpoint.
     /// - Returns: A new configuration with the updated endpoint.
-    public func endpoint(_ endpoint: OpenAIEndpoint) -> OpenAIConfiguration {
+    func endpoint(_ endpoint: OpenAIEndpoint) -> OpenAIConfiguration {
         var copy = self
         copy.endpoint = endpoint
         return copy
@@ -365,7 +365,7 @@ extension OpenAIConfiguration {
     ///
     /// - Parameter auth: The authentication configuration.
     /// - Returns: A new configuration with the updated authentication.
-    public func authentication(_ auth: OpenAIAuthentication) -> OpenAIConfiguration {
+    func authentication(_ auth: OpenAIAuthentication) -> OpenAIConfiguration {
         var copy = self
         copy.authentication = auth
         return copy
@@ -375,7 +375,7 @@ extension OpenAIConfiguration {
     ///
     /// - Parameter variant: The API variant.
     /// - Returns: A new configuration with the updated API variant.
-    public func apiVariant(_ variant: OpenAIAPIVariant) -> OpenAIConfiguration {
+    func apiVariant(_ variant: OpenAIAPIVariant) -> OpenAIConfiguration {
         var copy = self
         copy.apiVariant = variant
         return copy
@@ -385,7 +385,7 @@ extension OpenAIConfiguration {
     ///
     /// - Parameter apiKey: The API key.
     /// - Returns: A new configuration with bearer authentication.
-    public func apiKey(_ apiKey: String) -> OpenAIConfiguration {
+    func apiKey(_ apiKey: String) -> OpenAIConfiguration {
         var copy = self
         copy.authentication = .bearer(apiKey)
         return copy
@@ -395,7 +395,7 @@ extension OpenAIConfiguration {
     ///
     /// - Parameter seconds: Request timeout in seconds.
     /// - Returns: A new configuration with the updated timeout.
-    public func timeout(_ seconds: TimeInterval) -> OpenAIConfiguration {
+    func timeout(_ seconds: TimeInterval) -> OpenAIConfiguration {
         var copy = self
         copy.timeout = max(0, seconds)
         return copy
@@ -405,7 +405,7 @@ extension OpenAIConfiguration {
     ///
     /// - Parameter count: Maximum retry attempts.
     /// - Returns: A new configuration with the updated retry count.
-    public func maxRetries(_ count: Int) -> OpenAIConfiguration {
+    func maxRetries(_ count: Int) -> OpenAIConfiguration {
         var copy = self
         copy.maxRetries = max(0, count)
         return copy
@@ -415,7 +415,7 @@ extension OpenAIConfiguration {
     ///
     /// - Parameter config: The retry configuration.
     /// - Returns: A new configuration with the updated retry settings.
-    public func retryConfig(_ config: RetryConfiguration) -> OpenAIConfiguration {
+    func retryConfig(_ config: RetryConfiguration) -> OpenAIConfiguration {
         var copy = self
         copy.retryConfig = config
         return copy
@@ -424,7 +424,7 @@ extension OpenAIConfiguration {
     /// Returns a copy with retries disabled.
     ///
     /// - Returns: A new configuration with maxRetries set to 0.
-    public func noRetries() -> OpenAIConfiguration {
+    func noRetries() -> OpenAIConfiguration {
         var copy = self
         copy.maxRetries = 0
         return copy
@@ -434,7 +434,7 @@ extension OpenAIConfiguration {
     ///
     /// - Parameter headers: Default headers for all requests.
     /// - Returns: A new configuration with the updated headers.
-    public func headers(_ headers: [String: String]) -> OpenAIConfiguration {
+    func headers(_ headers: [String: String]) -> OpenAIConfiguration {
         var copy = self
         copy.defaultHeaders = headers
         return copy
@@ -446,7 +446,7 @@ extension OpenAIConfiguration {
     ///   - name: The header name.
     ///   - value: The header value.
     /// - Returns: A new configuration with the added header.
-    public func header(_ name: String, value: String) -> OpenAIConfiguration {
+    func header(_ name: String, value: String) -> OpenAIConfiguration {
         var copy = self
         copy.defaultHeaders[name] = value
         return copy
@@ -456,7 +456,7 @@ extension OpenAIConfiguration {
     ///
     /// - Parameter userAgent: The User-Agent string.
     /// - Returns: A new configuration with the updated User-Agent.
-    public func userAgent(_ userAgent: String) -> OpenAIConfiguration {
+    func userAgent(_ userAgent: String) -> OpenAIConfiguration {
         var copy = self
         copy.userAgent = userAgent
         return copy
@@ -466,7 +466,7 @@ extension OpenAIConfiguration {
     ///
     /// - Parameter orgID: The OpenAI organization ID.
     /// - Returns: A new configuration with the updated organization.
-    public func organization(_ orgID: String) -> OpenAIConfiguration {
+    func organization(_ orgID: String) -> OpenAIConfiguration {
         var copy = self
         copy.organizationID = orgID
         return copy
@@ -476,7 +476,7 @@ extension OpenAIConfiguration {
     ///
     /// - Parameter config: The OpenRouter routing configuration.
     /// - Returns: A new configuration with OpenRouter settings.
-    public func openRouter(_ config: OpenRouterRoutingConfig) -> OpenAIConfiguration {
+    func openRouter(_ config: OpenRouterRoutingConfig) -> OpenAIConfiguration {
         var copy = self
         copy.openRouterConfig = config
         return copy
@@ -499,7 +499,7 @@ extension OpenAIConfiguration {
     ///
     /// - Parameter config: The OpenRouter routing configuration.
     /// - Returns: A new configuration with routing settings.
-    public func routing(_ config: OpenRouterRoutingConfig) -> OpenAIConfiguration {
+    func routing(_ config: OpenRouterRoutingConfig) -> OpenAIConfiguration {
         openRouter(config)
     }
 
@@ -514,7 +514,7 @@ extension OpenAIConfiguration {
     ///
     /// - Parameter providers: Providers to prefer, in priority order.
     /// - Returns: A new configuration with provider preferences.
-    public func preferring(_ providers: OpenRouterProvider...) -> OpenAIConfiguration {
+    func preferring(_ providers: OpenRouterProvider...) -> OpenAIConfiguration {
         routing(OpenRouterRoutingConfig(providers: providers, fallbacks: true))
     }
 
@@ -528,7 +528,7 @@ extension OpenAIConfiguration {
     /// ```
     ///
     /// - Returns: A new configuration with latency routing enabled.
-    public func routeByLatency() -> OpenAIConfiguration {
+    func routeByLatency() -> OpenAIConfiguration {
         var copy = self
         if copy.openRouterConfig == nil {
             copy.openRouterConfig = .default
@@ -541,7 +541,7 @@ extension OpenAIConfiguration {
     ///
     /// - Parameter config: The Ollama configuration.
     /// - Returns: A new configuration with Ollama settings.
-    public func ollama(_ config: OllamaConfiguration) -> OpenAIConfiguration {
+    func ollama(_ config: OllamaConfiguration) -> OpenAIConfiguration {
         var copy = self
         copy.ollamaConfig = config
         return copy
@@ -551,7 +551,7 @@ extension OpenAIConfiguration {
     ///
     /// - Parameter config: The Azure configuration.
     /// - Returns: A new configuration with Azure settings.
-    public func azure(_ config: AzureConfiguration) -> OpenAIConfiguration {
+    func azure(_ config: AzureConfiguration) -> OpenAIConfiguration {
         var copy = self
         copy.azureConfig = config
         return copy
@@ -567,7 +567,7 @@ extension OpenAIConfiguration {
     /// Combines default headers, authentication, and backend-specific headers.
     ///
     /// - Returns: Dictionary of header names to values.
-    public func buildHeaders() -> [String: String] {
+    func buildHeaders() -> [String: String] {
         var headers = defaultHeaders
 
         // Add authentication
@@ -619,7 +619,7 @@ extension OpenAIConfiguration: Codable {
         // Note: authentication and azureConfig are not encoded for security
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         self.endpoint = try container.decode(OpenAIEndpoint.self, forKey: .endpoint)
@@ -636,7 +636,7 @@ extension OpenAIConfiguration: Codable {
         self.ollamaConfig = try container.decodeIfPresent(OllamaConfiguration.self, forKey: .ollamaConfig)
     }
 
-    public func encode(to encoder: Encoder) throws {
+    func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
 
         try container.encode(endpoint, forKey: .endpoint)

@@ -70,12 +70,20 @@ public struct ProviderRuntimeFeatureCapability: Sendable, Hashable, Codable {
 
 /// Aggregated runtime capabilities for provider/runtime-owned features.
 public struct ProviderRuntimeCapabilities: Sendable, Hashable, Codable {
-    public var kvQuantization: ProviderRuntimeFeatureCapability
-    public var attentionSinks: ProviderRuntimeFeatureCapability
-    public var kvSwap: ProviderRuntimeFeatureCapability
-    public var incrementalPrefill: ProviderRuntimeFeatureCapability
-    public var speculativeScheduling: ProviderRuntimeFeatureCapability
+    private var capabilities: [ProviderRuntimeFeature: ProviderRuntimeFeatureCapability]
 
+    /// Access capabilities via subscript.
+    public subscript(feature: ProviderRuntimeFeature) -> ProviderRuntimeFeatureCapability {
+        get { capabilities[feature] ?? ProviderRuntimeFeatureCapability(isSupported: false) }
+        set { capabilities[feature] = newValue }
+    }
+
+    /// Creates runtime capabilities from a dictionary.
+    public init(capabilities: [ProviderRuntimeFeature: ProviderRuntimeFeatureCapability] = [:]) {
+        self.capabilities = capabilities
+    }
+
+    /// Creates runtime capabilities with individual feature capabilities.
     public init(
         kvQuantization: ProviderRuntimeFeatureCapability,
         attentionSinks: ProviderRuntimeFeatureCapability,
@@ -83,26 +91,54 @@ public struct ProviderRuntimeCapabilities: Sendable, Hashable, Codable {
         incrementalPrefill: ProviderRuntimeFeatureCapability,
         speculativeScheduling: ProviderRuntimeFeatureCapability
     ) {
-        self.kvQuantization = kvQuantization
-        self.attentionSinks = attentionSinks
-        self.kvSwap = kvSwap
-        self.incrementalPrefill = incrementalPrefill
-        self.speculativeScheduling = speculativeScheduling
+        self.capabilities = [
+            .kvQuantization: kvQuantization,
+            .attentionSinks: attentionSinks,
+            .kvSwap: kvSwap,
+            .incrementalPrefill: incrementalPrefill,
+            .speculativeScheduling: speculativeScheduling
+        ]
     }
 
+    /// Returns the capability for a specific feature.
+    @available(*, deprecated, renamed: "subscript")
     public func capability(for feature: ProviderRuntimeFeature) -> ProviderRuntimeFeatureCapability {
-        switch feature {
-        case .kvQuantization:
-            kvQuantization
-        case .attentionSinks:
-            attentionSinks
-        case .kvSwap:
-            kvSwap
-        case .incrementalPrefill:
-            incrementalPrefill
-        case .speculativeScheduling:
-            speculativeScheduling
-        }
+        self[feature]
+    }
+
+    /// KV quantization capability.
+    @available(*, deprecated, renamed: "subscript")
+    public var kvQuantization: ProviderRuntimeFeatureCapability {
+        get { self[.kvQuantization] }
+        set { self[.kvQuantization] = newValue }
+    }
+
+    /// Attention sinks capability.
+    @available(*, deprecated, renamed: "subscript")
+    public var attentionSinks: ProviderRuntimeFeatureCapability {
+        get { self[.attentionSinks] }
+        set { self[.attentionSinks] = newValue }
+    }
+
+    /// KV swap capability.
+    @available(*, deprecated, renamed: "subscript")
+    public var kvSwap: ProviderRuntimeFeatureCapability {
+        get { self[.kvSwap] }
+        set { self[.kvSwap] = newValue }
+    }
+
+    /// Incremental prefill capability.
+    @available(*, deprecated, renamed: "subscript")
+    public var incrementalPrefill: ProviderRuntimeFeatureCapability {
+        get { self[.incrementalPrefill] }
+        set { self[.incrementalPrefill] = newValue }
+    }
+
+    /// Speculative scheduling capability.
+    @available(*, deprecated, renamed: "subscript")
+    public var speculativeScheduling: ProviderRuntimeFeatureCapability {
+        get { self[.speculativeScheduling] }
+        set { self[.speculativeScheduling] = newValue }
     }
 }
 
@@ -110,12 +146,20 @@ public struct ProviderRuntimeCapabilities: Sendable, Hashable, Codable {
 
 /// Per-feature policy flags.
 public struct ProviderRuntimeFeatureFlags: Sendable, Hashable, Codable {
-    public var kvQuantization: Bool
-    public var attentionSinks: Bool
-    public var kvSwap: Bool
-    public var incrementalPrefill: Bool
-    public var speculativeScheduling: Bool
+    private var flags: [ProviderRuntimeFeature: Bool]
 
+    /// Access flags via subscript.
+    public subscript(feature: ProviderRuntimeFeature) -> Bool {
+        get { flags[feature] ?? true }
+        set { flags[feature] = newValue }
+    }
+
+    /// Creates feature flags from a dictionary.
+    public init(flags: [ProviderRuntimeFeature: Bool] = [:]) {
+        self.flags = flags
+    }
+
+    /// Creates feature flags with individual feature settings.
     public init(
         kvQuantization: Bool = true,
         attentionSinks: Bool = true,
@@ -123,26 +167,54 @@ public struct ProviderRuntimeFeatureFlags: Sendable, Hashable, Codable {
         incrementalPrefill: Bool = true,
         speculativeScheduling: Bool = true
     ) {
-        self.kvQuantization = kvQuantization
-        self.attentionSinks = attentionSinks
-        self.kvSwap = kvSwap
-        self.incrementalPrefill = incrementalPrefill
-        self.speculativeScheduling = speculativeScheduling
+        self.flags = [
+            .kvQuantization: kvQuantization,
+            .attentionSinks: attentionSinks,
+            .kvSwap: kvSwap,
+            .incrementalPrefill: incrementalPrefill,
+            .speculativeScheduling: speculativeScheduling
+        ]
     }
 
+    /// Returns whether a feature is enabled.
+    @available(*, deprecated, renamed: "subscript")
     public func isEnabled(_ feature: ProviderRuntimeFeature) -> Bool {
-        switch feature {
-        case .kvQuantization:
-            kvQuantization
-        case .attentionSinks:
-            attentionSinks
-        case .kvSwap:
-            kvSwap
-        case .incrementalPrefill:
-            incrementalPrefill
-        case .speculativeScheduling:
-            speculativeScheduling
-        }
+        self[feature]
+    }
+
+    /// KV quantization flag.
+    @available(*, deprecated, renamed: "subscript")
+    public var kvQuantization: Bool {
+        get { self[.kvQuantization] }
+        set { self[.kvQuantization] = newValue }
+    }
+
+    /// Attention sinks flag.
+    @available(*, deprecated, renamed: "subscript")
+    public var attentionSinks: Bool {
+        get { self[.attentionSinks] }
+        set { self[.attentionSinks] = newValue }
+    }
+
+    /// KV swap flag.
+    @available(*, deprecated, renamed: "subscript")
+    public var kvSwap: Bool {
+        get { self[.kvSwap] }
+        set { self[.kvSwap] = newValue }
+    }
+
+    /// Incremental prefill flag.
+    @available(*, deprecated, renamed: "subscript")
+    public var incrementalPrefill: Bool {
+        get { self[.incrementalPrefill] }
+        set { self[.incrementalPrefill] = newValue }
+    }
+
+    /// Speculative scheduling flag.
+    @available(*, deprecated, renamed: "subscript")
+    public var speculativeScheduling: Bool {
+        get { self[.speculativeScheduling] }
+        set { self[.speculativeScheduling] = newValue }
     }
 }
 
@@ -150,12 +222,20 @@ public struct ProviderRuntimeFeatureFlags: Sendable, Hashable, Codable {
 ///
 /// Empty allowlist means "no restriction".
 public struct ProviderRuntimeModelAllowlist: Sendable, Hashable, Codable {
-    public var kvQuantizationModels: Set<String>
-    public var attentionSinkModels: Set<String>
-    public var kvSwapModels: Set<String>
-    public var incrementalPrefillModels: Set<String>
-    public var speculativeSchedulingModels: Set<String>
+    private var allowlists: [ProviderRuntimeFeature: Set<String>]
 
+    /// Access allowlists via subscript.
+    public subscript(feature: ProviderRuntimeFeature) -> Set<String> {
+        get { allowlists[feature] ?? [] }
+        set { allowlists[feature] = newValue }
+    }
+
+    /// Creates model allowlists from a dictionary.
+    public init(allowlists: [ProviderRuntimeFeature: Set<String>] = [:]) {
+        self.allowlists = allowlists
+    }
+
+    /// Creates model allowlists with individual feature allowlists.
     public init(
         kvQuantizationModels: Set<String> = [],
         attentionSinkModels: Set<String> = [],
@@ -163,28 +243,55 @@ public struct ProviderRuntimeModelAllowlist: Sendable, Hashable, Codable {
         incrementalPrefillModels: Set<String> = [],
         speculativeSchedulingModels: Set<String> = []
     ) {
-        self.kvQuantizationModels = kvQuantizationModels
-        self.attentionSinkModels = attentionSinkModels
-        self.kvSwapModels = kvSwapModels
-        self.incrementalPrefillModels = incrementalPrefillModels
-        self.speculativeSchedulingModels = speculativeSchedulingModels
+        self.allowlists = [
+            .kvQuantization: kvQuantizationModels,
+            .attentionSinks: attentionSinkModels,
+            .kvSwap: kvSwapModels,
+            .incrementalPrefill: incrementalPrefillModels,
+            .speculativeScheduling: speculativeSchedulingModels
+        ]
     }
 
+    /// Returns whether a model is allowed for a feature.
+    @available(*, deprecated, renamed: "subscript")
     public func isModelAllowed(feature: ProviderRuntimeFeature, modelID: String) -> Bool {
-        let allowlist: Set<String> = switch feature {
-        case .kvQuantization:
-            kvQuantizationModels
-        case .attentionSinks:
-            attentionSinkModels
-        case .kvSwap:
-            kvSwapModels
-        case .incrementalPrefill:
-            incrementalPrefillModels
-        case .speculativeScheduling:
-            speculativeSchedulingModels
-        }
-
+        let allowlist = self[feature]
         return allowlist.isEmpty || allowlist.contains(modelID)
+    }
+
+    /// KV quantization model allowlist.
+    @available(*, deprecated, renamed: "subscript")
+    public var kvQuantizationModels: Set<String> {
+        get { self[.kvQuantization] }
+        set { self[.kvQuantization] = newValue }
+    }
+
+    /// Attention sinks model allowlist.
+    @available(*, deprecated, renamed: "subscript")
+    public var attentionSinkModels: Set<String> {
+        get { self[.attentionSinks] }
+        set { self[.attentionSinks] = newValue }
+    }
+
+    /// KV swap model allowlist.
+    @available(*, deprecated, renamed: "subscript")
+    public var kvSwapModels: Set<String> {
+        get { self[.kvSwap] }
+        set { self[.kvSwap] = newValue }
+    }
+
+    /// Incremental prefill model allowlist.
+    @available(*, deprecated, renamed: "subscript")
+    public var incrementalPrefillModels: Set<String> {
+        get { self[.incrementalPrefill] }
+        set { self[.incrementalPrefill] = newValue }
+    }
+
+    /// Speculative scheduling model allowlist.
+    @available(*, deprecated, renamed: "subscript")
+    public var speculativeSchedulingModels: Set<String> {
+        get { self[.speculativeScheduling] }
+        set { self[.speculativeScheduling] = newValue }
     }
 }
 
@@ -203,12 +310,15 @@ public struct ProviderRuntimePolicy: Sendable, Hashable, Codable {
         self.modelAllowlist = modelAllowlist
     }
 
+    /// Returns whether a feature is enabled.
     public func isEnabled(feature: ProviderRuntimeFeature) -> Bool {
-        featureFlags.isEnabled(feature)
+        featureFlags[feature]
     }
 
+    /// Returns whether a model is allowed for a feature.
     public func isModelAllowed(feature: ProviderRuntimeFeature, modelID: String) -> Bool {
-        modelAllowlist.isModelAllowed(feature: feature, modelID: modelID)
+        let allowlist = modelAllowlist[feature]
+        return allowlist.isEmpty || allowlist.contains(modelID)
     }
 
     /// Applies per-request runtime policy overrides.
@@ -223,16 +333,26 @@ public struct ProviderRuntimePolicy: Sendable, Hashable, Codable {
     }
 }
 
+// MARK: - Runtime Policy Overrides
+
 /// Optional per-request feature-flag overrides.
 ///
 /// `nil` fields preserve provider-level policy defaults.
 public struct ProviderRuntimeFeatureFlagOverride: Sendable, Hashable, Codable {
-    public var kvQuantization: Bool?
-    public var attentionSinks: Bool?
-    public var kvSwap: Bool?
-    public var incrementalPrefill: Bool?
-    public var speculativeScheduling: Bool?
+    private var overrides: [ProviderRuntimeFeature: Bool]
 
+    /// Access overrides via subscript.
+    public subscript(feature: ProviderRuntimeFeature) -> Bool? {
+        get { overrides[feature] }
+        set { overrides[feature] = newValue }
+    }
+
+    /// Creates feature flag overrides from a dictionary.
+    public init(overrides: [ProviderRuntimeFeature: Bool?] = [:]) {
+        self.overrides = overrides.compactMapValues { $0 }
+    }
+
+    /// Creates feature flag overrides with individual feature settings.
     public init(
         kvQuantization: Bool? = nil,
         attentionSinks: Bool? = nil,
@@ -240,11 +360,47 @@ public struct ProviderRuntimeFeatureFlagOverride: Sendable, Hashable, Codable {
         incrementalPrefill: Bool? = nil,
         speculativeScheduling: Bool? = nil
     ) {
-        self.kvQuantization = kvQuantization
-        self.attentionSinks = attentionSinks
-        self.kvSwap = kvSwap
-        self.incrementalPrefill = incrementalPrefill
-        self.speculativeScheduling = speculativeScheduling
+        self.overrides = [:]
+        self.overrides[.kvQuantization] = kvQuantization
+        self.overrides[.attentionSinks] = attentionSinks
+        self.overrides[.kvSwap] = kvSwap
+        self.overrides[.incrementalPrefill] = incrementalPrefill
+        self.overrides[.speculativeScheduling] = speculativeScheduling
+    }
+
+    /// KV quantization override.
+    @available(*, deprecated, renamed: "subscript")
+    public var kvQuantization: Bool? {
+        get { self[.kvQuantization] }
+        set { self[.kvQuantization] = newValue }
+    }
+
+    /// Attention sinks override.
+    @available(*, deprecated, renamed: "subscript")
+    public var attentionSinks: Bool? {
+        get { self[.attentionSinks] }
+        set { self[.attentionSinks] = newValue }
+    }
+
+    /// KV swap override.
+    @available(*, deprecated, renamed: "subscript")
+    public var kvSwap: Bool? {
+        get { self[.kvSwap] }
+        set { self[.kvSwap] = newValue }
+    }
+
+    /// Incremental prefill override.
+    @available(*, deprecated, renamed: "subscript")
+    public var incrementalPrefill: Bool? {
+        get { self[.incrementalPrefill] }
+        set { self[.incrementalPrefill] = newValue }
+    }
+
+    /// Speculative scheduling override.
+    @available(*, deprecated, renamed: "subscript")
+    public var speculativeScheduling: Bool? {
+        get { self[.speculativeScheduling] }
+        set { self[.speculativeScheduling] = newValue }
     }
 }
 
@@ -252,12 +408,20 @@ public struct ProviderRuntimeFeatureFlagOverride: Sendable, Hashable, Codable {
 ///
 /// `nil` fields preserve provider-level allowlists.
 public struct ProviderRuntimeModelAllowlistOverride: Sendable, Hashable, Codable {
-    public var kvQuantizationModels: Set<String>?
-    public var attentionSinkModels: Set<String>?
-    public var kvSwapModels: Set<String>?
-    public var incrementalPrefillModels: Set<String>?
-    public var speculativeSchedulingModels: Set<String>?
+    private var overrides: [ProviderRuntimeFeature: Set<String>?]
 
+    /// Access overrides via subscript.
+    public subscript(feature: ProviderRuntimeFeature) -> Set<String>? {
+        get { overrides[feature] ?? nil }
+        set { overrides[feature] = newValue }
+    }
+
+    /// Creates model allowlist overrides from a dictionary.
+    public init(overrides: [ProviderRuntimeFeature: Set<String>?] = [:]) {
+        self.overrides = overrides
+    }
+
+    /// Creates model allowlist overrides with individual feature settings.
     public init(
         kvQuantizationModels: Set<String>? = nil,
         attentionSinkModels: Set<String>? = nil,
@@ -265,11 +429,47 @@ public struct ProviderRuntimeModelAllowlistOverride: Sendable, Hashable, Codable
         incrementalPrefillModels: Set<String>? = nil,
         speculativeSchedulingModels: Set<String>? = nil
     ) {
-        self.kvQuantizationModels = kvQuantizationModels
-        self.attentionSinkModels = attentionSinkModels
-        self.kvSwapModels = kvSwapModels
-        self.incrementalPrefillModels = incrementalPrefillModels
-        self.speculativeSchedulingModels = speculativeSchedulingModels
+        self.overrides = [:]
+        self.overrides[.kvQuantization] = kvQuantizationModels
+        self.overrides[.attentionSinks] = attentionSinkModels
+        self.overrides[.kvSwap] = kvSwapModels
+        self.overrides[.incrementalPrefill] = incrementalPrefillModels
+        self.overrides[.speculativeScheduling] = speculativeSchedulingModels
+    }
+
+    /// KV quantization models override.
+    @available(*, deprecated, renamed: "subscript")
+    public var kvQuantizationModels: Set<String>? {
+        get { self[.kvQuantization] }
+        set { self[.kvQuantization] = newValue }
+    }
+
+    /// Attention sinks models override.
+    @available(*, deprecated, renamed: "subscript")
+    public var attentionSinkModels: Set<String>? {
+        get { self[.attentionSinks] }
+        set { self[.attentionSinks] = newValue }
+    }
+
+    /// KV swap models override.
+    @available(*, deprecated, renamed: "subscript")
+    public var kvSwapModels: Set<String>? {
+        get { self[.kvSwap] }
+        set { self[.kvSwap] = newValue }
+    }
+
+    /// Incremental prefill models override.
+    @available(*, deprecated, renamed: "subscript")
+    public var incrementalPrefillModels: Set<String>? {
+        get { self[.incrementalPrefill] }
+        set { self[.incrementalPrefill] = newValue }
+    }
+
+    /// Speculative scheduling models override.
+    @available(*, deprecated, renamed: "subscript")
+    public var speculativeSchedulingModels: Set<String>? {
+        get { self[.speculativeScheduling] }
+        set { self[.speculativeScheduling] = newValue }
     }
 }
 
@@ -291,25 +491,25 @@ public struct ProviderRuntimePolicyOverride: Sendable, Hashable, Codable {
 
 private extension ProviderRuntimeFeatureFlags {
     func applying(overrides: ProviderRuntimeFeatureFlagOverride) -> ProviderRuntimeFeatureFlags {
-        ProviderRuntimeFeatureFlags(
-            kvQuantization: overrides.kvQuantization ?? kvQuantization,
-            attentionSinks: overrides.attentionSinks ?? attentionSinks,
-            kvSwap: overrides.kvSwap ?? kvSwap,
-            incrementalPrefill: overrides.incrementalPrefill ?? incrementalPrefill,
-            speculativeScheduling: overrides.speculativeScheduling ?? speculativeScheduling
-        )
+        var flags = self
+        for feature in ProviderRuntimeFeature.allCases {
+            if let override = overrides[feature] {
+                flags[feature] = override
+            }
+        }
+        return flags
     }
 }
 
 private extension ProviderRuntimeModelAllowlist {
     func applying(overrides: ProviderRuntimeModelAllowlistOverride) -> ProviderRuntimeModelAllowlist {
-        ProviderRuntimeModelAllowlist(
-            kvQuantizationModels: overrides.kvQuantizationModels ?? kvQuantizationModels,
-            attentionSinkModels: overrides.attentionSinkModels ?? attentionSinkModels,
-            kvSwapModels: overrides.kvSwapModels ?? kvSwapModels,
-            incrementalPrefillModels: overrides.incrementalPrefillModels ?? incrementalPrefillModels,
-            speculativeSchedulingModels: overrides.speculativeSchedulingModels ?? speculativeSchedulingModels
-        )
+        var allowlists = self
+        for feature in ProviderRuntimeFeature.allCases {
+            if let override = overrides[feature] {
+                allowlists[feature] = override
+            }
+        }
+        return allowlists
     }
 }
 

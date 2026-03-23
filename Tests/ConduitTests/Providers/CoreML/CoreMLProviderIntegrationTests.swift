@@ -2,7 +2,7 @@
 import Foundation
 import Hub
 import Testing
-@testable import Conduit
+@testable import ConduitAdvanced
 
 @Generable
 private struct CoreMLIntegrationWeatherArgs {

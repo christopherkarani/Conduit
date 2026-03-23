@@ -6,7 +6,7 @@
 
 import Foundation
 import Testing
-@testable import Conduit
+@testable import ConduitAdvanced
 
 /// Tests for JsonRepair - Utility for repairing incomplete JSON strings
 @Suite("JsonRepair")

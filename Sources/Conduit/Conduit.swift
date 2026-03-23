@@ -23,7 +23,6 @@ import Foundation
 // - EmbeddingGenerator
 // - Transcriber
 // - TokenCounter
-// - ModelManaging
 
 // Core Types
 // TODO: @_exported import when implemented
@@ -64,15 +63,9 @@ import Foundation
 
 // MARK: - Anthropic Provider
 // - AnthropicProvider: Anthropic Claude API support
-// - AnthropicModelID: Model identifiers for Claude models
+// - ModelIdentifier: Model identifiers for Claude models
 // - AnthropicConfiguration: Configuration for Anthropic provider
 // - AnthropicAuthentication: API key authentication
-
-// Model Management
-// TODO: @_exported import when implemented
-// - ModelManager
-// - ModelRegistry
-// - ModelCache
 
 // Builders
 // TODO: @_exported import when implemented

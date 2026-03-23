@@ -46,7 +46,6 @@ export default defineConfig({
           text: 'Services',
           items: [
             { text: 'Chat Session', link: '/guide/chat-session' },
-            { text: 'Model Management', link: '/guide/model-management' },
           ],
         },
         {

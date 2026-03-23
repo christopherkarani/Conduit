@@ -40,7 +40,7 @@ import Foundation
 /// ## Protocol Conformances
 /// - `Sendable`: Thread-safe across concurrency boundaries
 /// - `Hashable`: Can be used in sets and as dictionary keys
-public struct MLXConfiguration: Sendable, Hashable {
+struct MLXConfiguration: Sendable, Hashable {
 
     // MARK: - Memory Management
 
@@ -52,14 +52,14 @@ public struct MLXConfiguration: Sendable, Hashable {
     /// ```swift
     /// let config = MLXConfiguration.default.memoryLimit(.gigabytes(8))
     /// ```
-    public var memoryLimit: ByteCount?
+    var memoryLimit: ByteCount?
 
     /// Whether to use memory mapping for model weights.
     ///
     /// Memory mapping reduces initial load time but may increase memory pressure.
     ///
     /// - Note: Default is `true`.
-    public var useMemoryMapping: Bool
+    var useMemoryMapping: Bool
 
     /// Maximum entries in the KV cache.
     ///
@@ -70,7 +70,7 @@ public struct MLXConfiguration: Sendable, Hashable {
     /// ```swift
     /// let config = MLXConfiguration.default.kvCacheLimit(4096)
     /// ```
-    public var kvCacheLimit: Int?
+    var kvCacheLimit: Int?
 
     // MARK: - Compute Preferences
 
@@ -80,14 +80,14 @@ public struct MLXConfiguration: Sendable, Hashable {
     ///
     /// - Note: Must be at least 1. Invalid values are clamped.
     /// - Default: 512
-    public var prefillStepSize: Int
+    var prefillStepSize: Int
 
     /// Whether to use quantized (compressed) KV cache.
     ///
     /// Reduces memory usage at slight quality cost.
     ///
     /// - Note: Default is `false`.
-    public var useQuantizedKVCache: Bool
+    var useQuantizedKVCache: Bool
 
     /// Bit depth for KV cache quantization (4 or 8).
     ///
@@ -95,7 +95,7 @@ public struct MLXConfiguration: Sendable, Hashable {
     ///
     /// - Note: Values outside 4-8 range are automatically clamped.
     /// - Default: 4
-    public var kvQuantizationBits: Int
+    var kvQuantizationBits: Int
 
     // MARK: - Model Cache Configuration
 
@@ -106,11 +106,7 @@ public struct MLXConfiguration: Sendable, Hashable {
     ///
     /// - Note: Default is 3.
     ///
-    /// ## Usage
-    /// ```swift
-    /// let config = MLXConfiguration.default.maxCachedModels(5)
-    /// ```
-    public var maxCachedModels: Int
+    var maxCachedModels: Int
 
     /// Maximum total memory for cached models.
     ///
@@ -119,11 +115,7 @@ public struct MLXConfiguration: Sendable, Hashable {
     ///
     /// - Note: Default is `nil` (no limit).
     ///
-    /// ## Usage
-    /// ```swift
-    /// let config = MLXConfiguration.default.maxCacheSize(.gigabytes(8))
-    /// ```
-    public var maxCacheSize: ByteCount?
+    var maxCacheSize: ByteCount?
 
     // MARK: - Runtime Policy
 
@@ -132,7 +124,7 @@ public struct MLXConfiguration: Sendable, Hashable {
     /// This controls feature flags and model allowlists for runtime features
     /// such as KV quantization, attention sinks, KVSwap, incremental prefill,
     /// and speculative scheduling.
-    public var runtimePolicy: ProviderRuntimePolicy
+    var runtimePolicy: ProviderRuntimePolicy
 
     // MARK: - Initialization
 
@@ -145,18 +137,14 @@ public struct MLXConfiguration: Sendable, Hashable {
     ///   - prefillStepSize: Tokens per prefill step (default: 512).
     ///   - useQuantizedKVCache: Use compressed KV cache (default: false).
     ///   - kvQuantizationBits: Bit depth for quantization, 4 or 8 (default: 4).
-    ///   - maxCachedModels: Maximum number of models to keep in cache (default: 3).
-    ///   - maxCacheSize: Maximum total memory for cached models (default: nil).
     ///   - runtimePolicy: Runtime feature policy/allowlist gate (default: `.default`).
-    public init(
+    init(
         memoryLimit: ByteCount? = nil,
         useMemoryMapping: Bool = true,
         kvCacheLimit: Int? = nil,
         prefillStepSize: Int = 512,
         useQuantizedKVCache: Bool = false,
         kvQuantizationBits: Int = 4,
-        maxCachedModels: Int = 3,
-        maxCacheSize: ByteCount? = nil,
         runtimePolicy: ProviderRuntimePolicy = .default
     ) {
         self.memoryLimit = memoryLimit
@@ -165,8 +153,8 @@ public struct MLXConfiguration: Sendable, Hashable {
         self.prefillStepSize = max(1, prefillStepSize)
         self.useQuantizedKVCache = useQuantizedKVCache
         self.kvQuantizationBits = max(4, min(8, kvQuantizationBits)) // Clamp to valid range
-        self.maxCachedModels = maxCachedModels
-        self.maxCacheSize = maxCacheSize
+        self.maxCachedModels = 3
+        self.maxCacheSize = nil
         self.runtimePolicy = runtimePolicy
     }
 
@@ -181,7 +169,7 @@ public struct MLXConfiguration: Sendable, Hashable {
     /// - useMemoryMapping: true
     /// - prefillStepSize: 512
     /// - useQuantizedKVCache: false
-    public static let `default` = MLXConfiguration()
+    static let `default` = MLXConfiguration()
 
     /// Memory-efficient configuration using quantized KV cache.
     ///
@@ -195,7 +183,7 @@ public struct MLXConfiguration: Sendable, Hashable {
     /// ```swift
     /// let provider = MLXProvider(configuration: .memoryEfficient)
     /// ```
-    public static let memoryEfficient = MLXConfiguration(
+    static let memoryEfficient = MLXConfiguration(
         useQuantizedKVCache: true,
         kvQuantizationBits: 4
     )
@@ -212,7 +200,7 @@ public struct MLXConfiguration: Sendable, Hashable {
     /// ```swift
     /// let provider = MLXProvider(configuration: .highPerformance)
     /// ```
-    public static let highPerformance = MLXConfiguration(
+    static let highPerformance = MLXConfiguration(
         prefillStepSize: 1024,
         useQuantizedKVCache: false
     )
@@ -232,7 +220,7 @@ public struct MLXConfiguration: Sendable, Hashable {
     /// ```swift
     /// let provider = MLXProvider(configuration: .m1Optimized)
     /// ```
-    public static let m1Optimized = MLXConfiguration(
+    static let m1Optimized = MLXConfiguration(
         memoryLimit: .gigabytes(6),
         prefillStepSize: 256,
         useQuantizedKVCache: true,
@@ -253,7 +241,7 @@ public struct MLXConfiguration: Sendable, Hashable {
     /// ```swift
     /// let provider = MLXProvider(configuration: .mProOptimized)
     /// ```
-    public static let mProOptimized = MLXConfiguration(
+    static let mProOptimized = MLXConfiguration(
         memoryLimit: .gigabytes(12),
         prefillStepSize: 512,
         useQuantizedKVCache: false
@@ -275,13 +263,16 @@ public struct MLXConfiguration: Sendable, Hashable {
     /// ```swift
     /// let provider = MLXProvider(configuration: .lowMemory)
     /// ```
-    public static let lowMemory = MLXConfiguration(
-        memoryLimit: .gigabytes(4),
-        useQuantizedKVCache: true,
-        kvQuantizationBits: 4,
-        maxCachedModels: 1,
-        maxCacheSize: .gigabytes(4)
-    )
+    static let lowMemory: MLXConfiguration = {
+        var config = MLXConfiguration(
+            memoryLimit: .gigabytes(4),
+            useQuantizedKVCache: true,
+            kvQuantizationBits: 4
+        )
+        config.maxCachedModels = 1
+        config.maxCacheSize = .gigabytes(4)
+        return config
+    }()
 
     /// Configuration for multi-model workflows.
     ///
@@ -296,10 +287,11 @@ public struct MLXConfiguration: Sendable, Hashable {
     /// ```swift
     /// let provider = MLXProvider(configuration: .multiModel)
     /// ```
-    public static let multiModel = MLXConfiguration(
-        maxCachedModels: 5,
-        maxCacheSize: nil
-    )
+    static let multiModel: MLXConfiguration = {
+        var config = MLXConfiguration()
+        config.maxCachedModels = 5
+        return config
+    }()
 }
 
 // MARK: - Fluent API
@@ -315,7 +307,7 @@ extension MLXConfiguration {
     ///
     /// - Parameter limit: Maximum memory the model can use, or `nil` for system default.
     /// - Returns: A new configuration with the updated memory limit.
-    public func memoryLimit(_ limit: ByteCount?) -> MLXConfiguration {
+    func memoryLimit(_ limit: ByteCount?) -> MLXConfiguration {
         var copy = self
         copy.memoryLimit = limit
         return copy
@@ -330,7 +322,7 @@ extension MLXConfiguration {
     ///
     /// - Parameter enabled: Whether to use memory mapping for model weights.
     /// - Returns: A new configuration with the updated setting.
-    public func useMemoryMapping(_ enabled: Bool) -> MLXConfiguration {
+    func useMemoryMapping(_ enabled: Bool) -> MLXConfiguration {
         var copy = self
         copy.useMemoryMapping = enabled
         return copy
@@ -345,7 +337,7 @@ extension MLXConfiguration {
     ///
     /// - Parameter limit: Maximum entries in KV cache, or `nil` for no limit.
     /// - Returns: A new configuration with the updated KV cache limit.
-    public func kvCacheLimit(_ limit: Int?) -> MLXConfiguration {
+    func kvCacheLimit(_ limit: Int?) -> MLXConfiguration {
         var copy = self
         copy.kvCacheLimit = limit
         return copy
@@ -362,7 +354,7 @@ extension MLXConfiguration {
     ///
     /// - Parameter size: Number of tokens to process in each prefill step.
     /// - Returns: A new configuration with the clamped prefill step size.
-    public func prefillStepSize(_ size: Int) -> MLXConfiguration {
+    func prefillStepSize(_ size: Int) -> MLXConfiguration {
         var copy = self
         copy.prefillStepSize = max(1, size)
         return copy
@@ -379,7 +371,7 @@ extension MLXConfiguration {
     ///
     /// - Parameter bits: Bit depth for quantization (4 or 8, default: 4).
     /// - Returns: A new configuration with quantized KV cache enabled.
-    public func withQuantizedKVCache(bits: Int = 4) -> MLXConfiguration {
+    func withQuantizedKVCache(bits: Int = 4) -> MLXConfiguration {
         var copy = self
         copy.useQuantizedKVCache = true
         copy.kvQuantizationBits = max(4, min(8, bits))
@@ -394,39 +386,9 @@ extension MLXConfiguration {
     /// ```
     ///
     /// - Returns: A new configuration with quantized KV cache disabled.
-    public func withoutQuantizedKVCache() -> MLXConfiguration {
+    func withoutQuantizedKVCache() -> MLXConfiguration {
         var copy = self
         copy.useQuantizedKVCache = false
-        return copy
-    }
-
-    /// Returns a copy with the specified maximum number of cached models.
-    ///
-    /// ## Usage
-    /// ```swift
-    /// let config = MLXConfiguration.default.maxCachedModels(5)
-    /// ```
-    ///
-    /// - Parameter count: Maximum number of models to keep in cache.
-    /// - Returns: A new configuration with the updated cache limit.
-    public func maxCachedModels(_ count: Int) -> MLXConfiguration {
-        var copy = self
-        copy.maxCachedModels = count
-        return copy
-    }
-
-    /// Returns a copy with the specified maximum cache size.
-    ///
-    /// ## Usage
-    /// ```swift
-    /// let config = MLXConfiguration.default.maxCacheSize(.gigabytes(8))
-    /// ```
-    ///
-    /// - Parameter size: Maximum total memory for cached models, or `nil` for no limit.
-    /// - Returns: A new configuration with the updated cache size limit.
-    public func maxCacheSize(_ size: ByteCount?) -> MLXConfiguration {
-        var copy = self
-        copy.maxCacheSize = size
         return copy
     }
 
@@ -434,7 +396,7 @@ extension MLXConfiguration {
     ///
     /// - Parameter policy: Runtime feature policy + model allowlists.
     /// - Returns: A new configuration with updated policy controls.
-    public func runtimePolicy(_ policy: ProviderRuntimePolicy) -> MLXConfiguration {
+    func runtimePolicy(_ policy: ProviderRuntimePolicy) -> MLXConfiguration {
         var copy = self
         copy.runtimePolicy = policy
         return copy
@@ -453,7 +415,7 @@ extension MLXConfiguration {
     /// ```
     ///
     /// - Returns: A cache configuration with matching settings.
-    public func cacheConfiguration() -> MLXModelCache.Configuration {
+    internal func cacheConfiguration() -> MLXModelCache.Configuration {
         MLXModelCache.Configuration(
             maxCachedModels: maxCachedModels,
             maxCacheSize: maxCacheSize

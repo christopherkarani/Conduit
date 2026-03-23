@@ -27,3 +27,6 @@ docs/reference/
 
 # Git worktrees
 .worktrees/
+docs/
+tasks/
+scripts/

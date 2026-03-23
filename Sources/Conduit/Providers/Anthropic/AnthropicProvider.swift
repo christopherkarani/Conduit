@@ -117,7 +117,7 @@ public actor AnthropicProvider: AIProvider, TextGenerator {
     public typealias StreamChunk = GenerationChunk
 
     /// The model identifier type for this provider.
-    public typealias ModelID = AnthropicModelID
+    public typealias ModelID = ModelIdentifier
 
     // MARK: - Properties
 
@@ -125,7 +125,7 @@ public actor AnthropicProvider: AIProvider, TextGenerator {
     ///
     /// Contains authentication, endpoint configuration, timeout settings,
     /// retry policy, and feature flags.
-    public let configuration: AnthropicConfiguration
+    let configuration: AnthropicConfiguration
 
     /// The URLSession used for HTTP requests.
     ///
@@ -197,7 +197,7 @@ public actor AnthropicProvider: AIProvider, TextGenerator {
     /// - **supportsExtendedThinking**: Enable extended thinking mode
     ///
     /// - Parameter configuration: The provider configuration.
-    public init(configuration: AnthropicConfiguration) {
+    init(configuration: AnthropicConfiguration) {
         self.configuration = configuration
 
         // Configure URLSession with timeout settings
@@ -364,7 +364,7 @@ public actor AnthropicProvider: AIProvider, TextGenerator {
     ///   network issues, or API errors.
     public func generate(
         _ prompt: String,
-        model: AnthropicModelID,
+        model: ModelIdentifier,
         config: GenerateConfig
     ) async throws -> String {
         let result = try await generate(
@@ -427,7 +427,7 @@ public actor AnthropicProvider: AIProvider, TextGenerator {
     ///   or other `AIError` variants for API/network failures.
     public func generate(
         messages: [Message],
-        model: AnthropicModelID,
+        model: ModelIdentifier,
         config: GenerateConfig
     ) async throws -> GenerationResult {
         // Validate input
@@ -439,7 +439,7 @@ public actor AnthropicProvider: AIProvider, TextGenerator {
         let startTime = Date()
 
         // Build API request
-        let request = buildRequestBody(
+        let request = try buildRequestBody(
             messages: messages,
             model: model,
             config: config,

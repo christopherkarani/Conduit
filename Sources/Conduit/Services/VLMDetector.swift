@@ -3,7 +3,7 @@
 //  Conduit
 //
 //  Vision Language Model detection service using layered detection strategy.
-//  Based on Osaurus ModelManager.swift (lines 1090-1201) and HuggingFaceService.swift (lines 227-248).
+//  Based on Osaurus capability detection and HuggingFace metadata heuristics.
 //
 
 import Foundation
@@ -141,10 +141,12 @@ public actor VLMDetector {
     /// Detects the capabilities of a model using layered detection.
     ///
     /// Uses a multi-stage approach:
-    /// 1. Extracts repository ID from ModelIdentifier
-    /// 2. Tries metadata detection (HuggingFace API)
-    /// 3. Falls back to config.json inspection (if model is downloaded)
-    /// 4. Falls back to name heuristics
+    /// 1. For HF Hub models: Metadata detection (HuggingFace API)
+    /// 2. Config.json inspection (if model is available locally)
+    /// 3. Name heuristics as fallback
+    ///
+    /// For local models (`.mlxLocal`), skips HF metadata and goes directly
+    /// to config inspection.
     ///
     /// - Parameter model: The model identifier to analyze.
     /// - Returns: Detected capabilities including vision support.
@@ -156,20 +158,39 @@ public actor VLMDetector {
     /// print("Architecture: \(caps.architectureType?.rawValue ?? "unknown")")
     /// ```
     public func detectCapabilities(_ model: ModelIdentifier) async -> ModelCapabilities {
-        let repoId = model.rawValue
+        switch model {
+        case .mlx(let repoId):
+            // HuggingFace Hub model - try metadata first, then config, then name
+            if let caps = await detectFromMetadata(repoId: repoId) {
+                return caps
+            }
 
-        // Layer 1: Try metadata detection (highest confidence)
-        if let caps = await detectFromMetadata(repoId: repoId) {
-            return caps
+            if let caps = await detectFromConfig(repoId: repoId) {
+                return caps
+            }
+
+            return detectFromName(repoId: repoId)
+
+        case .huggingFace(let repoId):
+            if let caps = await detectFromMetadata(repoId: repoId) {
+                return caps
+            }
+
+            return detectFromName(repoId: repoId)
+
+        case .mlxLocal(let path):
+            // Local model - skip HF metadata, go directly to config inspection
+            if let caps = await detectFromLocalPath(path: path) {
+                return caps
+            }
+
+            // Fall back to name heuristics
+            return detectFromName(repoId: path)
+
+        default:
+            // For other model types, return text-only capabilities
+            return ModelCapabilities.textOnly
         }
-
-        // Layer 2: Try config.json inspection (high confidence, if model is downloaded)
-        if let caps = await detectFromConfig(repoId: repoId) {
-            return caps
-        }
-
-        // Layer 3: Fall back to name heuristics (medium confidence)
-        return detectFromName(repoId: repoId)
     }
 
     /// Quick check if a model is a Vision Language Model.
@@ -230,6 +251,30 @@ public actor VLMDetector {
         )
     }
 
+    /// Detects capabilities from a local model path.
+    ///
+    /// Reads the config.json directly from the specified local directory
+    /// and analyzes it for VLM-specific fields.
+    ///
+    /// - Parameter path: The local filesystem path to the model directory.
+    /// - Returns: Detected capabilities, or `nil` if config is unavailable.
+    private func detectFromLocalPath(path: String) async -> ModelCapabilities? {
+        let modelPath = URL(fileURLWithPath: path)
+
+        guard FileManager.default.fileExists(atPath: modelPath.path) else {
+            return nil
+        }
+
+        let configURL = modelPath.appendingPathComponent("config.json")
+
+        guard let data = try? Data(contentsOf: configURL),
+              let config = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+
+        return analyzeConfig(config: config, repoId: path)
+    }
+
     /// Detects capabilities by inspecting config.json from a downloaded model.
     ///
     /// This method only works if the model has been downloaded locally.
@@ -240,7 +285,7 @@ public actor VLMDetector {
     private func detectFromConfig(repoId: String) async -> ModelCapabilities? {
         // Construct path to model directory
         // This assumes models are stored in ~/Library/Application Support/Conduit/models/
-        // or a similar location. Adjust based on actual ModelManager storage path.
+        // or a similar local runtime cache path.
         guard let modelPath = modelStoragePath(for: repoId) else {
             return nil
         }
@@ -256,6 +301,16 @@ public actor VLMDetector {
             return nil
         }
 
+        return analyzeConfig(config: config, repoId: repoId)
+    }
+
+    /// Analyzes config dictionary for VLM capabilities.
+    ///
+    /// - Parameters:
+    ///   - config: The parsed config.json dictionary.
+    ///   - repoId: The model identifier (repo ID or path) for architecture detection.
+    /// - Returns: Detected capabilities.
+    private func analyzeConfig(config: [String: Any], repoId: String) -> ModelCapabilities {
         // Check for VLM-specific config fields
         var hasVLMField = false
         for field in Self.vlmConfigFields {
@@ -369,7 +424,7 @@ public actor VLMDetector {
 
     /// Constructs the local storage path for a model.
     ///
-    /// This should match the actual storage location used by ModelManager.
+    /// This should match the actual storage location used by your MLX runtime.
     /// Currently assumes models are stored in Application Support directory.
     ///
     /// - Parameter repoId: The HuggingFace repository ID.

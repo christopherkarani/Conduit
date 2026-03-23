@@ -1,5 +1,5 @@
 import XCTest
-@testable import Conduit
+@testable import ConduitAdvanced
 
 final class ServerSentEventParserParityTests: XCTestCase {
 
