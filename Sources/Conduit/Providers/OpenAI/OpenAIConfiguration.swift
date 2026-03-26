@@ -72,7 +72,7 @@ public enum OpenAIAPIVariant: String, Sendable, Hashable, Codable {
 /// - `Sendable`: Thread-safe across concurrency boundaries
 /// - `Hashable`: Can be used in sets and as dictionary keys
 /// - `Codable`: Full JSON encoding/decoding support
-struct OpenAIConfiguration: Sendable, Hashable {
+public struct OpenAIConfiguration: Sendable, Hashable {
 
     // MARK: - Core Settings
 
@@ -80,19 +80,19 @@ struct OpenAIConfiguration: Sendable, Hashable {
     ///
     /// Determines the base URL and default behavior for requests.
     /// Default: `.openAI`
-    var endpoint: OpenAIEndpoint
+    public var endpoint: OpenAIEndpoint
 
     /// Authentication configuration.
     ///
     /// Determines how API requests are authenticated.
     /// Default: `.auto` (checks environment variables)
-    var authentication: OpenAIAuthentication
+    public var authentication: OpenAIAuthentication
 
     /// Text generation API variant.
     ///
     /// Controls whether generation requests target `/chat/completions` or `/responses`.
     /// Default: `.chatCompletions` for backward compatibility.
-    var apiVariant: OpenAIAPIVariant
+    public var apiVariant: OpenAIAPIVariant
 
     // MARK: - Version
 
@@ -106,20 +106,20 @@ struct OpenAIConfiguration: Sendable, Hashable {
     ///
     /// How long to wait for a response before timing out.
     /// Default: 60.0
-    var timeout: TimeInterval
+    public var timeout: TimeInterval
 
     /// Maximum number of retry attempts.
     ///
     /// How many times to retry failed requests.
     /// Set to 0 to disable retries.
     /// Default: 3
-    var maxRetries: Int
+    public var maxRetries: Int
 
     /// Retry configuration.
     ///
     /// Controls retry behavior including delays and which errors are retryable.
     /// Default: `.default`
-    var retryConfig: RetryConfiguration
+    public var retryConfig: RetryConfiguration
 
     // MARK: - Request Customization
 
@@ -127,37 +127,37 @@ struct OpenAIConfiguration: Sendable, Hashable {
     ///
     /// These headers are added to every request. Authentication headers
     /// are added separately and will override matching keys.
-    var defaultHeaders: [String: String]
+    public var defaultHeaders: [String: String]
 
     /// Custom User-Agent string.
     ///
     /// If set, overrides the default User-Agent header.
-    var userAgent: String?
+    public var userAgent: String?
 
     /// Organization ID for OpenAI requests.
     ///
     /// If set, includes `OpenAI-Organization` header in requests.
     /// Only applicable to OpenAI endpoint.
-    var organizationID: String?
+    public var organizationID: String?
 
     // MARK: - Backend-Specific Configuration
 
     /// OpenRouter-specific routing configuration.
     ///
     /// Only used when `endpoint` is `.openRouter`.
-    var openRouterConfig: OpenRouterRoutingConfig?
+    public var openRouterConfig: OpenRouterRoutingConfig?
 
     /// Azure-specific configuration.
     ///
     /// Only used when `endpoint` is `.azure`.
     /// Note: Azure endpoint already contains resource/deployment info,
     /// this provides additional options.
-    var azureConfig: AzureConfiguration?
+    public var azureConfig: AzureConfiguration?
 
     /// Ollama-specific configuration.
     ///
     /// Only used when `endpoint` is `.ollama`.
-    var ollamaConfig: OllamaConfiguration?
+    public var ollamaConfig: OllamaConfiguration?
 
     // MARK: - Initialization
 
@@ -176,7 +176,7 @@ struct OpenAIConfiguration: Sendable, Hashable {
     ///   - openRouterConfig: OpenRouter-specific settings. Default: `nil`
     ///   - azureConfig: Azure-specific settings. Default: `nil`
     ///   - ollamaConfig: Ollama-specific settings. Default: `nil`
-    init(
+    public init(
         endpoint: OpenAIEndpoint = .openAI,
         authentication: OpenAIAuthentication = .auto,
         apiVariant: OpenAIAPIVariant = .chatCompletions,
@@ -619,7 +619,7 @@ extension OpenAIConfiguration: Codable {
         // Note: authentication and azureConfig are not encoded for security
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         self.endpoint = try container.decode(OpenAIEndpoint.self, forKey: .endpoint)
@@ -636,7 +636,7 @@ extension OpenAIConfiguration: Codable {
         self.ollamaConfig = try container.decodeIfPresent(OllamaConfiguration.self, forKey: .ollamaConfig)
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
 
         try container.encode(endpoint, forKey: .endpoint)

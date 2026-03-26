@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400">
+  <defs>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:0.3"/>
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:0.3"/>
+    </linearGradient>
+    <linearGradient id="cloudGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:0.2"/>
+      <stop offset="100%" style="stop-color:#06b6d4;stop-opacity:0.2"/>
+    </linearGradient>
+    <linearGradient id="localGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#f97316;stop-opacity:0.2"/>
+      <stop offset="100%" style="stop-color:#ec4899;stop-opacity:0.2"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="400" fill="#0a0a0a"/>
+
+  <!-- Title -->
+  <text x="400" y="35" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="600" fill="#ffffff" text-anchor="middle">Conduit Architecture</text>
+
+  <!-- Your App Box -->
+  <rect x="300" y="55" width="200" height="50" rx="8" fill="#1a1a2e" stroke="#6366f1" stroke-width="1.5"/>
+  <text x="400" y="85" font-family="system-ui, -apple-system, sans-serif" font-size="14" fill="#e2e8f0" text-anchor="middle">Your App</text>
+
+  <!-- Arrow down -->
+  <path d="M400 105 L400 135" stroke="#6366f1" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#6366f1"/>
+    </marker>
+  </defs>
+
+  <!-- Protocol Box -->
+  <rect x="250" y="140" width="300" height="60" rx="8" fill="url(#headerGrad)" stroke="#6366f1" stroke-width="1.5"/>
+  <text x="400" y="165" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#ffffff" text-anchor="middle">TextGenerator Protocol</text>
+  <text x="400" y="185" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="#94a3b8" text-anchor="middle">generate() • stream() • embed()</text>
+
+  <!-- Arrows to providers -->
+  <path d="M310 200 L180 240" stroke="#6366f1" stroke-width="1.5" fill="none"/>
+  <path d="M400 200 L400 240" stroke="#6366f1" stroke-width="1.5" fill="none"/>
+  <path d="M490 200 L620 240" stroke="#6366f1" stroke-width="1.5" fill="none"/>
+
+  <!-- Cloud Providers Section -->
+  <rect x="60" y="245" width="140" height="130" rx="8" fill="url(#cloudGrad)" stroke="#3b82f6" stroke-width="1"/>
+  <text x="130" y="268" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" fill="#60a5fa" text-anchor="middle">CLOUD</text>
+
+  <rect x="75" y="278" width="110" height="22" rx="4" fill="#1e293b"/>
+  <text x="130" y="293" font-family="SF Mono, monospace" font-size="9" fill="#94a3b8" text-anchor="middle">OpenAI</text>
+
+  <rect x="75" y="305" width="110" height="22" rx="4" fill="#1e293b"/>
+  <text x="130" y="320" font-family="SF Mono, monospace" font-size="9" fill="#94a3b8" text-anchor="middle">Anthropic</text>
+
+  <rect x="75" y="332" width="110" height="22" rx="4" fill="#1e293b"/>
+  <text x="130" y="347" font-family="SF Mono, monospace" font-size="9" fill="#94a3b8" text-anchor="middle">HuggingFace</text>
+
+  <!-- Local Providers Section -->
+  <rect x="600" y="245" width="140" height="130" rx="8" fill="url(#localGrad)" stroke="#f97316" stroke-width="1"/>
+  <text x="670" y="268" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" fill="#fb923c" text-anchor="middle">LOCAL</text>
+
+  <rect x="615" y="278" width="110" height="22" rx="4" fill="#1e293b"/>
+  <text x="670" y="293" font-family="SF Mono, monospace" font-size="9" fill="#94a3b8" text-anchor="middle">MLX (Apple Silicon)</text>
+
+  <rect x="615" y="305" width="110" height="22" rx="4" fill="#1e293b"/>
+  <text x="670" y="320" font-family="SF Mono, monospace" font-size="9" fill="#94a3b8" text-anchor="middle">CoreML</text>
+
+  <rect x="615" y="332" width="110" height="22" rx="4" fill="#1e293b"/>
+  <text x="670" y="347" font-family="SF Mono, monospace" font-size="9" fill="#94a3b8" text-anchor="middle">FoundationModels</text>
+
+  <!-- Tooltip -->
+  <text x="400" y="395" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#64748b" text-anchor="middle">One interface. Every backend.</text>
+</svg>

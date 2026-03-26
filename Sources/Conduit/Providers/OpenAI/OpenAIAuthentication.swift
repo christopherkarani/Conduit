@@ -51,7 +51,7 @@ import FoundationNetworking
 ///
 /// Authentication values are automatically redacted in debug output
 /// to prevent accidental exposure in logs.
-enum OpenAIAuthentication: Sendable {
+public enum OpenAIAuthentication: Sendable {
 
     // MARK: - Cases
 
@@ -104,7 +104,7 @@ enum OpenAIAuthentication: Sendable {
     /// Resolves the authentication to an API key string.
     ///
     /// - Returns: The API key, or `nil` if no authentication is configured.
-    func resolve() -> String? {
+    public func resolve() -> String? {
         switch self {
         case .none:
             return nil
@@ -138,7 +138,7 @@ enum OpenAIAuthentication: Sendable {
     ///
     /// For `.environment` and `.auto`, this checks if the environment
     /// variable is set and non-empty.
-    var isConfigured: Bool {
+    public var isConfigured: Bool {
         switch self {
         case .none:
             return true  // None is intentionally "configured"
@@ -154,7 +154,7 @@ enum OpenAIAuthentication: Sendable {
     /// The header name for this authentication type.
     ///
     /// - Returns: The header name, or `nil` for `.none`.
-    var headerName: String? {
+    public var headerName: String? {
         switch self {
         case .none:
             return nil
@@ -171,7 +171,7 @@ enum OpenAIAuthentication: Sendable {
     /// The header value for this authentication type.
     ///
     /// - Returns: The full header value (e.g., "Bearer sk-..."), or `nil` if not configured.
-    var headerValue: String? {
+    public var headerValue: String? {
         switch self {
         case .none:
             return nil
@@ -200,7 +200,7 @@ enum OpenAIAuthentication: Sendable {
     ///
     /// - Parameter request: The request to modify.
     /// - Returns: The request with authentication headers added.
-    func apply(to request: inout URLRequest) {
+    public func apply(to request: inout URLRequest) {
         guard let name = headerName, let value = headerValue else {
             return
         }
@@ -220,7 +220,7 @@ extension OpenAIAuthentication: Hashable {
     /// This means two `.bearer("key1")` and `.bearer("key2")` will hash identically,
     /// which is acceptable since Hashable is primarily used for dictionary keys
     /// and the equality check (==) will still distinguish them correctly.
-    func hash(into hasher: inout Hasher) {
+    public func hash(into hasher: inout Hasher) {
         switch self {
         case .none:
             hasher.combine(0)
@@ -283,7 +283,7 @@ extension OpenAIAuthentication: Equatable {
     /// to prevent timing attacks that could leak credential information.
     /// Non-sensitive fields like header names and environment variable names
     /// use standard comparison.
-    static func == (lhs: OpenAIAuthentication, rhs: OpenAIAuthentication) -> Bool {
+    public static func == (lhs: OpenAIAuthentication, rhs: OpenAIAuthentication) -> Bool {
         switch (lhs, rhs) {
         case (.none, .none):
             return true
@@ -310,7 +310,7 @@ extension OpenAIAuthentication: CustomDebugStringConvertible {
     ///
     /// API keys and tokens are replaced with `***` to prevent
     /// accidental exposure in logs.
-    var debugDescription: String {
+    public var debugDescription: String {
         switch self {
         case .none:
             return "OpenAIAuthentication.none"
@@ -329,7 +329,7 @@ extension OpenAIAuthentication: CustomDebugStringConvertible {
 // MARK: - CustomStringConvertible
 
 extension OpenAIAuthentication: CustomStringConvertible {
-    var description: String {
+    public var description: String {
         debugDescription
     }
 }
@@ -344,7 +344,7 @@ extension OpenAIAuthentication {
     ///
     /// - Parameter apiKey: The API key.
     /// - Returns: A bearer authentication.
-    static func from(apiKey: String) -> OpenAIAuthentication {
+    public static func from(apiKey: String) -> OpenAIAuthentication {
         .bearer(apiKey)
     }
 
@@ -354,7 +354,7 @@ extension OpenAIAuthentication {
     ///   - endpoint: The OpenAI endpoint.
     ///   - apiKey: The API key (optional for Ollama).
     /// - Returns: The appropriate authentication for the endpoint.
-    static func `for`(
+    public static func `for`(
         endpoint: OpenAIEndpoint,
         apiKey: String? = nil
     ) -> OpenAIAuthentication {

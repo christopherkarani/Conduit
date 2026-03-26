@@ -3,12 +3,255 @@
 
 import Foundation
 
+// MARK: - GenerateConfigProtocol
+
+/// Protocol defining the interface for generation configuration.
+///
+/// This protocol abstracts the common properties needed for text generation
+/// across both local and cloud providers, enabling protocol-based configuration
+/// composition.
+public protocol GenerateConfigProtocol: Sendable, Codable {
+    /// Maximum number of tokens to generate.
+    var maxTokens: Int? { get set }
+
+    /// Minimum number of tokens to generate before stopping.
+    var minTokens: Int? { get set }
+
+    /// Controls randomness in token selection (0.0-2.0).
+    var temperature: Float { get set }
+
+    /// Nucleus sampling threshold (0.0-1.0).
+    var topP: Float { get set }
+
+    /// Only consider the top K most likely tokens at each step.
+    var topK: Int? { get set }
+
+    /// Penalty for repeating tokens (0.0-2.0).
+    var repetitionPenalty: Float { get set }
+
+    /// Penalty based on token frequency (-2.0 to 2.0).
+    var frequencyPenalty: Float { get set }
+
+    /// Penalty based on token presence (-2.0 to 2.0).
+    var presencePenalty: Float { get set }
+
+    /// Stop sequences that will terminate generation.
+    var stopSequences: [String] { get set }
+
+    /// Random seed for reproducible generation.
+    var seed: UInt64? { get set }
+
+    /// Whether to return log probabilities for generated tokens.
+    var returnLogprobs: Bool { get set }
+
+    /// Number of top log probabilities to return per token.
+    var topLogprobs: Int? { get set }
+
+    /// User ID for tracking usage per user in provider analytics.
+    var userId: String? { get set }
+
+    /// Service tier selection for capacity management.
+    var serviceTier: ServiceTier? { get set }
+
+    /// Tools available for the model to use during generation.
+    var tools: [Transcript.ToolDefinition] { get set }
+
+    /// Controls how the model chooses which tool to use.
+    var toolChoice: ToolChoice { get set }
+
+    /// Whether to allow parallel tool calls.
+    var parallelToolCalls: ParallelToolMode { get set }
+
+    /// Maximum number of tool calls allowed in a single model response.
+    var maxToolCalls: Int? { get set }
+
+    /// Response format for structured output.
+    var responseFormat: ResponseFormat? { get set }
+
+    /// Configuration for extended thinking/reasoning mode.
+    var reasoning: ReasoningConfig? { get set }
+
+    /// Provider/runtime feature overrides for local execution.
+    var runtimeFeatures: ProviderRuntimeFeatureConfiguration? { get set }
+
+    /// Runtime policy overrides merged with provider-level policy.
+    var runtimePolicyOverride: ProviderRuntimePolicyOverride? { get set }
+}
+
+// MARK: - Default Implementations
+
+extension GenerateConfigProtocol {
+    /// Returns a copy with the specified maximum token count.
+    public func maxTokens(_ value: Int?) -> Self {
+        var copy = self
+        copy.maxTokens = value
+        return copy
+    }
+
+    /// Returns a copy with the specified minimum token count.
+    public func minTokens(_ value: Int?) -> Self {
+        var copy = self
+        copy.minTokens = value
+        return copy
+    }
+
+    /// Returns a copy with the specified temperature.
+    public func temperature(_ value: Float) -> Self {
+        var copy = self
+        copy.temperature = max(0, min(2, value))
+        return copy
+    }
+
+    /// Returns a copy with the specified top-P value.
+    public func topP(_ value: Float) -> Self {
+        var copy = self
+        copy.topP = max(0, min(1, value))
+        return copy
+    }
+
+    /// Returns a copy with the specified top-K value.
+    public func topK(_ value: Int?) -> Self {
+        var copy = self
+        copy.topK = value
+        return copy
+    }
+
+    /// Returns a copy with the specified repetition penalty.
+    public func repetitionPenalty(_ value: Float) -> Self {
+        var copy = self
+        copy.repetitionPenalty = value
+        return copy
+    }
+
+    /// Returns a copy with the specified frequency penalty.
+    public func frequencyPenalty(_ value: Float) -> Self {
+        var copy = self
+        copy.frequencyPenalty = value
+        return copy
+    }
+
+    /// Returns a copy with the specified presence penalty.
+    public func presencePenalty(_ value: Float) -> Self {
+        var copy = self
+        copy.presencePenalty = value
+        return copy
+    }
+
+    /// Returns a copy with the specified stop sequences.
+    public func stopSequences(_ sequences: [String]) -> Self {
+        var copy = self
+        copy.stopSequences = sequences
+        return copy
+    }
+
+    /// Returns a copy with the specified random seed.
+    public func seed(_ value: UInt64?) -> Self {
+        var copy = self
+        copy.seed = value
+        return copy
+    }
+
+    /// Returns a copy configured to return log probabilities.
+    public func withLogprobs(top: Int = 5) -> Self {
+        var copy = self
+        copy.returnLogprobs = true
+        copy.topLogprobs = top
+        return copy
+    }
+
+    /// Returns a copy with the specified user ID for tracking.
+    public func userId(_ id: String) -> Self {
+        var copy = self
+        copy.userId = id
+        return copy
+    }
+
+    /// Returns a copy with the specified service tier.
+    public func serviceTier(_ tier: ServiceTier) -> Self {
+        var copy = self
+        copy.serviceTier = tier
+        return copy
+    }
+
+    /// Returns a copy with the specified tools.
+    public func tools(_ definitions: [Transcript.ToolDefinition]) -> Self {
+        var copy = self
+        copy.tools = definitions
+        return copy
+    }
+
+    /// Returns a copy with tools from Tool instances.
+    public func tools(_ tools: [any Tool]) -> Self {
+        var copy = self
+        copy.tools = tools.map { tool in
+            Transcript.ToolDefinition(tool: tool)
+        }
+        return copy
+    }
+
+    /// Returns a copy with the specified tool choice.
+    public func toolChoice(_ choice: ToolChoice) -> Self {
+        var copy = self
+        copy.toolChoice = choice
+        return copy
+    }
+
+    /// Returns a copy with the specified parallel tool calls mode.
+    public func parallelToolCalls(_ mode: ParallelToolMode) -> Self {
+        var copy = self
+        copy.parallelToolCalls = mode
+        return copy
+    }
+
+    /// Returns a copy with the specified maximum number of tool calls.
+    public func maxToolCalls(_ value: Int?) -> Self {
+        var copy = self
+        copy.maxToolCalls = value
+        return copy
+    }
+
+    /// Returns a copy with the specified response format.
+    public func responseFormat(_ format: ResponseFormat) -> Self {
+        var copy = self
+        copy.responseFormat = format
+        return copy
+    }
+
+    /// Returns a copy with the specified reasoning configuration.
+    public func reasoning(_ config: ReasoningConfig) -> Self {
+        var copy = self
+        copy.reasoning = config
+        return copy
+    }
+
+    /// Returns a copy with reasoning enabled at the specified effort level.
+    public func reasoning(_ effort: ReasoningEffort) -> Self {
+        var copy = self
+        copy.reasoning = ReasoningConfig(effort: effort)
+        return copy
+    }
+
+    /// Returns a copy with provider/runtime feature overrides.
+    public func runtimeFeatures(_ config: ProviderRuntimeFeatureConfiguration?) -> Self {
+        var copy = self
+        copy.runtimeFeatures = config
+        return copy
+    }
+
+    /// Returns a copy with provider/runtime policy overrides.
+    public func runtimePolicyOverride(_ policy: ProviderRuntimePolicyOverride?) -> Self {
+        var copy = self
+        copy.runtimePolicyOverride = policy
+        return copy
+    }
+}
+
 // MARK: - LocalGenerateConfig
 
 /// Local provider configuration for text generation.
 ///
 /// Contains parameters common to all local providers (MLX, Llama, CoreML, etc.).
-public struct LocalGenerateConfig: Sendable, Codable {
+public struct LocalGenerateConfig: Sendable, Codable, GenerateConfigProtocol {
     // MARK: - Token Limits
 
     /// Maximum number of tokens to generate.
@@ -56,7 +299,7 @@ public struct LocalGenerateConfig: Sendable, Codable {
     public var toolChoice: ToolChoice
 
     /// Whether to allow parallel tool calls.
-    public var parallelToolCalls: Bool?
+    public var parallelToolCalls: ParallelToolMode
 
     /// Maximum number of tool calls allowed in a single model response.
     public var maxToolCalls: Int?
@@ -68,6 +311,44 @@ public struct LocalGenerateConfig: Sendable, Codable {
 
     /// Runtime policy overrides merged with provider-level policy.
     public var runtimePolicyOverride: ProviderRuntimePolicyOverride?
+
+    // MARK: - Cloud-specific properties (not applicable to local)
+
+    /// Not applicable to local providers.
+    public var frequencyPenalty: Float {
+        get { 0.0 }
+        set { }
+    }
+
+    /// Not applicable to local providers.
+    public var presencePenalty: Float {
+        get { 0.0 }
+        set { }
+    }
+
+    /// Not applicable to local providers.
+    public var userId: String? {
+        get { nil }
+        set { }
+    }
+
+    /// Not applicable to local providers.
+    public var serviceTier: ServiceTier? {
+        get { nil }
+        set { }
+    }
+
+    /// Not applicable to local providers.
+    public var responseFormat: ResponseFormat? {
+        get { nil }
+        set { }
+    }
+
+    /// Not applicable to local providers.
+    public var reasoning: ReasoningConfig? {
+        get { nil }
+        set { }
+    }
 
     // MARK: - Initialization
 
@@ -84,7 +365,7 @@ public struct LocalGenerateConfig: Sendable, Codable {
         topLogprobs: Int? = nil,
         tools: [Transcript.ToolDefinition] = [],
         toolChoice: ToolChoice = .auto,
-        parallelToolCalls: Bool? = nil,
+        parallelToolCalls: ParallelToolMode = .default,
         maxToolCalls: Int? = nil,
         runtimeFeatures: ProviderRuntimeFeatureConfiguration? = nil,
         runtimePolicyOverride: ProviderRuntimePolicyOverride? = nil
@@ -117,7 +398,7 @@ public struct LocalGenerateConfig: Sendable, Codable {
 /// Cloud provider configuration for text generation.
 ///
 /// Contains parameters specific to cloud API providers (OpenAI, Anthropic, etc.).
-public struct CloudGenerateConfig: Sendable, Codable {
+public struct CloudGenerateConfig: Sendable, Codable, GenerateConfigProtocol {
     // MARK: - Penalty Parameters
 
     /// Penalty based on token frequency in the generated text (-2.0 to 2.0).
@@ -143,6 +424,104 @@ public struct CloudGenerateConfig: Sendable, Codable {
 
     /// Response format for structured output.
     public var responseFormat: ResponseFormat?
+
+    // MARK: - Local-specific properties (not applicable to cloud)
+
+    /// Not applicable to cloud providers.
+    public var maxTokens: Int? {
+        get { nil }
+        set { }
+    }
+
+    /// Not applicable to cloud providers.
+    public var minTokens: Int? {
+        get { nil }
+        set { }
+    }
+
+    /// Not applicable to cloud providers.
+    public var temperature: Float {
+        get { 0.7 }
+        set { }
+    }
+
+    /// Not applicable to cloud providers.
+    public var topP: Float {
+        get { 0.9 }
+        set { }
+    }
+
+    /// Not applicable to cloud providers.
+    public var topK: Int? {
+        get { nil }
+        set { }
+    }
+
+    /// Not applicable to cloud providers.
+    public var repetitionPenalty: Float {
+        get { 1.0 }
+        set { }
+    }
+
+    /// Not applicable to cloud providers.
+    public var stopSequences: [String] {
+        get { [] }
+        set { }
+    }
+
+    /// Not applicable to cloud providers.
+    public var seed: UInt64? {
+        get { nil }
+        set { }
+    }
+
+    /// Not applicable to cloud providers.
+    public var returnLogprobs: Bool {
+        get { false }
+        set { }
+    }
+
+    /// Not applicable to cloud providers.
+    public var topLogprobs: Int? {
+        get { nil }
+        set { }
+    }
+
+    /// Not applicable to cloud providers.
+    public var tools: [Transcript.ToolDefinition] {
+        get { [] }
+        set { }
+    }
+
+    /// Not applicable to cloud providers.
+    public var toolChoice: ToolChoice {
+        get { .auto }
+        set { }
+    }
+
+    /// Not applicable to cloud providers.
+    public var parallelToolCalls: ParallelToolMode {
+        get { .default }
+        set { }
+    }
+
+    /// Not applicable to cloud providers.
+    public var maxToolCalls: Int? {
+        get { nil }
+        set { }
+    }
+
+    /// Not applicable to cloud providers.
+    public var runtimeFeatures: ProviderRuntimeFeatureConfiguration? {
+        get { nil }
+        set { }
+    }
+
+    /// Not applicable to cloud providers.
+    public var runtimePolicyOverride: ProviderRuntimePolicyOverride? {
+        get { nil }
+        set { }
+    }
 
     // MARK: - Initialization
 
@@ -205,7 +584,7 @@ public struct CloudGenerateConfig: Sendable, Codable {
 /// ## Protocol Conformances
 /// - `Sendable`: Thread-safe across concurrency boundaries
 /// - `Codable`: Full JSON encoding/decoding support
-public struct GenerateConfig: Sendable, Codable {
+public struct GenerateConfig: Sendable, Codable, GenerateConfigProtocol {
 
     // MARK: - Composed Configuration
 
@@ -277,7 +656,7 @@ public struct GenerateConfig: Sendable, Codable {
         set { local.toolChoice = newValue }
     }
 
-    public var parallelToolCalls: Bool? {
+    public var parallelToolCalls: ParallelToolMode {
         get { local.parallelToolCalls }
         set { local.parallelToolCalls = newValue }
     }
@@ -348,7 +727,7 @@ public struct GenerateConfig: Sendable, Codable {
         serviceTier: ServiceTier? = nil,
         tools: [Transcript.ToolDefinition] = [],
         toolChoice: ToolChoice = .auto,
-        parallelToolCalls: Bool? = nil,
+        parallelToolCalls: ParallelToolMode = .default,
         maxToolCalls: Int? = nil,
         responseFormat: ResponseFormat? = nil,
         reasoning: ReasoningConfig? = nil,
@@ -368,7 +747,7 @@ public struct GenerateConfig: Sendable, Codable {
             topLogprobs: topLogprobs,
             tools: tools,
             toolChoice: toolChoice,
-            parallelToolCalls: parallelToolCalls,
+            parallelToolCalls: parallelToolCalls ?? .default,
             maxToolCalls: maxToolCalls,
             runtimeFeatures: runtimeFeatures,
             runtimePolicyOverride: runtimePolicyOverride
@@ -414,7 +793,7 @@ public struct GenerateConfig: Sendable, Codable {
         let serviceTier = try container.decodeIfPresent(ServiceTier.self, forKey: .serviceTier)
         let tools = try container.decode([Transcript.ToolDefinition].self, forKey: .tools)
         let toolChoice = try container.decode(ToolChoice.self, forKey: .toolChoice)
-        let parallelToolCalls = try container.decodeIfPresent(Bool.self, forKey: .parallelToolCalls)
+        let parallelToolCalls = try container.decodeIfPresent(ParallelToolMode.self, forKey: .parallelToolCalls)
         let maxToolCalls = try container.decodeIfPresent(Int.self, forKey: .maxToolCalls)
         let responseFormat = try container.decodeIfPresent(ResponseFormat.self, forKey: .responseFormat)
         let reasoning = try container.decodeIfPresent(ReasoningConfig.self, forKey: .reasoning)
@@ -434,7 +813,7 @@ public struct GenerateConfig: Sendable, Codable {
             topLogprobs: topLogprobs,
             tools: tools,
             toolChoice: toolChoice,
-            parallelToolCalls: parallelToolCalls,
+            parallelToolCalls: parallelToolCalls ?? .default,
             maxToolCalls: maxToolCalls,
             runtimeFeatures: runtimeFeatures,
             runtimePolicyOverride: runtimePolicyOverride
@@ -812,14 +1191,32 @@ extension GenerateConfig {
     /// ```swift
     /// let config = GenerateConfig.default
     ///     .tools([myTool])
+    ///     .parallelToolCalls(.enabled)
+    /// ```
+    ///
+    /// - Parameter mode: The parallel tool calls mode to use.
+    /// - Returns: A new configuration with the updated setting.
+    public func parallelToolCalls(_ mode: ParallelToolMode) -> GenerateConfig {
+        var copy = self
+        copy.parallelToolCalls = mode
+        return copy
+    }
+
+    /// Returns a copy with the specified parallel tool calls setting.
+    ///
+    /// ## Usage
+    /// ```swift
+    /// let config = GenerateConfig.default
+    ///     .tools([myTool])
     ///     .parallelToolCalls(false)
     /// ```
     ///
     /// - Parameter enabled: Whether to allow parallel tool calls.
     /// - Returns: A new configuration with the updated setting.
+    @available(*, deprecated, renamed: "parallelToolCalls(_:)", message: "Use parallelToolCalls(.enabled) or parallelToolCalls(.disabled) instead")
     public func parallelToolCalls(_ enabled: Bool) -> GenerateConfig {
         var copy = self
-        copy.parallelToolCalls = enabled
+        copy.parallelToolCalls = ParallelToolMode(enabled)
         return copy
     }
 
@@ -957,6 +1354,70 @@ public enum ToolChoice: Sendable, Hashable, Codable {
     @available(*, deprecated, renamed: "named")
     public static func tool(name: String) -> ToolChoice {
         .named(name)
+    }
+}
+
+// MARK: - ParallelToolMode
+
+/// Controls whether the model can make parallel tool calls.
+///
+/// `ParallelToolMode` allows you to specify whether the model should be allowed
+/// to call multiple tools simultaneously within a single response.
+///
+/// ## Usage
+/// ```swift
+/// // Allow parallel tool calls (default behavior)
+/// let config = GenerateConfig.default
+///     .tools([WeatherTool(), SearchTool()])
+///     .parallelToolCalls(.enabled)
+///
+/// // Disable parallel tool calls
+/// let config = GenerateConfig.default
+///     .tools([WeatherTool()])
+///     .parallelToolCalls(.disabled)
+///
+/// // Use provider default
+/// let config = GenerateConfig.default
+///     .tools([WeatherTool()])
+///     .parallelToolCalls(.default)
+/// ```
+///
+/// ## Provider Support
+/// - **OpenAI**: Full support for parallel tool calls
+/// - **Anthropic**: May ignore this setting
+public enum ParallelToolMode: Sendable, Hashable, Codable {
+
+    /// Allow parallel tool calls (model may call multiple tools at once).
+    case enabled
+
+    /// Disallow parallel tool calls (model calls one tool at a time).
+    case disabled
+
+    /// Use the provider's default behavior.
+    ///
+    /// This is equivalent to not specifying the setting.
+    case `default`
+
+    /// Converts the mode to an optional boolean for provider compatibility.
+    ///
+    /// - Returns: `true` for `.enabled`, `false` for `.disabled`, `nil` for `.default`.
+    public var boolValue: Bool? {
+        switch self {
+        case .enabled: return true
+        case .disabled: return false
+        case .default: return nil
+        }
+    }
+
+    /// Creates a mode from an optional boolean.
+    ///
+    /// - Parameter bool: `true` for `.enabled`, `false` for `.disabled`, `nil` for `.default`.
+    public init(_ bool: Bool?) {
+        switch bool {
+        case .some(true): self = .enabled
+        case .some(false): self = .disabled
+        case .none: self = .default
+        }
     }
 }
 

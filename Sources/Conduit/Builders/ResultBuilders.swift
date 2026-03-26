@@ -571,7 +571,7 @@ public struct ConfigBuilder: Sendable {
         if override.toolChoice != GenerateConfig.default.toolChoice {
             result.toolChoice = override.toolChoice
         }
-        if override.parallelToolCalls != nil {
+        if override.parallelToolCalls != GenerateConfig.default.parallelToolCalls {
             result.parallelToolCalls = override.parallelToolCalls
         }
         if override.maxToolCalls != nil {
