@@ -808,7 +808,7 @@ extension AnthropicProvider {
                     let jsonData = try JSONEncoder().encode(inputDict)
                     let jsonString = String(data: jsonData, encoding: .utf8) ?? "{}"
                     let arguments = try GeneratedContent(json: jsonString)
-                    let toolCall = try Transcript.ToolCall(
+                    let toolCall = Transcript.ToolCall(
                         id: id,
                         toolName: name,
                         arguments: arguments

@@ -747,7 +747,7 @@ public struct GenerateConfig: Sendable, Codable, GenerateConfigProtocol {
             topLogprobs: topLogprobs,
             tools: tools,
             toolChoice: toolChoice,
-            parallelToolCalls: parallelToolCalls ?? .default,
+            parallelToolCalls: parallelToolCalls,
             maxToolCalls: maxToolCalls,
             runtimeFeatures: runtimeFeatures,
             runtimePolicyOverride: runtimePolicyOverride

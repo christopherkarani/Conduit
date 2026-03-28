@@ -171,8 +171,8 @@ extension OpenAIProvider {
                 ]
             }
 
-            // Add parallel_tool_calls if explicitly set
-            if let parallel = config.parallelToolCalls {
+            // Add parallel_tool_calls only when explicitly overriding provider default.
+            if let parallel = config.parallelToolCalls.boolValue {
                 body["parallel_tool_calls"] = parallel
             }
 
@@ -270,7 +270,7 @@ extension OpenAIProvider {
                 ]
             }
 
-            if let parallel = config.parallelToolCalls {
+            if let parallel = config.parallelToolCalls.boolValue {
                 body["parallel_tool_calls"] = parallel
             }
 

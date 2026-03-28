@@ -7,7 +7,7 @@ import struct Foundation.Decimal
 
 /// Error that occurs during schema encoding.
 private enum EncodingError: Error, LocalizedError {
-    case invalidValue(Any, Context)
+    case invalidValue(String, Context)
 
     var errorDescription: String? {
         switch self {
@@ -823,7 +823,7 @@ extension GenerationSchema {
             return String(hash, radix: 16, uppercase: false)
         }
 
-        private static func serialize(_ constraint: _GenerationGuideConstraint) -> String {
+        private static func serialize(_ constraint: GenerationGuideConstraint) -> String {
             switch constraint {
             case .unsupported:
                 return "unsupported"
@@ -871,7 +871,7 @@ extension GenerationSchema {
             }
         }
 
-        private static func applyConstraint(_ constraint: _GenerationGuideConstraint, to node: Node) -> Node {
+        private static func applyConstraint(_ constraint: GenerationGuideConstraint, to node: Node) -> Node {
             switch constraint {
             case .unsupported:
                 return node
