@@ -4,7 +4,7 @@
 import Testing
 @testable import ConduitAdvanced
 
-#if canImport(MLX)
+#if CONDUIT_TRAIT_MLX && canImport(MLX)
 @Suite("MLX Runtime Plan")
 struct MLXRuntimePlanTests {
     @Test("runtime plan selects advanced engine when supported advanced feature is requested")

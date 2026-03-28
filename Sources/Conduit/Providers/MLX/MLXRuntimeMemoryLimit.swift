@@ -2,7 +2,7 @@
 // Conduit
 
 #if CONDUIT_TRAIT_MLX
-#if canImport(MLX)
+#if CONDUIT_TRAIT_MLX && canImport(MLX)
 
 import Foundation
 @preconcurrency import MLX
@@ -32,5 +32,5 @@ internal enum MLXRuntimeMemoryLimit {
     }
 }
 
-#endif // canImport(MLX)
+#endif // CONDUIT_TRAIT_MLX && canImport(MLX)
 #endif // CONDUIT_TRAIT_MLX

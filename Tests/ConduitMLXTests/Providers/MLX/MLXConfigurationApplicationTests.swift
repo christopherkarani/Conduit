@@ -7,7 +7,7 @@ import Foundation
 import Testing
 @testable import ConduitAdvanced
 
-#if canImport(MLX)
+#if CONDUIT_TRAIT_MLX && canImport(MLX)
 @preconcurrency import MLXLMCommon
 
 @Suite("MLXConfiguration Application - GenerateParameters")
@@ -136,7 +136,8 @@ struct MLXConfigurationRuntimeFeaturesTests {
 struct MLXConfigurationApplicationTests {
     @Test("MLX tests skipped when MLX is unavailable")
     func testSkipped() {
-        #expect(true)
+        let skipped = Bool(true)
+        #expect(skipped)
     }
 }
 #endif

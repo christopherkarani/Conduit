@@ -3,7 +3,7 @@
 //
 // NOTE: This entire file requires MLX trait - Metal GPU and Apple Silicon only.
 
-#if canImport(MLX)
+#if CONDUIT_TRAIT_MLX && canImport(MLX)
 
 #if CONDUIT_TRAIT_MLX
 import Foundation
@@ -356,6 +356,6 @@ extension MLXModelLoader {
 }
 #endif // !arch(arm64)
 
-#endif // canImport(MLX)
+#endif // CONDUIT_TRAIT_MLX && canImport(MLX)
 
 #endif // CONDUIT_TRAIT_MLX

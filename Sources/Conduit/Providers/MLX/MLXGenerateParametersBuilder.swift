@@ -3,7 +3,7 @@
 
 // MARK: - Linux Compatibility
 // NOTE: MLX requires Metal GPU and Apple Silicon. Not available on Linux.
-#if canImport(MLX)
+#if CONDUIT_TRAIT_MLX && canImport(MLX)
 
 #if CONDUIT_TRAIT_MLX
 import Foundation
@@ -49,6 +49,6 @@ internal struct MLXGenerateParametersBuilder: Sendable {
     }
 }
 
-#endif // canImport(MLX)
+#endif // CONDUIT_TRAIT_MLX && canImport(MLX)
 
 #endif // CONDUIT_TRAIT_MLX

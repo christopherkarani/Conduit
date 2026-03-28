@@ -38,7 +38,7 @@ struct MessageTests {
 
     @Test("User message with named parameter")
     func userMessageNamedParameter() {
-        let message = Message.user(text: "Test")
+        let message = Message.user("Test")
 
         #expect(message.role == .user)
         #expect(message.content.textValue == "Test")

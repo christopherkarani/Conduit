@@ -3,7 +3,7 @@
 //
 // This file requires the MLX trait to be enabled.
 
-#if canImport(MLX)
+#if CONDUIT_TRAIT_MLX && canImport(MLX)
 
 import Foundation
 import Testing
@@ -242,10 +242,13 @@ struct DiffusionVariantTests {
 
     // MARK: - Practical Usage Tests
 
-    @Test("Can switch on variant")
-    func switchStatement() {
-        let variant = DiffusionVariant.sdxlTurbo
-        var name = ""
+    @Test("Can switch on variant", arguments: [
+        (DiffusionVariant.sdxlTurbo, "turbo"),
+        (DiffusionVariant.sd15, "sd15"),
+        (DiffusionVariant.flux, "flux")
+    ])
+    func switchStatement(variant: DiffusionVariant, expectedName: String) {
+        let name: String
 
         switch variant {
         case .sdxlTurbo:
@@ -256,7 +259,7 @@ struct DiffusionVariantTests {
             name = "flux"
         }
 
-        #expect(name == "turbo")
+        #expect(name == expectedName)
     }
 
     @Test("Can be used in collections")
@@ -340,4 +343,4 @@ struct DiffusionVariantTests {
     }
 }
 
-#endif // canImport(MLX)
+#endif // CONDUIT_TRAIT_MLX && canImport(MLX)

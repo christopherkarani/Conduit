@@ -349,7 +349,7 @@ struct JsonRepairTests {
             // A colon without key-value structure
             let broken = #"{"name" :"#
 
-            let content = JsonRepair.tryParse(broken)
+            _ = JsonRepair.tryParse(broken)
 
             // The repair will try to close it, but the result may still be unparseable
             // Let's verify tryParse returns something (repair + parse might succeed)
@@ -429,9 +429,6 @@ struct JsonRepairTests {
 
             for cutOff in cutOffPoints where cutOff < fullJson.count {
                 let partial = String(fullJson.prefix(cutOff))
-                let repaired = JsonRepair.repair(partial)
-
-                // Each repaired chunk should be parseable
                 let content = JsonRepair.tryParse(partial)
                 #expect(content != nil, "Failed to parse chunk at cutoff \(cutOff): \(partial)")
             }

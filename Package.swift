@@ -2,6 +2,7 @@
 import PackageDescription
 import CompilerPluginSupport
 import Foundation
+let swiftModuleCachePath = ".build/conduit-module-cache"
 
 let useLocalDeps = ProcessInfo.processInfo.environment["AISTACK_USE_LOCAL_DEPS"] == "1"
 let skipMLXDependencies = ProcessInfo.processInfo.environment["CONDUIT_SKIP_MLX_DEPS"] == "1"
@@ -15,6 +16,7 @@ let includeMLXDependencies =
 var packageDependencies: [Package.Dependency] = [
     // MARK: Cross-Platform Dependencies
     .package(url: "https://github.com/apple/swift-collections.git", from: "1.1.0"),
+    .package(url: "https://github.com/apple/swift-numerics", from: "1.0.0"),
     .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
     .package(url: "https://github.com/apple/swift-log.git", from: "1.8.0"),
 
@@ -44,6 +46,7 @@ if includeMLXDependencies {
 var conduitAdvancedDependencies: [Target.Dependency] = [
     "ConduitMacros",
     .product(name: "OrderedCollections", package: "swift-collections"),
+    .product(name: "Numerics", package: "swift-numerics"),
     .product(name: "Logging", package: "swift-log"),
     .product(name: "Hub", package: "swift-transformers"),
     .product(name: "HuggingFace", package: "swift-huggingface", condition: .when(traits: ["HuggingFaceHub"])),
@@ -62,6 +65,44 @@ if includeMLXDependencies {
         ]
     )
 }
+
+var conduitTestDependencies: [Target.Dependency] = [
+    "Conduit",
+    "ConduitAdvanced",
+    .product(name: "Numerics", package: "swift-numerics"),
+]
+
+var conduitMLXTestDependencies: [Target.Dependency] = [
+    "Conduit",
+    "ConduitAdvanced",
+]
+
+if includeMLXDependencies {
+    conduitMLXTestDependencies.append(
+        contentsOf: [
+            .product(name: "MLX", package: "mlx-swift", condition: .when(traits: ["MLX"])),
+            .product(name: "MLXLMCommon", package: "mlx-swift-lm", condition: .when(traits: ["MLX"])),
+            .product(name: "MLXLLM", package: "mlx-swift-lm", condition: .when(traits: ["MLX"])),
+            .product(name: "MLXVLM", package: "mlx-swift-lm", condition: .when(traits: ["MLX"])),
+            .product(name: "StableDiffusion", package: "mlx-swift-examples", condition: .when(traits: ["MLX"])),
+        ]
+    )
+}
+
+let conduitMLXTestSources: [String] = [
+    "ImageGeneration/DiffusionModelDownloaderTests.swift",
+    "ImageGeneration/DiffusionModelRegistryTests.swift",
+    "ImageGeneration/DiffusionVariantTests.swift",
+    "MLXModelCacheTests.swift",
+    "Providers/MLX/MLXConfigurationApplicationTests.swift",
+    "Providers/MLX/MLXLocalModelSupportTests.swift",
+    "Providers/MLX/MLXRuntimeFeaturesTests.swift",
+    "Providers/MLX/MLXRuntimePlanTests.swift",
+    "Providers/MLX/TextEmbeddingCacheTests.swift",
+    "Providers/MLXImageProviderTests.swift",
+    "Providers/ModelLRUCacheTests.swift",
+    "TestSupport/TestURL.swift",
+]
 
 let package = Package(
     name: "Conduit",
@@ -129,7 +170,10 @@ let package = Package(
                 .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
                 .product(name: "SwiftDiagnostics", package: "swift-syntax"),
             ],
-            path: "Sources/ConduitMacros"
+            path: "Sources/ConduitMacros",
+            swiftSettings: [
+                .unsafeFlags(["-module-cache-path", swiftModuleCachePath])
+            ]
         ),
         .target(
             name: "ConduitAdvanced",
@@ -165,10 +209,8 @@ let package = Package(
         ),
         .testTarget(
             name: "ConduitTests",
-            dependencies: [
-                "Conduit",
-                "ConduitAdvanced",
-            ],
+            dependencies: conduitTestDependencies,
+            path: "Tests/ConduitTests",
             swiftSettings: [
                 .define("CONDUIT_TRAIT_OPENAI", .when(traits: ["OpenAI"])),
                 .define("CONDUIT_TRAIT_OPENROUTER", .when(traits: ["OpenRouter"])),
@@ -177,6 +219,24 @@ let package = Package(
                 .define("CONDUIT_TRAIT_MINIMAX", .when(traits: ["MiniMax"])),
                 .define("CONDUIT_TRAIT_MLX", .when(traits: ["MLX"])),
                 .define("CONDUIT_TRAIT_COREML", .when(traits: ["CoreML"])),
+                .unsafeFlags(["-module-cache-path", swiftModuleCachePath]),
+                .enableExperimentalFeature("StrictConcurrency")
+            ]
+        ),
+        .testTarget(
+            name: "ConduitMLXTests",
+            dependencies: conduitMLXTestDependencies,
+            path: "Tests/ConduitMLXTests",
+            sources: conduitMLXTestSources,
+            swiftSettings: [
+                .define("CONDUIT_TRAIT_OPENAI", .when(traits: ["OpenAI"])),
+                .define("CONDUIT_TRAIT_OPENROUTER", .when(traits: ["OpenRouter"])),
+                .define("CONDUIT_TRAIT_ANTHROPIC", .when(traits: ["Anthropic"])),
+                .define("CONDUIT_TRAIT_KIMI", .when(traits: ["Kimi"])),
+                .define("CONDUIT_TRAIT_MINIMAX", .when(traits: ["MiniMax"])),
+                .define("CONDUIT_TRAIT_MLX", .when(traits: ["MLX"])),
+                .define("CONDUIT_TRAIT_COREML", .when(traits: ["CoreML"])),
+                .unsafeFlags(["-module-cache-path", swiftModuleCachePath]),
                 .enableExperimentalFeature("StrictConcurrency")
             ]
         ),
@@ -187,7 +247,10 @@ let package = Package(
                 "ConduitMacros",
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
             ],
-            path: "Tests/ConduitMacrosTests"
+            path: "Tests/ConduitMacrosTests",
+            swiftSettings: [
+                .unsafeFlags(["-module-cache-path", swiftModuleCachePath])
+            ]
         ),
     ]
 )

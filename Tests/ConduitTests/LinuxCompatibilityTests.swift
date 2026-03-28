@@ -209,7 +209,7 @@ struct LinuxCompatibilityTests {
 
     // MARK: - Configuration Types (MLX-only)
 
-    #if canImport(MLX)
+#if CONDUIT_TRAIT_MLX && canImport(MLX)
     @Test("MLXConfiguration works on Apple platforms")
     func mlxConfigurationWorks() {
         // MLXConfiguration is a pure value type, should work on Apple platforms

@@ -497,9 +497,9 @@ final class GenerateConfigTests: XCTestCase {
 
         let config = GenerateConfig.default.runtimePolicyOverride(override)
 
-        XCTAssertEqual(config.runtimePolicyOverride?.featureFlags.kvQuantization, false)
-        XCTAssertEqual(config.runtimePolicyOverride?.featureFlags.speculativeScheduling, true)
-        XCTAssertEqual(config.runtimePolicyOverride?.modelAllowlist.kvQuantizationModels, ["mlx-community/allowlisted"])
+        XCTAssertEqual(config.runtimePolicyOverride?.featureFlags[.kvQuantization], false)
+        XCTAssertEqual(config.runtimePolicyOverride?.featureFlags[.speculativeScheduling], true)
+        XCTAssertEqual(config.runtimePolicyOverride?.modelAllowlist[.kvQuantization], ["mlx-community/allowlisted"])
     }
 
     func testRuntimePolicyOverrideCodableRoundTrip() throws {
@@ -525,11 +525,11 @@ final class GenerateConfigTests: XCTestCase {
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(GenerateConfig.self, from: data)
 
-        XCTAssertEqual(decoded.runtimePolicyOverride?.featureFlags.kvQuantization, false)
-        XCTAssertEqual(decoded.runtimePolicyOverride?.featureFlags.attentionSinks, true)
-        XCTAssertEqual(decoded.runtimePolicyOverride?.featureFlags.speculativeScheduling, false)
-        XCTAssertEqual(decoded.runtimePolicyOverride?.modelAllowlist.kvQuantizationModels, ["mlx-community/a"])
-        XCTAssertEqual(decoded.runtimePolicyOverride?.modelAllowlist.speculativeSchedulingModels, ["mlx-community/c"])
+        XCTAssertEqual(decoded.runtimePolicyOverride?.featureFlags[.kvQuantization], false)
+        XCTAssertEqual(decoded.runtimePolicyOverride?.featureFlags[.attentionSinks], true)
+        XCTAssertEqual(decoded.runtimePolicyOverride?.featureFlags[.speculativeScheduling], false)
+        XCTAssertEqual(decoded.runtimePolicyOverride?.modelAllowlist[.kvQuantization], ["mlx-community/a"])
+        XCTAssertEqual(decoded.runtimePolicyOverride?.modelAllowlist[.speculativeScheduling], ["mlx-community/c"])
     }
 
 }

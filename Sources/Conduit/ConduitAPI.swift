@@ -306,7 +306,7 @@ extension Provider {
         var options = MLXOptions()
         configure(&options)
 
-        var configuration = MLXConfiguration(
+        let configuration = MLXConfiguration(
             memoryLimit: options.memoryLimit,
             useMemoryMapping: options.useMemoryMapping,
             kvCacheLimit: options.kvCacheLimit,

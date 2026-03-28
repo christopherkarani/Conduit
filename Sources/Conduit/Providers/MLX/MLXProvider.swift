@@ -905,14 +905,14 @@ extension MLXProvider {
                 return effectiveConfiguration
             }
 
-            guard capabilities.kvQuantization.isSupported else {
+            guard capabilities[.kvQuantization].isSupported else {
                 effectiveConfiguration.useQuantizedKVCache = false
                 effectiveRuntimeFeatures.kvQuantization.enabled = false
                 recordRuntimeDiagnostic(
                     feature: feature,
                     kind: .capabilityDenied,
                     modelID: modelID,
-                    reason: capabilities.kvQuantization.reasonUnavailable ?? "runtimeUnsupported",
+                    reason: capabilities[.kvQuantization].reasonUnavailable ?? "runtimeUnsupported",
                     details: ["requested_bits": String(requestedBits)]
                 )
                 recordRuntimeDiagnostic(
@@ -925,7 +925,7 @@ extension MLXProvider {
                 return effectiveConfiguration
             }
 
-            if !capabilities.kvQuantization.supportedBits.contains(requestedBits) {
+            if !capabilities[.kvQuantization].supportedBits.contains(requestedBits) {
                 effectiveConfiguration.useQuantizedKVCache = false
                 effectiveRuntimeFeatures.kvQuantization.enabled = false
                 recordRuntimeDiagnostic(
@@ -935,7 +935,7 @@ extension MLXProvider {
                     reason: "unsupportedBitDepth",
                     details: [
                         "requested_bits": String(requestedBits),
-                        "supported_bits": capabilities.kvQuantization.supportedBits.map(String.init).joined(separator: ","),
+                        "supported_bits": capabilities[.kvQuantization].supportedBits.map(String.init).joined(separator: ","),
                     ]
                 )
                 recordRuntimeDiagnostic(
@@ -963,28 +963,28 @@ extension MLXProvider {
         evaluateUnsupportedFeature(
             .attentionSinks,
             enabled: effectiveRuntimeFeatures.attentionSinks.enabled == true,
-            capability: capabilities.attentionSinks,
+            capability: capabilities[.attentionSinks],
             modelID: modelID,
             policy: policy
         )
         evaluateUnsupportedFeature(
             .kvSwap,
             enabled: effectiveRuntimeFeatures.kvSwap.enabled == true,
-            capability: capabilities.kvSwap,
+            capability: capabilities[.kvSwap],
             modelID: modelID,
             policy: policy
         )
         evaluateUnsupportedFeature(
             .incrementalPrefill,
             enabled: effectiveRuntimeFeatures.incrementalPrefill.enabled == true,
-            capability: capabilities.incrementalPrefill,
+            capability: capabilities[.incrementalPrefill],
             modelID: modelID,
             policy: policy
         )
         evaluateUnsupportedFeature(
             .speculativeScheduling,
             enabled: effectiveRuntimeFeatures.speculativeScheduling.enabled == true,
-            capability: capabilities.speculativeScheduling,
+            capability: capabilities[.speculativeScheduling],
             modelID: modelID,
             policy: policy
         )
@@ -1180,7 +1180,7 @@ extension MLXProvider {
         if runtimeFeatures.attentionSinks.enabled == true,
            !isFeatureActive(
             feature: .attentionSinks,
-            capability: capabilities.attentionSinks,
+            capability: capabilities[.attentionSinks],
             policy: policy,
             modelID: modelID
            ) {
@@ -1190,7 +1190,7 @@ extension MLXProvider {
         if runtimeFeatures.kvSwap.enabled == true,
            !isFeatureActive(
             feature: .kvSwap,
-            capability: capabilities.kvSwap,
+            capability: capabilities[.kvSwap],
             policy: policy,
             modelID: modelID
            ) {
@@ -1200,7 +1200,7 @@ extension MLXProvider {
         if runtimeFeatures.incrementalPrefill.enabled == true,
            !isFeatureActive(
             feature: .incrementalPrefill,
-            capability: capabilities.incrementalPrefill,
+            capability: capabilities[.incrementalPrefill],
             policy: policy,
             modelID: modelID
            ) {
@@ -1210,7 +1210,7 @@ extension MLXProvider {
         if runtimeFeatures.speculativeScheduling.enabled == true,
            !isFeatureActive(
             feature: .speculativeScheduling,
-            capability: capabilities.speculativeScheduling,
+            capability: capabilities[.speculativeScheduling],
             policy: policy,
             modelID: modelID
            ) {
@@ -1238,7 +1238,7 @@ extension MLXProvider {
             }
 
             if let draftCount = runtimeFeatures.speculativeScheduling.draftStreamCount,
-               let maxDraft = capabilities.speculativeScheduling.maxDraftStreams,
+               let maxDraft = capabilities[.speculativeScheduling].maxDraftStreams,
                draftCount > maxDraft {
                 runtimeFeatures.speculativeScheduling.enabled = false
                 recordRuntimeDiagnostic(
@@ -1261,7 +1261,7 @@ extension MLXProvider {
             }
 
             if let draftAheadTokens = runtimeFeatures.speculativeScheduling.draftAheadTokens,
-               let maxAhead = capabilities.speculativeScheduling.maxDraftAheadTokens,
+               let maxAhead = capabilities[.speculativeScheduling].maxDraftAheadTokens,
                draftAheadTokens > maxAhead {
                 runtimeFeatures.speculativeScheduling.enabled = false
                 recordRuntimeDiagnostic(

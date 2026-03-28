@@ -601,7 +601,7 @@ final class ProtocolCompilationTests: XCTestCase {
 
     func testProviderTypeIsCaseIterable() {
         let allCases = ProviderType.allCases
-        XCTAssertEqual(allCases.count, 10)
+        XCTAssertEqual(allCases.count, 12)
         XCTAssertTrue(allCases.contains(.mlx))
         XCTAssertTrue(allCases.contains(.coreml))
         XCTAssertTrue(allCases.contains(.llama))
@@ -611,6 +611,8 @@ final class ProtocolCompilationTests: XCTestCase {
         XCTAssertTrue(allCases.contains(.openRouter))
         XCTAssertTrue(allCases.contains(.ollama))
         XCTAssertTrue(allCases.contains(.anthropic))
+        XCTAssertTrue(allCases.contains(.kimi))
+        XCTAssertTrue(allCases.contains(.minimax))
         XCTAssertTrue(allCases.contains(.azure))
     }
 

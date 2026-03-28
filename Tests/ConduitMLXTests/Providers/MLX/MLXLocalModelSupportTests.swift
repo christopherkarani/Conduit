@@ -12,7 +12,7 @@ struct MLXLocalModelSupportTests {
     @Test("facade model exposes local MLX paths")
     func facadeModelSupportsLocalMLXPaths() {
         let path = "/Users/me/models/Qwen3-8B-MLX-bf16"
-        let model = Conduit.Model.mlxLocal(path)
+        let model = Model.mlxLocal(path)
 
         #expect(model.family == .mlxLocal)
         #expect(model.id == path)
@@ -20,9 +20,9 @@ struct MLXLocalModelSupportTests {
 
     @Test("Conduit facade accepts local MLX models in sessions")
     func facadeConduitAcceptsLocalMLXModels() throws {
-        let app = Conduit.Conduit(Conduit.Provider.mlx())
+        let app = Conduit(Provider.mlx())
 
-        _ = try app.session(model: Conduit.Model.mlxLocal("/tmp/conduit-local-mlx-model"))
+        _ = try app.session(model: Model.mlxLocal("/tmp/conduit-local-mlx-model"))
     }
 
     @Test("ConduitAdvanced accepts local MLX models in sessions")

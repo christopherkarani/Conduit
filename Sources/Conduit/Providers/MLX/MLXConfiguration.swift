@@ -6,7 +6,7 @@ import Foundation
 
 // MARK: - Linux Compatibility
 // NOTE: MLX requires Metal GPU and Apple Silicon. Not available on Linux.
-#if canImport(MLX)
+#if CONDUIT_TRAIT_MLX && canImport(MLX)
 
 /// Configuration options for MLX local inference on Apple Silicon.
 ///
@@ -440,6 +440,6 @@ extension MLXConfiguration {
     }
 }
 
-#endif // canImport(MLX)
+#endif // CONDUIT_TRAIT_MLX && canImport(MLX)
 
 #endif // CONDUIT_TRAIT_MLX

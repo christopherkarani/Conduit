@@ -6,7 +6,7 @@ import Foundation
 
 // MARK: - Linux Compatibility
 // NOTE: MLX and StableDiffusion require Metal GPU. Not available on Linux.
-#if canImport(MLX)
+#if CONDUIT_TRAIT_MLX && canImport(MLX)
 
 /// Supported diffusion model variants for local image generation.
 ///
@@ -213,6 +213,6 @@ extension DiffusionVariant {
     public var sizeGB: Double { sizeGiB }
 }
 
-#endif // canImport(MLX)
+#endif // CONDUIT_TRAIT_MLX && canImport(MLX)
 
 #endif // CONDUIT_TRAIT_MLX

@@ -8,17 +8,17 @@ final class ProviderRuntimeCapabilitiesTests: XCTestCase {
     func testFeatureFlagsDefaultEnabled() {
         let flags = ProviderRuntimeFeatureFlags()
 
-        XCTAssertTrue(flags.isEnabled(.kvQuantization))
-        XCTAssertTrue(flags.isEnabled(.attentionSinks))
-        XCTAssertTrue(flags.isEnabled(.kvSwap))
-        XCTAssertTrue(flags.isEnabled(.incrementalPrefill))
-        XCTAssertTrue(flags.isEnabled(.speculativeScheduling))
+        XCTAssertTrue(flags[.kvQuantization])
+        XCTAssertTrue(flags[.attentionSinks])
+        XCTAssertTrue(flags[.kvSwap])
+        XCTAssertTrue(flags[.incrementalPrefill])
+        XCTAssertTrue(flags[.speculativeScheduling])
     }
 
     func testAllowlistEmptyMeansUnrestricted() {
         let allowlist = ProviderRuntimeModelAllowlist()
-        XCTAssertTrue(allowlist.isModelAllowed(feature: .kvQuantization, modelID: "mlx-community/foo"))
-        XCTAssertTrue(allowlist.isModelAllowed(feature: .kvSwap, modelID: "mlx-community/bar"))
+        XCTAssertTrue(allowlist[.kvQuantization].isEmpty || allowlist[.kvQuantization].contains("mlx-community/foo"))
+        XCTAssertTrue(allowlist[.kvSwap].isEmpty || allowlist[.kvSwap].contains("mlx-community/bar"))
     }
 
     func testAllowlistRestrictsWhenSet() {
@@ -30,8 +30,8 @@ final class ProviderRuntimeCapabilitiesTests: XCTestCase {
             speculativeSchedulingModels: []
         )
 
-        XCTAssertTrue(allowlist.isModelAllowed(feature: .kvQuantization, modelID: "mlx-community/a"))
-        XCTAssertFalse(allowlist.isModelAllowed(feature: .kvQuantization, modelID: "mlx-community/b"))
+        XCTAssertTrue(allowlist[.kvQuantization].contains("mlx-community/a"))
+        XCTAssertFalse(allowlist[.kvQuantization].contains("mlx-community/b"))
     }
 
     func testPolicyRespectsFlagsAndAllowlist() {
@@ -88,10 +88,10 @@ final class ProviderRuntimeCapabilitiesTests: XCTestCase {
 
         let merged = base.applying(overrides: override)
 
-        XCTAssertFalse(merged.featureFlags.kvQuantization)
-        XCTAssertTrue(merged.featureFlags.attentionSinks)
-        XCTAssertTrue(merged.featureFlags.kvSwap)
-        XCTAssertEqual(merged.modelAllowlist.kvQuantizationModels, ["mlx-community/request-allow"])
-        XCTAssertEqual(merged.modelAllowlist.kvSwapModels, ["mlx-community/swap-only"])
+        XCTAssertFalse(merged.featureFlags[.kvQuantization])
+        XCTAssertTrue(merged.featureFlags[.attentionSinks])
+        XCTAssertTrue(merged.featureFlags[.kvSwap])
+        XCTAssertEqual(merged.modelAllowlist[.kvQuantization], ["mlx-community/request-allow"])
+        XCTAssertEqual(merged.modelAllowlist[.kvSwap], ["mlx-community/swap-only"])
     }
 }

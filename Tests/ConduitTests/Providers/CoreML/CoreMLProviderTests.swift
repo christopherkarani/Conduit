@@ -46,7 +46,8 @@ struct CoreMLProviderTests {
             }
             #else
             if case .providerUnavailable(reason: .deviceNotSupported) = error {
-                #expect(true)
+                let skipped = Bool(true)
+                #expect(skipped)
             } else {
                 Issue.record("Expected providerUnavailable(.deviceNotSupported), got \(error)")
             }
@@ -76,7 +77,8 @@ struct CoreMLProviderTests {
             }
             #else
             if case .providerUnavailable(reason: .deviceNotSupported) = error {
-                #expect(true)
+                let skipped = Bool(true)
+                #expect(skipped)
             } else {
                 Issue.record("Expected providerUnavailable(.deviceNotSupported), got \(error)")
             }
@@ -107,7 +109,8 @@ struct CoreMLProviderTests {
             }
             #else
             if case .providerUnavailable(reason: .deviceNotSupported) = error {
-                #expect(true)
+                let skipped = Bool(true)
+                #expect(skipped)
             } else {
                 Issue.record("Expected providerUnavailable(.deviceNotSupported), got \(error)")
             }
@@ -139,7 +142,8 @@ struct CoreMLProviderTests {
             }
             #else
             if case .providerUnavailable(reason: .deviceNotSupported) = error {
-                #expect(true)
+                let skipped = Bool(true)
+                #expect(skipped)
             } else {
                 Issue.record("Expected providerUnavailable(.deviceNotSupported), got \(error)")
             }
