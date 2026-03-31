@@ -271,6 +271,22 @@ extension Array: Generable where Element: Generable {
     }
 }
 
+// MARK: Dictionary
+
+extension Dictionary: Generable where Key == String, Value: Generable {
+    /// A representation of partially generated content
+    public typealias PartiallyGenerated = Self
+
+    /// An instance of the generation schema.
+    public static var generationSchema: GenerationSchema {
+        let valueSchema = Value.generationSchema
+        return GenerationSchema.primitive(
+            [String: Value].self,
+            node: .dictionary(GenerationSchema.DictionaryNode(description: nil, values: valueSchema.root))
+        )
+    }
+}
+
 // MARK: Never
 
 extension Never: Generable {

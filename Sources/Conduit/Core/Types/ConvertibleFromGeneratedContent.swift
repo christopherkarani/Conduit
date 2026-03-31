@@ -16,3 +16,18 @@ where Element: ConvertibleFromGeneratedContent {
         self = try elements.map { try Element($0) }
     }
 }
+
+extension Dictionary: ConvertibleFromGeneratedContent & SendableMetatype
+where Key == String, Value: ConvertibleFromGeneratedContent {
+    /// Creates an instance with the content.
+    public init(_ content: GeneratedContent) throws {
+        guard case .structure(let properties, _) = content.kind else {
+            throw GeneratedContentConversionError.typeMismatch
+        }
+        var result: [String: Value] = [:]
+        for (key, value) in properties {
+            result[key] = try Value(value)
+        }
+        self = result
+    }
+}

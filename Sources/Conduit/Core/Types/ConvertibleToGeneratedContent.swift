@@ -39,3 +39,18 @@ extension Array: ConvertibleToGeneratedContent where Element: ConvertibleToGener
         GeneratedContent(elements: self.map { $0.generatedContent })
     }
 }
+
+extension Dictionary: PromptRepresentable where Key == String, Value: ConvertibleToGeneratedContent {}
+extension Dictionary: InstructionsRepresentable where Key == String, Value: ConvertibleToGeneratedContent {}
+extension Dictionary: ConvertibleToGeneratedContent where Key == String, Value: ConvertibleToGeneratedContent {
+    /// An instance that represents the generated content.
+    public var generatedContent: GeneratedContent {
+        var props: [String: GeneratedContent] = [:]
+        var keys: [String] = []
+        for (key, value) in self {
+            props[key] = value.generatedContent
+            keys.append(key)
+        }
+        return GeneratedContent(kind: .structure(properties: props, orderedKeys: keys))
+    }
+}

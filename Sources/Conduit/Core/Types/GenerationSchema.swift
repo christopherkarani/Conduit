@@ -31,6 +31,7 @@ public struct GenerationSchema: Sendable, Codable, CustomDebugStringConvertible 
     indirect enum Node: Sendable, Codable {
         case object(ObjectNode)
         case array(ArrayNode)
+        case dictionary(DictionaryNode)
         case string(StringNode)
         case number(NumberNode)
         case boolean
@@ -89,6 +90,13 @@ public struct GenerationSchema: Sendable, Codable, CustomDebugStringConvertible 
                     try container.encode(max, forKey: .maxItems)
                 }
 
+            case .dictionary(let dict):
+                try container.encode("object", forKey: .type)
+                if let desc = dict.description {
+                    try container.encode(desc, forKey: .description)
+                }
+                try container.encode(dict.values, forKey: .additionalProperties)
+
             case .string(let str):
                 try container.encode("string", forKey: .type)
                 if let desc = str.description {
@@ -145,14 +153,22 @@ public struct GenerationSchema: Sendable, Codable, CustomDebugStringConvertible 
 
             switch type {
             case "object":
-                let propsContainer = try container.nestedContainer(keyedBy: DynamicCodingKey.self, forKey: .properties)
-                var properties: [String: Node] = [:]
-                for key in propsContainer.allKeys {
-                    properties[key.stringValue] = try propsContainer.decode(Node.self, forKey: key)
+                // Distinguish between a regular object (has "properties") and a dictionary (has "additionalProperties" as a schema)
+                if container.contains(.properties) {
+                    let propsContainer = try container.nestedContainer(keyedBy: DynamicCodingKey.self, forKey: .properties)
+                    var properties: [String: Node] = [:]
+                    for key in propsContainer.allKeys {
+                        properties[key.stringValue] = try propsContainer.decode(Node.self, forKey: key)
+                    }
+                    let requiredArray = try container.decodeIfPresent([String].self, forKey: .required) ?? []
+                    let required = Set(requiredArray)
+                    self = .object(ObjectNode(description: description, properties: properties, required: required))
+                } else if let valuesNode = try? container.decode(Node.self, forKey: .additionalProperties) {
+                    self = .dictionary(DictionaryNode(description: description, values: valuesNode))
+                } else {
+                    // Empty object with no properties
+                    self = .object(ObjectNode(description: description, properties: [:], required: []))
                 }
-                let requiredArray = try container.decodeIfPresent([String].self, forKey: .required) ?? []
-                let required = Set(requiredArray)
-                self = .object(ObjectNode(description: description, properties: properties, required: required))
 
             case "array":
                 let items = try container.decode(Node.self, forKey: .items)
@@ -201,6 +217,11 @@ public struct GenerationSchema: Sendable, Codable, CustomDebugStringConvertible 
         var items: Node
         var minItems: Int?
         var maxItems: Int?
+    }
+
+    struct DictionaryNode: Sendable, Codable {
+        var description: String?
+        var values: Node
     }
 
     struct StringNode: Sendable, Codable {
@@ -256,6 +277,8 @@ public struct GenerationSchema: Sendable, Codable, CustomDebugStringConvertible 
             return "object(\(obj.properties.count) properties)"
         case .array(let arr):
             return "array(items: \(debugString(for: arr.items, indent: 0)))"
+        case .dictionary(let dict):
+            return "dictionary(values: \(debugString(for: dict.values, indent: 0)))"
         case .string(let str):
             if let choices = str.enumChoices {
                 return "string(enum: \(choices))"
@@ -526,6 +549,8 @@ public struct GenerationSchema: Sendable, Codable, CustomDebugStringConvertible 
             }
         case .array(let arr):
             try validateRefs(arr.items, defs: defs, undefinedRefs: &undefinedRefs)
+        case .dictionary(let dict):
+            try validateRefs(dict.values, defs: defs, undefinedRefs: &undefinedRefs)
         case .anyOf(let nodes):
             for n in nodes {
                 try validateRefs(n, defs: defs, undefinedRefs: &undefinedRefs)
