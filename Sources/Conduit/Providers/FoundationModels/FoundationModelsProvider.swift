@@ -68,15 +68,16 @@ public actor FoundationModelsProvider: AIProvider, TextGenerator {
 
         let startTime = Date()
         let session = makeSession()
-        let prompt = buildPrompt(from: messages)
+        let prompt = buildPrompt(from: messages, responseFormat: config.responseFormat)
         let options = makeGenerationOptions(from: config)
 
         do {
             let response = try await session.respond(to: prompt, options: options)
             let duration = Date().timeIntervalSince(startTime)
+            let text = stripCodeFences(response.content, for: config.responseFormat)
 
             return GenerationResult(
-                text: response.content,
+                text: text,
                 tokenCount: 0,
                 generationTime: duration,
                 tokensPerSecond: 0,
@@ -98,12 +99,16 @@ public actor FoundationModelsProvider: AIProvider, TextGenerator {
                 do {
                     try validateModel(model)
                     let session = await makeSession()
+                    let effectivePrompt = buildPrompt(
+                        from: [.user(prompt)],
+                        responseFormat: config.responseFormat
+                    )
                     let options = makeGenerationOptions(from: config)
-                    let stream = session.streamResponse(to: prompt, options: options)
+                    let stream = session.streamResponse(to: effectivePrompt, options: options)
 
                     var previous = ""
                     for try await snapshot in stream {
-                        let current = snapshot.content
+                        let current = stripCodeFences(snapshot.content, for: config.responseFormat)
                         let delta = current.hasPrefix(previous)
                             ? String(current.dropFirst(previous.count))
                             : current
@@ -139,13 +144,13 @@ public actor FoundationModelsProvider: AIProvider, TextGenerator {
                     }
 
                     let session = await makeSession()
-                    let prompt = buildPrompt(from: messages)
+                    let prompt = buildPrompt(from: messages, responseFormat: config.responseFormat)
                     let options = makeGenerationOptions(from: config)
                     let stream = session.streamResponse(to: prompt, options: options)
 
                     var previous = ""
                     for try await snapshot in stream {
-                        let current = snapshot.content
+                        let current = stripCodeFences(snapshot.content, for: config.responseFormat)
                         let delta = current.hasPrefix(previous)
                             ? String(current.dropFirst(previous.count))
                             : current
@@ -232,7 +237,7 @@ public actor FoundationModelsProvider: AIProvider, TextGenerator {
         return session
     }
 
-    private nonisolated func buildPrompt(from messages: [Message]) -> String {
+    private nonisolated func buildPrompt(from messages: [Message], responseFormat: ResponseFormat? = nil) -> String {
         var lines: [String] = []
         lines.reserveCapacity(messages.count)
 
@@ -254,7 +259,71 @@ public actor FoundationModelsProvider: AIProvider, TextGenerator {
             }
         }
 
+        if let formatInstruction = responseFormatInstruction(responseFormat) {
+            lines.append("\n\(formatInstruction)")
+        }
+
         return lines.joined(separator: "\n")
+    }
+
+    /// Converts a response format into deterministic prompt instructions.
+    ///
+    /// Apple Foundation Models does not expose an OpenAI-style native `response_format`
+    /// parameter, so structured output is enforced via explicit prompt instructions —
+    /// the same proven approach used by `AnthropicProvider`.
+    private nonisolated func responseFormatInstruction(_ format: ResponseFormat?) -> String? {
+        guard let format else { return nil }
+        switch format {
+        case .text:
+            return nil
+        case .jsonObject:
+            return """
+            Return only valid JSON as a single top-level object.
+            Do not wrap JSON in markdown code fences.
+            Do not include commentary before or after the JSON.
+            """
+        case .jsonSchema(let name, let schema):
+            let schemaJSON = schema.toJSONString(prettyPrinted: true)
+            return """
+            Return only valid JSON matching the schema named "\(name)".
+            Do not wrap JSON in markdown code fences.
+            Do not include commentary before or after the JSON.
+            Schema:
+            \(schemaJSON)
+            """
+        }
+    }
+
+    /// Strips markdown code fences from model output when a JSON response format is requested.
+    ///
+    /// On-device Foundation Models sometimes wrap JSON in triple-backtick fences
+    /// (e.g. ````json ... ````) despite explicit prompt instructions not to.
+    /// This normaliser ensures callers always receive clean JSON.
+    ///
+    /// The trailing fence is only stripped when the opening fence was successfully
+    /// removed, preventing asymmetric stripping from producing malformed output.
+    private nonisolated func stripCodeFences(_ text: String, for format: ResponseFormat?) -> String {
+        guard let format else { return text }
+        if case .text = format { return text }
+
+        var result = text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Strip leading ```json or ``` fence (requires a newline after the fence marker)
+        var didStripOpening = false
+        if result.hasPrefix("```") {
+            if let newlineIndex = result.firstIndex(of: "\n") {
+                result = String(result[result.index(after: newlineIndex)...])
+                didStripOpening = true
+            }
+        }
+
+        // Only strip trailing ``` when the opening fence was also stripped,
+        // avoiding asymmetric removal that would leave malformed content.
+        if didStripOpening, result.hasSuffix("```") {
+            result = String(result.dropLast(3))
+        }
+
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private nonisolated func makeGenerationOptions(from config: GenerateConfig) -> FoundationModels.GenerationOptions {
@@ -295,6 +364,82 @@ public actor FoundationModelsProvider: AIProvider, TextGenerator {
         }
 
         return .generationFailed(underlying: SendableError(error))
+    }
+}
+
+// MARK: - Native Structured Generation
+
+@available(iOS 26.0, macOS 26.0, visionOS 26.0, *)
+extension FoundationModelsProvider {
+
+    /// Generates a structured response using Apple's native constrained decoding.
+    ///
+    /// When the target type conforms to **both** Conduit's ``Generable`` and Apple's
+    /// `FoundationModels.Generable`, this override leverages the on-device model's
+    /// token-level constrained generation via `respond(to:generating:)`.
+    /// This produces more reliable structured output than prompt injection alone.
+    ///
+    /// Swift overload resolution automatically selects this method over the default
+    /// `TextGenerator` extension when the type satisfies both constraints.
+    ///
+    /// ## Usage
+    ///
+    /// ```swift
+    /// // Type must conform to both Conduit.Generable and FoundationModels.Generable
+    /// @Conduit.Generable
+    /// @FoundationModels.Generable
+    /// struct Recipe {
+    ///     let title: String
+    ///     let ingredients: [String]
+    /// }
+    ///
+    /// let provider = FoundationModelsProvider()
+    /// let recipe = try await provider.generate(
+    ///     "Create a cookie recipe",
+    ///     returning: Recipe.self,
+    ///     model: .foundationModels
+    /// )
+    /// ```
+    public func generate<T: Generable & FoundationModels.Generable>(
+        _ prompt: String,
+        returning type: T.Type,
+        model: ModelIdentifier,
+        config: GenerateConfig = .default
+    ) async throws -> T {
+        try validateModel(model)
+        let session = makeSession()
+        let options = makeGenerationOptions(from: config)
+
+        do {
+            let response = try await session.respond(to: prompt, generating: T.self, options: options)
+            return response.content
+        } catch {
+            throw mapFoundationModelsError(error)
+        }
+    }
+
+    /// Generates a structured response from messages using Apple's native constrained decoding.
+    public func generate<T: Generable & FoundationModels.Generable>(
+        messages: [Message],
+        returning type: T.Type,
+        model: ModelIdentifier,
+        config: GenerateConfig = .default
+    ) async throws -> T {
+        try validateModel(model)
+        guard !messages.isEmpty else {
+            throw AIError.invalidInput("Messages cannot be empty")
+        }
+
+        let session = makeSession()
+        let prompt = buildPrompt(from: messages)
+        let options = makeGenerationOptions(from: config)
+
+        do {
+            let response = try await session.respond(to: prompt, generating: T.self, options: options)
+            return response.content
+        } catch {
+            throw mapFoundationModelsError(error)
+        }
     }
 }
 
