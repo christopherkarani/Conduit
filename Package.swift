@@ -4,14 +4,10 @@ import CompilerPluginSupport
 import Foundation
 let swiftModuleCachePath = ".build/conduit-module-cache"
 
-let useLocalDeps = ProcessInfo.processInfo.environment["AISTACK_USE_LOCAL_DEPS"] == "1"
 let skipMLXDependencies = ProcessInfo.processInfo.environment["CONDUIT_SKIP_MLX_DEPS"] == "1"
 let includeMLXDependencies =
     !skipMLXDependencies
-    && (
-        ProcessInfo.processInfo.environment["CONDUIT_INCLUDE_MLX_DEPS"] == "1"
-        || !useLocalDeps
-    )
+    && ProcessInfo.processInfo.environment["CONDUIT_INCLUDE_MLX_DEPS"] == "1"
 
 var packageDependencies: [Package.Dependency] = [
     // MARK: Cross-Platform Dependencies
