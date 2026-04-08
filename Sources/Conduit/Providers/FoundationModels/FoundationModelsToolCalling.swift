@@ -39,7 +39,7 @@ enum FoundationModelsToolPromptBuilder {
         \(toolEnvelopeExample(tools: tools, context: context))
 
         Never emit that JSON envelope unless you are requesting a tool call.
-        Never copy placeholder names like "tool_name", "param1", or "value1".
+        Never invent placeholder tool names, argument keys, or argument values.
         The "tool" field must be one of the real tool names listed above.
         If tool results are already present in the conversation, use them directly to answer the user.
         Never claim you cannot browse, search, or access external information when a tool result is already present.

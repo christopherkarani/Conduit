@@ -8,18 +8,17 @@ import Testing
 #if canImport(FoundationModels)
 import FoundationModels
 
-private struct FoundationModelsPromptWeatherTool: Tool {
-    struct Arguments: Generable, Sendable, Codable {
-        let location: String
-    }
-
-    let name = "getWeather"
-    let description = "Get weather for a location."
-
-    func call(arguments: Arguments) async throws -> String {
-        "Weather for \(arguments.location)"
-    }
-}
+private let foundationModelsPromptWeatherTool = Transcript.ToolDefinition(
+    name: "getWeather",
+    description: "Get weather for a location.",
+    parameters: GenerationSchema(
+        type: String.self,
+        description: "Arguments for getWeather.",
+        properties: [
+            .init(name: "location", description: "The location to look up.", type: String.self),
+        ]
+    )
+)
 
 private let foundationModelsRuntimeAvailable: Bool = {
     if #available(macOS 26.0, iOS 26.0, visionOS 26.0, *) {
@@ -111,7 +110,7 @@ struct FoundationModelsToolPromptingTests {
         let context = FoundationModelsToolCallingContext(nonce: "nonce-123")
         let prompt = FoundationModelsToolPromptBuilder.buildPrompt(
             basePrompt: "User: search for docs",
-            tools: [Transcript.ToolDefinition(tool: FoundationModelsPromptWeatherTool())],
+            tools: [foundationModelsPromptWeatherTool],
             toolChoice: .auto,
             context: context,
             responseFormat: nil
@@ -139,7 +138,7 @@ struct FoundationModelsToolPromptingTests {
 
         let parsed = FoundationModelsToolParser.parseToolCalls(
             from: response,
-            availableTools: [Transcript.ToolDefinition(tool: FoundationModelsPromptWeatherTool())],
+            availableTools: [foundationModelsPromptWeatherTool],
             context: context
         )
 

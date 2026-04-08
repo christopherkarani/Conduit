@@ -468,6 +468,15 @@ extension Provider {
 
 /// Top-level concise entry point.
 public struct Conduit: Sendable {
+    // Compatibility aliases for macro-generated `Conduit.*` references when the facade
+    // type name shadows the module name inside consumer targets.
+    public typealias Generable = ConduitAdvanced.Generable
+    public typealias GeneratedContent = ConduitAdvanced.GeneratedContent
+    public typealias GenerationSchema = ConduitAdvanced.GenerationSchema
+    public typealias GenerationID = ConduitAdvanced.GenerationID
+    public typealias ConvertibleFromGeneratedContent = ConduitAdvanced.ConvertibleFromGeneratedContent
+    public typealias ConvertibleToGeneratedContent = ConduitAdvanced.ConvertibleToGeneratedContent
+
     public let provider: Provider
 
     public init(_ provider: Provider) {
