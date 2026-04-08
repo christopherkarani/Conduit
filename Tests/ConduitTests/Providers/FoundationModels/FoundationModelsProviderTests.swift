@@ -8,6 +8,19 @@ import Testing
 #if canImport(FoundationModels)
 import FoundationModels
 
+private struct FoundationModelsPromptWeatherTool: Tool {
+    struct Arguments: Generable, Sendable, Codable {
+        let location: String
+    }
+
+    let name = "getWeather"
+    let description = "Get weather for a location."
+
+    func call(arguments: Arguments) async throws -> String {
+        "Weather for \(arguments.location)"
+    }
+}
+
 private let foundationModelsRuntimeAvailable: Bool = {
     if #available(macOS 26.0, iOS 26.0, visionOS 26.0, *) {
         return SystemLanguageModel.default.isAvailable
@@ -84,6 +97,66 @@ struct FoundationModelsProviderTests {
         }
 
         #expect(!combined.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
+}
+
+@Suite("Foundation Models Tool Prompting")
+struct FoundationModelsToolPromptingTests {
+    @Test("tool prompt uses concrete tool names and nonce")
+    func toolPromptUsesConcreteToolNames() {
+        guard #available(macOS 26.0, iOS 26.0, visionOS 26.0, *) else {
+            return
+        }
+
+        let context = FoundationModelsToolCallingContext(nonce: "nonce-123")
+        let prompt = FoundationModelsToolPromptBuilder.buildPrompt(
+            basePrompt: "User: search for docs",
+            tools: [Transcript.ToolDefinition(tool: FoundationModelsPromptWeatherTool())],
+            toolChoice: .auto,
+            context: context,
+            responseFormat: nil
+        )
+
+        #expect(prompt.contains("\"tool\":\"getWeather\""))
+        #expect(prompt.contains("\"nonce\":\"nonce-123\""))
+        #expect(!prompt.contains("\"tool\":\"tool_name\""))
+        #expect(!prompt.contains("param1"))
+    }
+
+    @Test("parser recovers wrapped JSON tool envelope")
+    func parserRecoversWrappedEnvelope() {
+        guard #available(macOS 26.0, iOS 26.0, visionOS 26.0, *) else {
+            return
+        }
+
+        let context = FoundationModelsToolCallingContext(nonce: "nonce-123")
+        let response = """
+        I will use a tool.
+        ```json
+        {"conduit_tool_call":{"arguments":{"location":"San Francisco"},"nonce":"nonce-123","tool":"getWeather"}}
+        ```
+        """
+
+        let parsed = FoundationModelsToolParser.parseToolCalls(
+            from: response,
+            availableTools: [Transcript.ToolDefinition(tool: FoundationModelsPromptWeatherTool())],
+            context: context
+        )
+
+        #expect(parsed?.count == 1)
+        #expect(parsed?.first?.toolName == "getWeather")
+        #expect(parsed?.first?.arguments.jsonString.contains("San Francisco") == true)
+    }
+
+    @Test("stripCodeFences removes json fences for structured responses")
+    func stripCodeFencesRemovesJSONFences() {
+        guard #available(macOS 26.0, iOS 26.0, visionOS 26.0, *) else {
+            return
+        }
+
+        let provider = FoundationModelsProvider()
+        let stripped = provider.stripCodeFences("```json\n{\"ok\":true}\n```", for: .jsonObject)
+        #expect(stripped == "{\"ok\":true}")
     }
 }
 #endif
