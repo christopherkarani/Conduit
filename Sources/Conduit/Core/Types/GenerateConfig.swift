@@ -1540,6 +1540,38 @@ public enum ResponseFormat: Sendable, Codable {
     }
 }
 
+// MARK: - ResponseFormat Prompt Instructions
+
+extension ResponseFormat {
+
+    /// Deterministic prompt instruction for providers that lack native `response_format` support.
+    ///
+    /// Providers like Anthropic and FoundationModels use this to enforce structured
+    /// output by embedding explicit instructions in the system prompt or user prompt.
+    /// Returns `nil` for `.text` (no special formatting needed).
+    public var promptInstruction: String? {
+        switch self {
+        case .text:
+            return nil
+        case .jsonObject:
+            return """
+            Return only valid JSON as a single top-level object.
+            Do not wrap JSON in markdown code fences.
+            Do not include commentary before or after the JSON.
+            """
+        case .jsonSchema(let name, let schema):
+            let schemaJSON = schema.toJSONString(prettyPrinted: true)
+            return """
+            Return only valid JSON matching the schema named "\(name)".
+            Do not wrap JSON in markdown code fences.
+            Do not include commentary before or after the JSON.
+            Schema:
+            \(schemaJSON)
+            """
+        }
+    }
+}
+
 // MARK: - ReasoningEffort
 
 /// Reasoning effort levels for extended thinking.

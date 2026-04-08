@@ -259,39 +259,11 @@ public actor FoundationModelsProvider: AIProvider, TextGenerator {
             }
         }
 
-        if let formatInstruction = responseFormatInstruction(responseFormat) {
-            lines.append("\n\(formatInstruction)")
+        if let instruction = responseFormat?.promptInstruction {
+            lines.append("\n\(instruction)")
         }
 
         return lines.joined(separator: "\n")
-    }
-
-    /// Converts a response format into deterministic prompt instructions.
-    ///
-    /// Apple Foundation Models does not expose an OpenAI-style native `response_format`
-    /// parameter, so structured output is enforced via explicit prompt instructions —
-    /// the same proven approach used by `AnthropicProvider`.
-    private nonisolated func responseFormatInstruction(_ format: ResponseFormat?) -> String? {
-        guard let format else { return nil }
-        switch format {
-        case .text:
-            return nil
-        case .jsonObject:
-            return """
-            Return only valid JSON as a single top-level object.
-            Do not wrap JSON in markdown code fences.
-            Do not include commentary before or after the JSON.
-            """
-        case .jsonSchema(let name, let schema):
-            let schemaJSON = schema.toJSONString(prettyPrinted: true)
-            return """
-            Return only valid JSON matching the schema named "\(name)".
-            Do not wrap JSON in markdown code fences.
-            Do not include commentary before or after the JSON.
-            Schema:
-            \(schemaJSON)
-            """
-        }
     }
 
     /// Strips markdown code fences from model output when a JSON response format is requested.
@@ -302,7 +274,7 @@ public actor FoundationModelsProvider: AIProvider, TextGenerator {
     ///
     /// The trailing fence is only stripped when the opening fence was successfully
     /// removed, preventing asymmetric stripping from producing malformed output.
-    private nonisolated func stripCodeFences(_ text: String, for format: ResponseFormat?) -> String {
+    nonisolated func stripCodeFences(_ text: String, for format: ResponseFormat?) -> String {
         guard let format else { return text }
         if case .text = format { return text }
 
@@ -407,15 +379,7 @@ extension FoundationModelsProvider {
         config: GenerateConfig = .default
     ) async throws -> T {
         try validateModel(model)
-        let session = makeSession()
-        let options = makeGenerationOptions(from: config)
-
-        do {
-            let response = try await session.respond(to: prompt, generating: T.self, options: options)
-            return response.content
-        } catch {
-            throw mapFoundationModelsError(error)
-        }
+        return try await respondStructured(to: prompt, generating: type, config: config)
     }
 
     /// Generates a structured response from messages using Apple's native constrained decoding.
@@ -429,11 +393,19 @@ extension FoundationModelsProvider {
         guard !messages.isEmpty else {
             throw AIError.invalidInput("Messages cannot be empty")
         }
-
-        let session = makeSession()
+        // Native Generable conformance provides schema constraints;
+        // responseFormat instructions are intentionally omitted here.
         let prompt = buildPrompt(from: messages)
-        let options = makeGenerationOptions(from: config)
+        return try await respondStructured(to: prompt, generating: type, config: config)
+    }
 
+    private func respondStructured<T: FoundationModels.Generable>(
+        to prompt: String,
+        generating type: T.Type,
+        config: GenerateConfig
+    ) async throws -> T {
+        let session = makeSession()
+        let options = makeGenerationOptions(from: config)
         do {
             let response = try await session.respond(to: prompt, generating: T.self, options: options)
             return response.content

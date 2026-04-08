@@ -194,97 +194,58 @@ struct FoundationModelsProviderTests {
 @Suite("FoundationModelsProvider Code Fence Stripping")
 struct CodeFenceStrippingTests {
 
-    // Access stripCodeFences through a helper since it's private.
-    // We test indirectly via generate() for integration, but also test
-    // the stripping logic by feeding known inputs through a thin wrapper.
-
-    @available(macOS 26.0, iOS 26.0, visionOS 26.0, *)
-    private func stripViaProvider(_ text: String, format: ResponseFormat?) async -> String {
-        // Use a provider instance to call the private stripCodeFences indirectly
-        // by setting the response as if it came from the model.
-        // Since stripCodeFences is nonisolated private, we test behavior through generate.
-        // For unit-level testing, we replicate the stripping logic here.
-        return CodeFenceStrippingTests.stripCodeFences(text, for: format)
-    }
-
-    /// Replicates FoundationModelsProvider.stripCodeFences for unit testing.
-    /// Kept in sync with the production implementation.
-    static func stripCodeFences(_ text: String, for format: ResponseFormat?) -> String {
-        guard let format else { return text }
-        if case .text = format { return text }
-
-        var result = text.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        var didStripOpening = false
-        if result.hasPrefix("```") {
-            if let newlineIndex = result.firstIndex(of: "\n") {
-                result = String(result[result.index(after: newlineIndex)...])
-                didStripOpening = true
-            }
-        }
-
-        if didStripOpening, result.hasSuffix("```") {
-            result = String(result.dropLast(3))
-        }
-
-        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func strip(_ text: String, for format: ResponseFormat?) -> String {
+        guard #available(macOS 26.0, iOS 26.0, visionOS 26.0, *) else { return text }
+        let provider = FoundationModelsProvider()
+        return provider.stripCodeFences(text, for: format)
     }
 
     @Test("strips json code fences from response")
     func stripsJsonCodeFences() {
         let input = "```json\n{\"greeting\": \"hello\"}\n```"
-        let result = Self.stripCodeFences(input, for: .jsonObject)
-        #expect(result == "{\"greeting\": \"hello\"}")
+        #expect(strip(input, for: .jsonObject) == "{\"greeting\": \"hello\"}")
     }
 
     @Test("strips plain code fences without language tag")
     func stripsPlainCodeFences() {
         let input = "```\n{\"key\": \"value\"}\n```"
-        let result = Self.stripCodeFences(input, for: .jsonObject)
-        #expect(result == "{\"key\": \"value\"}")
+        #expect(strip(input, for: .jsonObject) == "{\"key\": \"value\"}")
     }
 
     @Test("does not strip fences for text format")
     func doesNotStripForTextFormat() {
         let input = "```json\n{\"key\": \"value\"}\n```"
-        let result = Self.stripCodeFences(input, for: .text)
-        #expect(result == input)
+        #expect(strip(input, for: .text) == input)
     }
 
     @Test("does not strip fences when format is nil")
     func doesNotStripWhenFormatNil() {
         let input = "```json\n{\"key\": \"value\"}\n```"
-        let result = Self.stripCodeFences(input, for: nil)
-        #expect(result == input)
+        #expect(strip(input, for: nil) == input)
     }
 
     @Test("returns clean JSON unchanged")
     func returnsCleanJsonUnchanged() {
         let input = "{\"greeting\": \"hello\"}"
-        let result = Self.stripCodeFences(input, for: .jsonObject)
-        #expect(result == input)
+        #expect(strip(input, for: .jsonObject) == input)
     }
 
     @Test("does not strip trailing fence when opening fence is absent")
     func doesNotStripTrailingFenceAlone() {
         let input = "{\"key\": \"value\"}```"
-        let result = Self.stripCodeFences(input, for: .jsonObject)
-        #expect(result == input)
+        #expect(strip(input, for: .jsonObject) == input)
     }
 
     @Test("does not strip opening fence without newline (no asymmetric strip)")
     func doesNotStripOpeningFenceWithoutNewline() {
         let input = "```{\"a\":1}```"
-        let result = Self.stripCodeFences(input, for: .jsonObject)
-        // No newline after opening ```, so nothing is stripped
-        #expect(result == input)
+        #expect(strip(input, for: .jsonObject) == input)
     }
 
     @Test("handles whitespace around fences")
     func handlesWhitespaceAroundFences() {
         let input = "  \n```json\n{\"key\": \"value\"}\n```\n  "
-        let result = Self.stripCodeFences(input, for: .jsonObject)
-        #expect(result == "{\"key\": \"value\"}")
+        #expect(strip(input, for: .jsonObject) == "{\"key\": \"value\"}")
     }
 
     @Test("works with jsonSchema format")
@@ -294,8 +255,7 @@ struct CodeFenceStrippingTests {
             defs: [:]
         )
         let input = "```json\ntrue\n```"
-        let result = Self.stripCodeFences(input, for: .jsonSchema(name: "Test", schema: schema))
-        #expect(result == "true")
+        #expect(strip(input, for: .jsonSchema(name: "Test", schema: schema)) == "true")
     }
 }
 #endif

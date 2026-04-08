@@ -256,7 +256,7 @@ extension AnthropicProvider {
         }
 
         guard let responseFormat,
-              let formatInstruction = responseFormatInstruction(responseFormat)
+              let formatInstruction = responseFormat.promptInstruction
         else {
             return baseSystemPrompt
         }
@@ -266,33 +266,6 @@ extension AnthropicProvider {
         }
 
         return "\(baseSystemPrompt)\n\n\(formatInstruction)"
-    }
-
-    /// Converts unified response format into Anthropic-compatible instructions.
-    ///
-    /// Anthropic does not expose OpenAI-style native response_format controls
-    /// in the messages API, so we enforce structured output with explicit
-    /// deterministic instructions in the system prompt.
-    private nonisolated func responseFormatInstruction(_ format: ResponseFormat) -> String? {
-        switch format {
-        case .text:
-            return nil
-        case .jsonObject:
-            return """
-            Return only valid JSON as a single top-level object.
-            Do not wrap JSON in markdown code fences.
-            Do not include commentary before or after the JSON.
-            """
-        case .jsonSchema(let name, let schema):
-            let schemaJSON = schema.toJSONString(prettyPrinted: true)
-            return """
-            Return only valid JSON matching the schema named "\(name)".
-            Do not wrap JSON in markdown code fences.
-            Do not include commentary before or after the JSON.
-            Schema:
-            \(schemaJSON)
-            """
-        }
     }
 
     /// Converts Conduit tool configuration to Anthropic's API format.
@@ -348,7 +321,7 @@ extension AnthropicProvider {
     ) -> AnthropicMessagesRequest.ToolDefinitionRequest.InputSchema {
         let properties = (dict["properties"] as? [String: [String: Any]]) ?? [:]
         let required = dict["required"] as? [String]
-        let additionalProperties = dict["additionalProperties"] as? Bool
+        let additionalProperties = convertAdditionalProperties(dict["additionalProperties"])
 
         let convertedProperties = properties.mapValues { propDict -> AnthropicMessagesRequest.ToolDefinitionRequest.PropertySchema in
             convertToPropertySchema(propDict)
@@ -360,6 +333,19 @@ extension AnthropicProvider {
             required: required,
             additionalProperties: additionalProperties
         )
+    }
+
+    private func convertAdditionalProperties(
+        _ value: Any?
+    ) -> AnthropicMessagesRequest.ToolDefinitionRequest.PropertySchema.AdditionalPropertiesPayload? {
+        guard let value else { return nil }
+        if let boolValue = value as? Bool {
+            return .boolean(boolValue)
+        }
+        if let objectValue = value as? [String: Any] {
+            return .nested(convertToPropertySchema(objectValue))
+        }
+        return nil
     }
 
     /// Converts a property dictionary to PropertySchema.
@@ -405,7 +391,7 @@ extension AnthropicProvider {
             items: items,
             properties: nestedProperties,
             required: dict["required"] as? [String],
-            additionalProperties: dict["additionalProperties"] as? Bool,
+            additionalProperties: convertAdditionalProperties(dict["additionalProperties"]),
             enumValues: dict["enum"] as? [String],
             minimum: dict["minimum"] as? Int,
             maximum: dict["maximum"] as? Int,
