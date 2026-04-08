@@ -68,20 +68,39 @@ public actor FoundationModelsProvider: AIProvider, TextGenerator {
 
         let startTime = Date()
         let session = makeSession()
-        let prompt = buildPrompt(from: messages)
+        let tools = effectiveTools(from: config)
+        let toolContext = tools.isEmpty ? nil : FoundationModelsToolCallingContext.make()
+        let prompt = buildPrompt(
+            from: messages,
+            tools: tools,
+            toolChoice: config.toolChoice,
+            toolContext: toolContext,
+            responseFormat: config.responseFormat
+        )
         let options = makeGenerationOptions(from: config)
 
         do {
             let response = try await session.respond(to: prompt, options: options)
             let duration = Date().timeIntervalSince(startTime)
+            let text = stripCodeFences(response.content, for: config.responseFormat)
+            let toolCalls: [Transcript.ToolCall] = if let toolContext, !tools.isEmpty {
+                FoundationModelsToolParser.parseToolCalls(
+                    from: text,
+                    availableTools: tools,
+                    context: toolContext
+                ) ?? []
+            } else {
+                []
+            }
 
             return GenerationResult(
-                text: response.content,
+                text: toolCalls.isEmpty ? text : "",
                 tokenCount: 0,
                 generationTime: duration,
                 tokensPerSecond: 0,
-                finishReason: .stop,
-                usage: UsageStats(promptTokens: 0, completionTokens: 0)
+                finishReason: toolCalls.isEmpty ? .stop : .toolCall,
+                usage: UsageStats(promptTokens: 0, completionTokens: 0),
+                toolCalls: toolCalls
             )
         } catch {
             throw mapFoundationModelsError(error)
@@ -98,12 +117,19 @@ public actor FoundationModelsProvider: AIProvider, TextGenerator {
                 do {
                     try validateModel(model)
                     let session = await makeSession()
+                    let prompt = buildPrompt(
+                        from: [.user(prompt)],
+                        tools: [],
+                        toolChoice: config.toolChoice,
+                        toolContext: nil,
+                        responseFormat: config.responseFormat
+                    )
                     let options = makeGenerationOptions(from: config)
                     let stream = session.streamResponse(to: prompt, options: options)
 
                     var previous = ""
                     for try await snapshot in stream {
-                        let current = snapshot.content
+                        let current = stripCodeFences(snapshot.content, for: config.responseFormat)
                         let delta = current.hasPrefix(previous)
                             ? String(current.dropFirst(previous.count))
                             : current
@@ -139,13 +165,19 @@ public actor FoundationModelsProvider: AIProvider, TextGenerator {
                     }
 
                     let session = await makeSession()
-                    let prompt = buildPrompt(from: messages)
+                    let prompt = buildPrompt(
+                        from: messages,
+                        tools: [],
+                        toolChoice: config.toolChoice,
+                        toolContext: nil,
+                        responseFormat: config.responseFormat
+                    )
                     let options = makeGenerationOptions(from: config)
                     let stream = session.streamResponse(to: prompt, options: options)
 
                     var previous = ""
                     for try await snapshot in stream {
-                        let current = snapshot.content
+                        let current = stripCodeFences(snapshot.content, for: config.responseFormat)
                         let delta = current.hasPrefix(previous)
                             ? String(current.dropFirst(previous.count))
                             : current
@@ -232,29 +264,90 @@ public actor FoundationModelsProvider: AIProvider, TextGenerator {
         return session
     }
 
-    private nonisolated func buildPrompt(from messages: [Message]) -> String {
+    private nonisolated func buildPrompt(
+        from messages: [Message],
+        tools: [Transcript.ToolDefinition],
+        toolChoice: ToolChoice,
+        toolContext: FoundationModelsToolCallingContext?,
+        responseFormat: ResponseFormat?
+    ) -> String {
         var lines: [String] = []
         lines.reserveCapacity(messages.count)
 
         for message in messages {
             let text = message.content.textValue
-            guard !text.isEmpty else { continue }
-
             switch message.role {
             case .system:
+                guard !text.isEmpty else { continue }
                 lines.append("System: \(text)")
             case .user:
+                guard !text.isEmpty else { continue }
                 lines.append("User: \(text)")
             case .assistant:
-                lines.append("Assistant: \(text)")
+                if let toolCalls = message.metadata?.toolCalls, !toolCalls.isEmpty {
+                    lines.append("Assistant requested tool calls:")
+                    for toolCall in toolCalls {
+                        lines.append("- \(toolCall.toolName)(\(toolCall.argumentsString)) [id=\(toolCall.id)]")
+                    }
+                }
+                if !text.isEmpty {
+                    lines.append("Assistant: \(text)")
+                }
             case .tool:
                 let toolName = message.metadata?.custom?["tool_name"]
-                let prefix = toolName.map { "Tool(\($0))" } ?? "Tool"
-                lines.append("\(prefix): \(text)")
+                let callID = message.metadata?.custom?["tool_call_id"]
+                let prefix = toolName.map { "Tool result (\($0))" } ?? "Tool result"
+                if let callID, !callID.isEmpty {
+                    lines.append("\(prefix) [id=\(callID)]: \(text)")
+                } else {
+                    lines.append("\(prefix): \(text)")
+                }
             }
         }
 
-        return lines.joined(separator: "\n")
+        let basePrompt = lines.joined(separator: "\n")
+        guard let toolContext, !tools.isEmpty else {
+            return FoundationModelsToolPromptBuilder.appendResponseFormatInstruction(
+                to: basePrompt,
+                responseFormat: responseFormat
+            )
+        }
+
+        return FoundationModelsToolPromptBuilder.buildPrompt(
+            basePrompt: basePrompt,
+            tools: tools,
+            toolChoice: toolChoice,
+            context: toolContext,
+            responseFormat: responseFormat
+        )
+    }
+
+    nonisolated func stripCodeFences(_ text: String, for format: ResponseFormat?) -> String {
+        guard let format else { return text }
+        if case .text = format { return text }
+
+        var result = text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        var didStripOpening = false
+        if result.hasPrefix("```"), let newlineIndex = result.firstIndex(of: "\n") {
+            result = String(result[result.index(after: newlineIndex)...])
+            didStripOpening = true
+        }
+
+        if didStripOpening, result.hasSuffix("```") {
+            result = String(result.dropLast(3))
+        }
+
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private nonisolated func effectiveTools(from config: GenerateConfig) -> [Transcript.ToolDefinition] {
+        switch config.toolChoice {
+        case .none:
+            []
+        default:
+            config.tools
+        }
     }
 
     private nonisolated func makeGenerationOptions(from config: GenerateConfig) -> FoundationModels.GenerationOptions {
