@@ -13,7 +13,7 @@ var packageDependencies: [Package.Dependency] = [
     // MARK: Cross-Platform Dependencies
     .package(url: "https://github.com/apple/swift-collections.git", from: "1.1.0"),
     .package(url: "https://github.com/apple/swift-numerics", from: "1.0.0"),
-    .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
+    .package(url: "https://github.com/swiftlang/swift-syntax.git", "600.0.0"..<"603.0.0"),
     .package(url: "https://github.com/apple/swift-log.git", from: "1.8.0"),
 
     // MARK: Hugging Face Hub / Core ML
