@@ -15,6 +15,19 @@ import Logging
 /// Logger for OpenAI provider diagnostics.
 private let logger = ConduitLoggers.openAI
 
+extension Float {
+    /// Returns a `Double` rounded to 3 decimal places, avoiding precision artifacts
+    /// when 32-bit floats are widened to 64-bit during JSON serialization.
+    ///
+    /// `Float(0.7)` becomes `0.69999998807907104` when stored in `[String: Any]` and
+    /// serialized by `JSONSerialization`, because Swift widens `Float` to `Double` and
+    /// the 32-bit representation of 0.7 is not exactly representable.
+    /// Some OpenAI-compatible APIs reject these values with a 400 error.
+    var jsonSafe: Double {
+        (Double(self) * 1000).rounded() / 1000
+    }
+}
+
 // MARK: - Helper Methods
 
 extension OpenAIProvider {
@@ -118,19 +131,19 @@ extension OpenAIProvider {
             body["max_tokens"] = maxTokens
         }
 
-        body["temperature"] = config.temperature
-        body["top_p"] = config.topP
+        body["temperature"] = config.temperature.jsonSafe
+        body["top_p"] = config.topP.jsonSafe
 
         if let topK = config.topK {
             body["top_k"] = topK
         }
 
         if config.frequencyPenalty != 0 {
-            body["frequency_penalty"] = config.frequencyPenalty
+            body["frequency_penalty"] = config.frequencyPenalty.jsonSafe
         }
 
         if config.presencePenalty != 0 {
-            body["presence_penalty"] = config.presencePenalty
+            body["presence_penalty"] = config.presencePenalty.jsonSafe
         }
 
         if !config.stopSequences.isEmpty {
@@ -246,8 +259,8 @@ extension OpenAIProvider {
         if let maxTokens = config.maxTokens {
             body["max_output_tokens"] = maxTokens
         }
-        body["temperature"] = config.temperature
-        body["top_p"] = config.topP
+        body["temperature"] = config.temperature.jsonSafe
+        body["top_p"] = config.topP.jsonSafe
 
         if !config.stopSequences.isEmpty {
             body["stop"] = config.stopSequences
