@@ -107,7 +107,7 @@ public actor OpenAIProvider: AIProvider, TextGenerator, EmbeddingGenerator, Toke
     /// Creates a provider with a full configuration.
     ///
     /// - Parameter configuration: The provider configuration.
-    init(configuration: OpenAIConfiguration) {
+    public init(configuration: OpenAIConfiguration) {
         self.configuration = configuration
 
         let sessionConfig = URLSessionConfiguration.default

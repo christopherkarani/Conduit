@@ -97,6 +97,28 @@ let config = OpenAIConfiguration.openRouter(apiKey: "sk-or-...")
 
 Get your API key at [openrouter.ai/keys](https://openrouter.ai/keys).
 
+## Custom OpenAI-Compatible Endpoint
+
+Use a custom base URL when routing through your own proxy or an OpenAI-compatible service.
+
+```swift
+let baseURL = URL(string: "https://proxy.example.com/v1")!
+
+let config = OpenAIConfiguration(
+    endpoint: .custom(baseURL),
+    authentication: .none,
+    defaultHeaders: [
+        "X-Example-App": "ConduitDocs"
+    ]
+)
+
+let provider = OpenAIProvider(configuration: config)
+let response = try await provider.generate(
+    "Write a two-sentence welcome message for a demo app.",
+    model: .openAI("example-chat-model")
+)
+```
+
 ## Ollama (Local Inference)
 
 Run LLMs locally with no API key required:
