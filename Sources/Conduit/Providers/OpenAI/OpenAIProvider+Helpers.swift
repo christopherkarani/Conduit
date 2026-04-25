@@ -15,6 +15,16 @@ import Logging
 /// Logger for OpenAI provider diagnostics.
 private let logger = ConduitLoggers.openAI
 
+private extension Float {
+    /// Decimal-backed JSON number that avoids exposing binary Float artifacts.
+    var openAIJSONNumber: NSNumber {
+        guard let decimal = Decimal(string: String(describing: self)) else {
+            return NSNumber(value: self)
+        }
+        return NSDecimalNumber(decimal: decimal)
+    }
+}
+
 // MARK: - Helper Methods
 
 extension OpenAIProvider {
@@ -118,19 +128,19 @@ extension OpenAIProvider {
             body["max_tokens"] = maxTokens
         }
 
-        body["temperature"] = config.temperature
-        body["top_p"] = config.topP
+        body["temperature"] = config.temperature.openAIJSONNumber
+        body["top_p"] = config.topP.openAIJSONNumber
 
         if let topK = config.topK {
             body["top_k"] = topK
         }
 
         if config.frequencyPenalty != 0 {
-            body["frequency_penalty"] = config.frequencyPenalty
+            body["frequency_penalty"] = config.frequencyPenalty.openAIJSONNumber
         }
 
         if config.presencePenalty != 0 {
-            body["presence_penalty"] = config.presencePenalty
+            body["presence_penalty"] = config.presencePenalty.openAIJSONNumber
         }
 
         if !config.stopSequences.isEmpty {
@@ -246,8 +256,8 @@ extension OpenAIProvider {
         if let maxTokens = config.maxTokens {
             body["max_output_tokens"] = maxTokens
         }
-        body["temperature"] = config.temperature
-        body["top_p"] = config.topP
+        body["temperature"] = config.temperature.openAIJSONNumber
+        body["top_p"] = config.topP.openAIJSONNumber
 
         if !config.stopSequences.isEmpty {
             body["stop"] = config.stopSequences

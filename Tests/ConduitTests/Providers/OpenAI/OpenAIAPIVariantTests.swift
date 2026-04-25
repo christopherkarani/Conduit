@@ -84,7 +84,7 @@ struct OpenAIAPIVariantTests {
         let body = provider.buildRequestBody(
             messages: [.user("What is the weather?"), assistant, toolOutput],
             model: .gpt4o,
-            config: .default.tools([tool]).toolChoice(.required).parallelToolCalls(false).maxToolCalls(2),
+            config: .default.tools([tool]).toolChoice(.required).parallelToolCalls(.disabled).maxToolCalls(2),
             stream: false,
             variant: .responses
         )

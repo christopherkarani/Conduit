@@ -22,6 +22,57 @@ private struct RootResolvedArgs {
 @Suite("OpenAI Provider Request Building Tests")
 struct OpenAIProviderRequestBuildingTests {
 
+    @Test("OpenAI numeric sampling parameters serialize without Float artifacts")
+    func samplingParametersSerializeWithoutFloatArtifacts() throws {
+        let provider = OpenAIProvider(configuration: .openAI(apiKey: "sk-test"))
+        let config = GenerateConfig.default
+            .temperature(0.7)
+            .topP(0.9)
+            .frequencyPenalty(0.2)
+            .presencePenalty(0.3)
+
+        let body = provider.buildRequestBody(
+            messages: [.user("Hi")],
+            model: .gpt4o,
+            config: config,
+            stream: false
+        )
+
+        let json = try serializedJSONString(body)
+
+        #expect(json.contains(#""temperature":0.7"#))
+        #expect(json.contains(#""top_p":0.9"#))
+        #expect(json.contains(#""frequency_penalty":0.2"#))
+        #expect(json.contains(#""presence_penalty":0.3"#))
+        #expect(!json.contains("0.699999"))
+        #expect(!json.contains("0.899999"))
+        #expect(!json.contains("0.200000"))
+        #expect(!json.contains("0.300000"))
+    }
+
+    @Test("OpenAI Responses numeric sampling parameters serialize without Float artifacts")
+    func responsesSamplingParametersSerializeWithoutFloatArtifacts() throws {
+        let provider = OpenAIProvider(configuration: .openAI(apiKey: "sk-test").apiVariant(.responses))
+        let config = GenerateConfig.default
+            .temperature(0.7)
+            .topP(0.9)
+
+        let body = provider.buildRequestBody(
+            messages: [.user("Hi")],
+            model: .gpt4o,
+            config: config,
+            stream: false,
+            variant: .responses
+        )
+
+        let json = try serializedJSONString(body)
+
+        #expect(json.contains(#""temperature":0.7"#))
+        #expect(json.contains(#""top_p":0.9"#))
+        #expect(!json.contains("0.699999"))
+        #expect(!json.contains("0.899999"))
+    }
+
     @Test("Tool output messages include tool_call_id for OpenAI/OpenRouter")
     func toolOutputMessagesIncludeToolCallID() async throws {
         let provider = OpenAIProvider(configuration: .openRouter(apiKey: "or-test"))
@@ -215,7 +266,7 @@ struct OpenAIProviderRequestBuildingTests {
         let config = GenerateConfig.default
             .tools([tool])
             .toolChoice(.required)
-            .parallelToolCalls(true)
+            .parallelToolCalls(.enabled)
             .maxToolCalls(2)
 
         let body = provider.buildRequestBody(
@@ -226,6 +277,11 @@ struct OpenAIProviderRequestBuildingTests {
         )
 
         #expect(body["max_tool_calls"] as? Int == 2)
+    }
+
+    private func serializedJSONString(_ body: [String: Any]) throws -> String {
+        let data = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
+        return try #require(String(data: data, encoding: .utf8))
     }
 }
 

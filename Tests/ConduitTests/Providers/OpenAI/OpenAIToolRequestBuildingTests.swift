@@ -113,16 +113,16 @@ struct OpenAIToolRequestBuildingTests {
             let auto = ToolChoice.auto
             let none = ToolChoice.none
             let required = ToolChoice.required
-            let specific = ToolChoice.tool(name: "test_tool")
+            let specific = ToolChoice.named("test_tool")
 
             // Verify each case exists
             if case .auto = auto { } else { Issue.record("Expected .auto") }
             if case .none = none { } else { Issue.record("Expected .none") }
             if case .required = required { } else { Issue.record("Expected .required") }
-            if case .tool(let name) = specific {
+            if case .named(let name) = specific {
                 #expect(name == "test_tool")
             } else {
-                Issue.record("Expected .tool")
+                Issue.record("Expected .named")
             }
         }
 
@@ -134,7 +134,7 @@ struct OpenAIToolRequestBuildingTests {
 
         @Test("ToolChoice Codable round-trip")
         func codableRoundTrip() throws {
-            let choices: [ToolChoice] = [.auto, .none, .required, .tool(name: "weather")]
+            let choices: [ToolChoice] = [.auto, .none, .required, .named("weather")]
 
             for original in choices {
                 let encoded = try JSONEncoder().encode(original)
@@ -199,7 +199,7 @@ struct OpenAIToolRequestBuildingTests {
         @Test("GenerateConfig has parallelToolCalls property")
         func parallelToolCallsProperty() {
             let config = GenerateConfig.default
-            #expect(config.parallelToolCalls == nil)
+            #expect(config.parallelToolCalls == .default)
         }
 
         @Test("GenerateConfig has maxToolCalls property")
@@ -215,9 +215,9 @@ struct OpenAIToolRequestBuildingTests {
 
             let config = GenerateConfig.default
                 .tools([tool])
-                .parallelToolCalls(false)
+                .parallelToolCalls(.disabled)
 
-            #expect(config.parallelToolCalls == false)
+            #expect(config.parallelToolCalls == .disabled)
         }
 
         @Test("GenerateConfig fluent API for maxToolCalls")
@@ -240,7 +240,7 @@ struct OpenAIToolRequestBuildingTests {
             let config = GenerateConfig.default
                 .tools([tool])
                 .toolChoice(.auto)
-                .parallelToolCalls(true)
+                .parallelToolCalls(.enabled)
                 .maxToolCalls(3)
                 .temperature(0.5)
 
@@ -248,7 +248,7 @@ struct OpenAIToolRequestBuildingTests {
 
             #expect(modified.tools.count == 1)
             #expect(modified.toolChoice == .auto)
-            #expect(modified.parallelToolCalls == true)
+            #expect(modified.parallelToolCalls == .enabled)
             #expect(modified.maxToolCalls == 3)
             #expect(modified.temperature == 0.5)
             #expect(modified.maxTokens == 1000)
@@ -262,7 +262,7 @@ struct OpenAIToolRequestBuildingTests {
             let config = GenerateConfig.default
                 .tools([tool])
                 .toolChoice(.required)
-                .parallelToolCalls(false)
+                .parallelToolCalls(.disabled)
                 .maxToolCalls(4)
 
             let encoded = try JSONEncoder().encode(config)
@@ -271,7 +271,7 @@ struct OpenAIToolRequestBuildingTests {
             #expect(decoded.tools.count == 1)
             #expect(decoded.tools.first?.name == "weather")
             #expect(decoded.toolChoice == .required)
-            #expect(decoded.parallelToolCalls == false)
+            #expect(decoded.parallelToolCalls == .disabled)
             #expect(decoded.maxToolCalls == 4)
         }
     }
