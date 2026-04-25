@@ -31,9 +31,9 @@ if includeMLXDependencies {
     packageDependencies.insert(
         contentsOf: [
             // MARK: MLX Dependencies (Apple Silicon Only)
-            .package(url: "https://github.com/ml-explore/mlx-swift.git", from: "0.29.1"),
-            .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", from: "2.29.2"),
-            .package(url: "https://github.com/ml-explore/mlx-swift-examples.git", revision: "fc3afc7cdbc4b6120d210c4c58c6b132ce346775"),
+            .package(url: "https://github.com/ml-explore/mlx-swift.git", from: "0.31.3"),
+            .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", from: "3.31.3"),
+            .package(url: "https://github.com/ml-explore/mlx-swift-examples.git", revision: "357c97fbd39abe600704b889dd114c208b0ed915"),
         ],
         at: 3
     )
@@ -57,6 +57,8 @@ if includeMLXDependencies {
             .product(name: "MLXLMCommon", package: "mlx-swift-lm", condition: .when(traits: ["MLX"])),
             .product(name: "MLXLLM", package: "mlx-swift-lm", condition: .when(traits: ["MLX"])),
             .product(name: "MLXVLM", package: "mlx-swift-lm", condition: .when(traits: ["MLX"])),
+            .product(name: "HuggingFace", package: "swift-huggingface", condition: .when(traits: ["MLX"])),
+            .product(name: "Tokenizers", package: "swift-transformers", condition: .when(traits: ["MLX"])),
             .product(name: "StableDiffusion", package: "mlx-swift-examples", condition: .when(traits: ["MLX"])),
         ]
     )
@@ -80,6 +82,8 @@ if includeMLXDependencies {
             .product(name: "MLXLMCommon", package: "mlx-swift-lm", condition: .when(traits: ["MLX"])),
             .product(name: "MLXLLM", package: "mlx-swift-lm", condition: .when(traits: ["MLX"])),
             .product(name: "MLXVLM", package: "mlx-swift-lm", condition: .when(traits: ["MLX"])),
+            .product(name: "HuggingFace", package: "swift-huggingface", condition: .when(traits: ["MLX"])),
+            .product(name: "Tokenizers", package: "swift-transformers", condition: .when(traits: ["MLX"])),
             .product(name: "StableDiffusion", package: "mlx-swift-examples", condition: .when(traits: ["MLX"])),
         ]
     )
