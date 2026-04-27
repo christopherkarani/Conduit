@@ -44,6 +44,18 @@ struct OpenAIConfigurationTests {
         #expect(ollama.authentication == .none)
     }
 
+    @Test("Custom endpoint can be configured directly with explicit authentication")
+    func customEndpointDirectConfiguration() throws {
+        let url = try #require(URL(string: "https://proxy.example.com/v1"))
+        let config = OpenAIConfiguration(
+            endpoint: .custom(url),
+            authentication: .none
+        )
+
+        #expect(config.endpoint == .custom(url))
+        #expect(config.authentication == .none)
+    }
+
     @Test("Negative timeout is clamped to zero")
     func timeoutClamping() {
         let config = OpenAIConfiguration(timeout: -10)
@@ -117,6 +129,21 @@ struct OpenAIAuthenticationTests {
         } else {
             Issue.record("Expected apiKey authentication")
         }
+    }
+
+    @Test("Configuration headers omit authorization when authentication is none")
+    func noneAuthenticationOmitsAuthorizationHeader() throws {
+        let url = try #require(URL(string: "https://proxy.example.com/v1"))
+        let config = OpenAIConfiguration(
+            endpoint: .custom(url),
+            authentication: .none,
+            defaultHeaders: ["X-Example-App": "ConduitDocs"]
+        )
+
+        let headers = config.buildHeaders()
+        #expect(headers["Authorization"] == nil)
+        #expect(headers["X-Example-App"] == "ConduitDocs")
+        #expect(headers["Content-Type"] == "application/json")
     }
 }
 
@@ -197,6 +224,15 @@ struct OpenAIEndpointTests {
         #expect(OpenAIEndpoint.openAI.displayName == "OpenAI")
         #expect(OpenAIEndpoint.openRouter.displayName == "OpenRouter")
         #expect(OpenAIEndpoint.ollama().displayName == "Ollama (Local)")
+    }
+
+    @Test("Custom endpoint uses base URL for text generation routes")
+    func customEndpointURLs() throws {
+        let url = try #require(URL(string: "https://proxy.example.com/v1"))
+        let endpoint = OpenAIEndpoint.custom(url)
+
+        #expect(endpoint.chatCompletionsURL.absoluteString == "https://proxy.example.com/v1/chat/completions")
+        #expect(endpoint.textGenerationURL(for: .chatCompletions).absoluteString == "https://proxy.example.com/v1/chat/completions")
     }
 }
 
