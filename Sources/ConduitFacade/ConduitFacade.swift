@@ -146,10 +146,13 @@ public struct Provider {
             expert?(&raw)
         }
 
-        return .init(
-            raw: raw,
-            imageGenerator: AnyImageGenerator(ConduitAdvanced.MLXImageProvider())
-        )
+        #if canImport(StableDiffusion)
+        let imageGenerator = AnyImageGenerator(ConduitAdvanced.MLXImageProvider())
+        #else
+        let imageGenerator: AnyImageGenerator? = nil
+        #endif
+
+        return .init(raw: raw, imageGenerator: imageGenerator)
     }
     #endif
 

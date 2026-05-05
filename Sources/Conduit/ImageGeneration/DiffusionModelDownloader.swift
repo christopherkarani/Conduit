@@ -87,7 +87,7 @@ public actor DiffusionModelDownloader {
         // Create download task
         let task = Task<URL, Error> { [weak self] in
             guard let self = self else {
-                throw AIError.downloadFailed(underlying: SendableError(CancellationError()))
+                throw AIError.cancelled
             }
 
             do {
@@ -134,7 +134,7 @@ public actor DiffusionModelDownloader {
                 await registry.addDownloaded(downloaded)
 
                 return localURL
-            } catch is CancellationError {
+            } catch where Task.isCancelled || Self.isCancellationError(error) {
                 throw AIError.cancelled
             } catch let error as AIError {
                 throw error
@@ -164,6 +164,24 @@ public actor DiffusionModelDownloader {
     /// Cleans up a download task from the active downloads dictionary.
     private func cleanupDownloadTask(modelId: String) {
         activeDownloads.removeValue(forKey: modelId)
+    }
+
+    private nonisolated static func isCancellationError(_ error: Error) -> Bool {
+        if error is CancellationError {
+            return true
+        }
+
+        if let aiError = error as? AIError, case .cancelled = aiError {
+            return true
+        }
+
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+            return true
+        }
+
+        let description = nsError.localizedDescription.lowercased()
+        return description.contains("cancelled") || description.contains("canceled")
     }
 
     /// Cancels an active download.

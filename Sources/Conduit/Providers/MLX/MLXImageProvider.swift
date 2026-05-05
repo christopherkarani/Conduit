@@ -7,7 +7,7 @@
 import Foundation
 // MARK: - Linux Compatibility
 // NOTE: MLX and StableDiffusion require Metal GPU. Not available on Linux.
-#if CONDUIT_TRAIT_MLX && canImport(MLX)
+#if CONDUIT_TRAIT_MLX && canImport(MLX) && canImport(StableDiffusion)
 import Hub
 @preconcurrency import MLX
 import StableDiffusion
@@ -799,6 +799,6 @@ public actor MLXImageProvider: ImageGenerator {
         #endif
     }
 }
-#endif // CONDUIT_TRAIT_MLX && canImport(MLX)
+#endif // CONDUIT_TRAIT_MLX && canImport(MLX) && canImport(StableDiffusion)
 
 #endif // CONDUIT_TRAIT_MLX

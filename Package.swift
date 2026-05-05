@@ -8,6 +8,9 @@ let skipMLXDependencies = ProcessInfo.processInfo.environment["CONDUIT_SKIP_MLX_
 let includeMLXDependencies =
     !skipMLXDependencies
     && ProcessInfo.processInfo.environment["CONDUIT_INCLUDE_MLX_DEPS"] == "1"
+let includeMLXImageDependencies =
+    includeMLXDependencies
+    && ProcessInfo.processInfo.environment["CONDUIT_INCLUDE_MLX_IMAGE_DEPS"] == "1"
 
 var packageDependencies: [Package.Dependency] = [
     // MARK: Cross-Platform Dependencies
@@ -17,7 +20,7 @@ var packageDependencies: [Package.Dependency] = [
     .package(url: "https://github.com/apple/swift-log.git", from: "1.8.0"),
 
     // MARK: Hugging Face Hub / Core ML
-    .package(url: "https://github.com/huggingface/swift-huggingface", branch: "main"),
+    .package(url: "https://github.com/huggingface/swift-huggingface", from: "0.9.0"),
     .package(url: "https://github.com/huggingface/swift-transformers", from: "1.1.6"),
 
     // MARK: llama.cpp (Optional)
@@ -33,9 +36,15 @@ if includeMLXDependencies {
             // MARK: MLX Dependencies (Apple Silicon Only)
             .package(url: "https://github.com/ml-explore/mlx-swift.git", from: "0.31.3"),
             .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", from: "3.31.3"),
-            .package(url: "https://github.com/ml-explore/mlx-swift-examples.git", revision: "357c97fbd39abe600704b889dd114c208b0ed915"),
         ],
         at: 3
+    )
+}
+
+if includeMLXImageDependencies {
+    packageDependencies.insert(
+        .package(url: "https://github.com/ml-explore/mlx-swift-examples.git", revision: "357c97fbd39abe600704b889dd114c208b0ed915"),
+        at: 5
     )
 }
 
@@ -59,8 +68,13 @@ if includeMLXDependencies {
             .product(name: "MLXVLM", package: "mlx-swift-lm", condition: .when(traits: ["MLX"])),
             .product(name: "HuggingFace", package: "swift-huggingface", condition: .when(traits: ["MLX"])),
             .product(name: "Tokenizers", package: "swift-transformers", condition: .when(traits: ["MLX"])),
-            .product(name: "StableDiffusion", package: "mlx-swift-examples", condition: .when(traits: ["MLX"])),
         ]
+    )
+}
+
+if includeMLXImageDependencies {
+    conduitAdvancedDependencies.append(
+        .product(name: "StableDiffusion", package: "mlx-swift-examples", condition: .when(traits: ["MLX"]))
     )
 }
 
@@ -84,8 +98,13 @@ if includeMLXDependencies {
             .product(name: "MLXVLM", package: "mlx-swift-lm", condition: .when(traits: ["MLX"])),
             .product(name: "HuggingFace", package: "swift-huggingface", condition: .when(traits: ["MLX"])),
             .product(name: "Tokenizers", package: "swift-transformers", condition: .when(traits: ["MLX"])),
-            .product(name: "StableDiffusion", package: "mlx-swift-examples", condition: .when(traits: ["MLX"])),
         ]
+    )
+}
+
+if includeMLXImageDependencies {
+    conduitMLXTestDependencies.append(
+        .product(name: "StableDiffusion", package: "mlx-swift-examples", condition: .when(traits: ["MLX"]))
     )
 }
 

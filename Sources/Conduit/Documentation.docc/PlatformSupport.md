@@ -48,7 +48,7 @@ swift build
 swift test
 ```
 
-No traits are enabled by default, so MLX and Foundation Models dependencies are excluded automatically.
+No traits are enabled by default, so MLX provider code and MLX package dependencies are not part of the default graph. `CONDUIT_SKIP_MLX_DEPS=1` is still available as an explicit guard for lightweight verification jobs.
 
 ### Linux Limitations
 

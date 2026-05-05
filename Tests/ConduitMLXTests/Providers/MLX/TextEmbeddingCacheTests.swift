@@ -3,13 +3,17 @@
 //
 // This file requires the MLX trait to be enabled.
 
+import Foundation
 import Testing
 @testable import ConduitAdvanced
 
 #if CONDUIT_TRAIT_MLX && canImport(MLX)
 @preconcurrency import MLX
 
-@Suite("TextEmbeddingCache Tests")
+private let mlxArrayRuntimeAvailable = ProcessInfo.processInfo.environment["CONDUIT_RUN_MLX_ARRAY_TESTS"] == "1"
+    || FileManager.default.mlxMetallibExistsUnderCurrentPackage()
+
+@Suite("TextEmbeddingCache Tests", .enabled(if: mlxArrayRuntimeAvailable))
 struct TextEmbeddingCacheTests {
 
     @Test("Cache stores and retrieves embeddings")
@@ -259,6 +263,40 @@ struct TextEmbeddingCacheTests {
         #expect(cache.get(key1)?.shape == [3, 4])
         #expect(cache.get(key2)?.shape == [4, 6])
         #expect(cache.get(key3)?.shape == [2, 4, 6])
+    }
+}
+
+private extension FileManager {
+    func mlxMetallibExistsUnderCurrentPackage() -> Bool {
+        let currentDirectory = URL(fileURLWithPath: currentDirectoryPath, isDirectory: true)
+        let searchRoots = [
+            currentDirectory,
+            currentDirectory.appendingPathComponent(".build", isDirectory: true)
+        ]
+
+        for root in searchRoots where fileExists(atPath: root.path) {
+            guard let enumerator = enumerator(
+                at: root,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles, .skipsPackageDescendants]
+            ) else {
+                continue
+            }
+
+            for case let url as URL in enumerator {
+                let fileName = url.lastPathComponent
+                guard fileName == "default.metallib" || fileName == "mlx.metallib" else {
+                    continue
+                }
+
+                let values = try? url.resourceValues(forKeys: [.isRegularFileKey])
+                if values?.isRegularFile == true {
+                    return true
+                }
+            }
+        }
+
+        return false
     }
 }
 

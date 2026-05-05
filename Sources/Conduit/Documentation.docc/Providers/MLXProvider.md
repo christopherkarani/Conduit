@@ -16,6 +16,17 @@ No API keys needed. Enable the MLX trait in your package:
 .package(url: "https://github.com/christopherkarani/Conduit", from: "0.3.0", traits: ["MLX"])
 ```
 
+Build MLX text-provider targets with MLX dependencies present:
+
+```bash
+CONDUIT_INCLUDE_MLX_DEPS=1 swift build --traits MLX
+CONDUIT_INCLUDE_MLX_DEPS=1 swift test --traits MLX
+```
+
+`CONDUIT_SKIP_MLX_DEPS=1` intentionally removes MLX dependencies from the package graph and should only be used for default non-MLX checks.
+
+`CONDUIT_INCLUDE_MLX_IMAGE_DEPS=1` opts into the separate StableDiffusion image-provider dependency for local Conduit development. It is not part of the default MLX text-provider graph because the compatible `mlx-swift-examples` commit is not available as a stable SwiftPM version.
+
 ```swift
 import Conduit
 

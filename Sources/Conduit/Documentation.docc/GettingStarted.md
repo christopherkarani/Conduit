@@ -62,6 +62,20 @@ Enable specific providers with traits:
 | `HuggingFaceHub` | — | HuggingFace Hub downloads |
 | `Llama` | `Llama` | LlamaProvider (llama.cpp via llama.swift) |
 
+### MLX Dependency Environment
+
+The `MLX` trait controls whether ``MLXProvider`` is compiled. MLX package dependency resolution is controlled separately by the current `Package.swift`:
+
+- By default, MLX package dependencies are omitted from the package graph.
+- `CONDUIT_INCLUDE_MLX_DEPS=1` forces MLX text-provider dependencies into the package graph. Use it with `--traits MLX`.
+- `CONDUIT_INCLUDE_MLX_IMAGE_DEPS=1` additionally opts into the StableDiffusion image-provider dependency for local Conduit development. Leave it unset for stable-version downstream consumers until `mlx-swift-examples` publishes a compatible stable tag.
+- `CONDUIT_SKIP_MLX_DEPS=1` removes MLX dependencies from the package graph. Do not combine it with `--traits MLX`.
+
+```bash
+CONDUIT_SKIP_MLX_DEPS=1 swift test
+CONDUIT_INCLUDE_MLX_DEPS=1 swift test --traits MLX
+```
+
 ## API Keys
 
 Cloud providers need API keys. Set them as environment variables:
@@ -125,7 +139,7 @@ swift build
 swift test
 ```
 
-No traits are enabled by default, so MLX and Foundation Models dependencies are excluded. Cloud providers (Anthropic, OpenAI, HuggingFace) work out of the box. For local inference on Linux, use Ollama via ``OpenAIProvider``.
+No traits are enabled by default, so MLX provider code and MLX package dependencies are not part of the default graph. Cloud providers (Anthropic, OpenAI, HuggingFace) work out of the box. For local inference on Linux, use Ollama via ``OpenAIProvider``.
 
 ## Next Steps
 
