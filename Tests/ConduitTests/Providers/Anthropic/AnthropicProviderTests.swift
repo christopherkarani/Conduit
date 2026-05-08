@@ -298,16 +298,16 @@ struct AnthropicErrorMappingTests {
 struct AnthropicRequestBuildingTests {
 
     @Test("buildRequestBody creates correct structure")
-    func buildRequestBody() async {
+    func buildRequestBody() async throws {
         let provider = AnthropicProvider(apiKey: "sk-ant-test")
         let messages = [
             Message.user("Hello"),
             Message.assistant("Hi there")
         ]
-        let model = AnthropicModelID.claudeSonnet45
+        let model: ModelIdentifier = .claudeSonnet45
         let config = GenerateConfig(maxTokens: 100, temperature: 0.7)
 
-        let request = await provider.buildRequestBody(
+        let request = try await provider.buildRequestBody(
             messages: messages,
             model: model,
             config: config,
@@ -323,16 +323,16 @@ struct AnthropicRequestBuildingTests {
     }
 
     @Test("System messages go in separate field")
-    func systemMessageHandling() async {
+    func systemMessageHandling() async throws {
         let provider = AnthropicProvider(apiKey: "sk-ant-test")
         let messages = [
             Message.system("You are helpful"),
             Message.user("Hello")
         ]
-        let model = AnthropicModelID.claudeSonnet45
+        let model: ModelIdentifier = .claudeSonnet45
         let config = GenerateConfig.default
 
-        let request = await provider.buildRequestBody(
+        let request = try await provider.buildRequestBody(
             messages: messages,
             model: model,
             config: config
@@ -344,11 +344,11 @@ struct AnthropicRequestBuildingTests {
     }
 
     @Test("Stream flag sets correctly")
-    func streamFlag() async {
+    func streamFlag() async throws {
         let provider = AnthropicProvider(apiKey: "sk-ant-test")
         let messages = [Message.user("Test")]
 
-        let streamRequest = await provider.buildRequestBody(
+        let streamRequest = try await provider.buildRequestBody(
             messages: messages,
             model: .claudeSonnet45,
             config: .default,
@@ -359,14 +359,14 @@ struct AnthropicRequestBuildingTests {
     }
 
     @Test("Thinking configuration adds thinking field")
-    func thinkingInRequest() async {
+    func thinkingInRequest() async throws {
         var config = AnthropicConfiguration.standard(apiKey: "sk-ant-test")
         config.thinkingConfig = .standard
 
         let provider = AnthropicProvider(configuration: config)
         let messages = [Message.user("Test")]
 
-        let request = await provider.buildRequestBody(
+        let request = try await provider.buildRequestBody(
             messages: messages,
             model: .claudeSonnet45,
             config: .default
@@ -378,12 +378,12 @@ struct AnthropicRequestBuildingTests {
     }
 
     @Test("jsonObject responseFormat adds deterministic JSON instruction")
-    func jsonObjectResponseFormatInstruction() async {
+    func jsonObjectResponseFormatInstruction() async throws {
         let provider = AnthropicProvider(apiKey: "sk-ant-test")
         let messages = [Message.user("Return a JSON object")]
         let config = GenerateConfig.default.responseFormat(.jsonObject)
 
-        let request = await provider.buildRequestBody(
+        let request = try await provider.buildRequestBody(
             messages: messages,
             model: .claudeSonnet45,
             config: config
@@ -395,7 +395,7 @@ struct AnthropicRequestBuildingTests {
     }
 
     @Test("jsonSchema responseFormat appends schema instruction and preserves system prompt")
-    func jsonSchemaResponseFormatInstruction() async {
+    func jsonSchemaResponseFormatInstruction() async throws {
         let provider = AnthropicProvider(apiKey: "sk-ant-test")
         let messages = [
             Message.system("You are a weather assistant."),
@@ -408,7 +408,7 @@ struct AnthropicRequestBuildingTests {
             )
         )
 
-        let request = await provider.buildRequestBody(
+        let request = try await provider.buildRequestBody(
             messages: messages,
             model: .claudeSonnet45,
             config: config
@@ -421,14 +421,14 @@ struct AnthropicRequestBuildingTests {
     }
 
     @Test("responseFormat instruction is not injected when tools are enabled")
-    func responseFormatWithToolsDoesNotInjectJSONOnlyInstruction() async {
+    func responseFormatWithToolsDoesNotInjectJSONOnlyInstruction() async throws {
         let provider = AnthropicProvider(apiKey: "sk-ant-test")
         let messages = [Message.user("Use tool if needed.")]
         let config = GenerateConfig.default
             .tools([AnthropicNoopTool()])
             .responseFormat(.jsonObject)
 
-        let request = await provider.buildRequestBody(
+        let request = try await provider.buildRequestBody(
             messages: messages,
             model: .claudeSonnet45,
             config: config
@@ -439,7 +439,7 @@ struct AnthropicRequestBuildingTests {
     }
 
     @Test("Tool outputs are encoded as tool_result blocks")
-    func toolOutputEncoding() async {
+    func toolOutputEncoding() async throws {
         let provider = AnthropicProvider(apiKey: "sk-ant-test")
         let output = Transcript.ToolOutput(
             id: "toolu_123",
@@ -452,7 +452,7 @@ struct AnthropicRequestBuildingTests {
             Message.toolOutput(output)
         ]
 
-        let request = await provider.buildRequestBody(
+        let request = try await provider.buildRequestBody(
             messages: messages,
             model: .claudeSonnet45,
             config: .default
@@ -488,7 +488,7 @@ struct AnthropicRequestBuildingTests {
             Message.assistant("Calling a tool.", toolCalls: [toolCall])
         ]
 
-        let request = await provider.buildRequestBody(
+        let request = try await provider.buildRequestBody(
             messages: messages,
             model: .claudeSonnet45,
             config: .default
