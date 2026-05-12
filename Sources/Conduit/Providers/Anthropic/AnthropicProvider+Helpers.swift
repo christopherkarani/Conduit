@@ -218,13 +218,47 @@ extension AnthropicProvider {
             AnthropicMessagesRequest.Metadata(userId: $0)
         }
 
+        // Anthropic's Messages API rejects requests that specify both
+        // `temperature` and `top_p` for current Claude models — its docs have
+        // long recommended "use only one"; the API now enforces it.
+        // GenerateConfig.default carries both (temperature=0.7, topP=0.9), so
+        // a naive serialization always gets rejected.
+        //
+        // Public API constraints make a sentinel-value approach unworkable:
+        // `temperature(_:)` clamps to [0, 2] and `topP(_:)` clamps to [0, 1],
+        // so callers can't pass a negative value to mean "drop me".
+        //
+        // Heuristic: compare against the type's defaults to infer caller
+        // intent. If the caller explicitly set top_p to a non-default value
+        // AND left temperature at the default, they want nucleus sampling —
+        // send top_p only. Otherwise send temperature only. This honors
+        // explicit `.topP(0.95)` (the Codex-flagged regression case) while
+        // keeping the common-case `.temperature(0.5)` flow working.
+        //
+        // Edge case: a caller who explicitly sets BOTH non-default values is
+        // ambiguous (Anthropic's "pick one" is on them). We pick temperature,
+        // matching the OpenAI provider's long-standing preference order.
+        let outboundTemperature: Double?
+        let outboundTopP: Double?
+        let defaults = GenerateConfig.default
+        let topPNonDefault = config.topP != defaults.topP
+        let temperatureNonDefault = config.temperature != defaults.temperature
+        let preferTopP = topPNonDefault && !temperatureNonDefault
+        if preferTopP {
+            outboundTemperature = nil
+            outboundTopP = (config.topP > 0 && config.topP <= 1) ? Double(config.topP) : nil
+        } else {
+            outboundTemperature = config.temperature >= 0 ? Double(config.temperature) : nil
+            outboundTopP = nil
+        }
+
         return AnthropicMessagesRequest(
             model: model.rawValue,
             messages: apiMessages,
             maxTokens: config.maxTokens ?? 1024,
             system: effectiveSystemPrompt,
-            temperature: config.temperature >= 0 ? Double(config.temperature) : nil,
-            topP: (config.topP > 0 && config.topP <= 1) ? Double(config.topP) : nil,
+            temperature: outboundTemperature,
+            topP: outboundTopP,
             topK: config.topK,
             stream: stream ? true : nil,
             thinking: thinkingRequest,
