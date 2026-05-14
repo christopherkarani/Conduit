@@ -60,7 +60,9 @@ extension GenerationGuide where Value == String {
 
     /// Enforces that the string be one of the provided values.
     public static func anyOf(_ values: [String]) -> GenerationGuide<String> {
-        precondition(!values.isEmpty, "GenerationGuide.anyOf must contain at least one value")
+        guard !values.isEmpty else {
+            return GenerationGuide<String>(constraint: .unsupported)
+        }
         return GenerationGuide<String>(constraint: .stringAnyOf(values))
     }
 
@@ -234,7 +236,9 @@ extension GenerationGuide {
     /// The bounds are inclusive.
     public static func minimumCount<Element>(_ count: Int) -> GenerationGuide<[Element]>
     where Value == [Element] {
-        precondition(count >= 0, "GenerationGuide.minimumCount cannot be negative")
+        guard count >= 0 else {
+            return GenerationGuide<[Element]>(constraint: .unsupported)
+        }
         return GenerationGuide<[Element]>(constraint: .arrayMinimumCount(count))
     }
 
@@ -243,14 +247,18 @@ extension GenerationGuide {
     /// The bounds are inclusive.
     public static func maximumCount<Element>(_ count: Int) -> GenerationGuide<[Element]>
     where Value == [Element] {
-        precondition(count >= 0, "GenerationGuide.maximumCount cannot be negative")
+        guard count >= 0 else {
+            return GenerationGuide<[Element]>(constraint: .unsupported)
+        }
         return GenerationGuide<[Element]>(constraint: .arrayMaximumCount(count))
     }
 
     /// Enforces that the number of elements in the array fall within a closed range.
     public static func count<Element>(_ range: ClosedRange<Int>) -> GenerationGuide<[Element]>
     where Value == [Element] {
-        precondition(range.lowerBound >= 0, "GenerationGuide.count range cannot be negative")
+        guard range.lowerBound >= 0 else {
+            return GenerationGuide<[Element]>(constraint: .unsupported)
+        }
         return GenerationGuide<[Element]>(
             constraint: .arrayCountRange(minimum: range.lowerBound, maximum: range.upperBound)
         )
@@ -259,7 +267,9 @@ extension GenerationGuide {
     /// Enforces that the array has exactly a certain number elements.
     public static func count<Element>(_ count: Int) -> GenerationGuide<[Element]>
     where Value == [Element] {
-        precondition(count >= 0, "GenerationGuide.count cannot be negative")
+        guard count >= 0 else {
+            return GenerationGuide<[Element]>(constraint: .unsupported)
+        }
         return GenerationGuide<[Element]>(constraint: .arrayCount(count))
     }
 
