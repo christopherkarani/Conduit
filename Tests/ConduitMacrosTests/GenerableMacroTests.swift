@@ -19,9 +19,21 @@ private struct TestStructWithSpecialCharacters {
     var field: String
 }
 
+@Generable(description: "\"Quoted type description\"")
+private struct TestStructWithQuotedTypeDescription {
+    @Guide(description: "\"Quoted guide description\"")
+    var field: String
+}
+
 @Generable
 private struct TestStructWithNewlines {
     @Guide(description: "Line 1\nLine 2\nLine 3")
+    var field: String
+}
+
+@Generable(description: "Type description with \"quotes\", backslashes \\, and newline\nnext line")
+private struct TestStructWithEscapedTypeDescription {
+    @Guide(description: "Field guide")
     var field: String
 }
 
@@ -131,6 +143,16 @@ struct GenerableMacroTests {
         #expect(decodedSchema.debugDescription.contains("object"))
     }
 
+    @Test("Descriptions preserve intentional leading and trailing quotes")
+    func descriptionsPreserveIntentionalQuotes() throws {
+        let schema = TestStructWithQuotedTypeDescription.generationSchema
+        let data = try JSONEncoder().encode(schema)
+        let json = String(decoding: data, as: UTF8.self)
+
+        #expect(json.contains(#"\\\"Quoted type description\\\""#))
+        #expect(json.contains(#"\\\"Quoted guide description\\\""#))
+    }
+
     @Test("@Guide description with newlines")
     func guideDescriptionWithNewlines() async throws {
         let schema = TestStructWithNewlines.generationSchema
@@ -143,6 +165,22 @@ struct GenerableMacroTests {
         // Verify roundtrip encoding/decoding works
         let decoder = JSONDecoder()
         let decodedSchema = try decoder.decode(GenerationSchema.self, from: jsonData)
+        #expect(decodedSchema.debugDescription.contains("object"))
+    }
+
+    @Test("@Generable type description with escaped characters")
+    func typeDescriptionWithEscapedCharacters() async throws {
+        let schema = TestStructWithEscapedTypeDescription.generationSchema
+        let jsonData = try JSONEncoder().encode(schema)
+        let jsonString = String(decoding: jsonData, as: UTF8.self)
+
+        #expect(
+            jsonString.contains(
+                #"Type description with \\\"quotes\\\", backslashes \\\\, and newline\\nnext line"#
+            )
+        )
+
+        let decodedSchema = try JSONDecoder().decode(GenerationSchema.self, from: jsonData)
         #expect(decodedSchema.debugDescription.contains("object"))
     }
 

@@ -91,11 +91,11 @@ public struct GenerableMacro: MemberMacro, ExtensionMacro {
         guard let arguments = node.arguments?.as(LabeledExprListSyntax.self),
             let firstArg = arguments.first,
             firstArg.label?.text == "description",
-            let stringLiteral = firstArg.expression.as(StringLiteralExprSyntax.self)
+            let stringLiteral = stringLiteralValue(from: firstArg.expression)
         else {
             return nil
         }
-        return stringLiteral.segments.description.trimmingCharacters(in: .init(charactersIn: "\""))
+        return stringLiteral
     }
 
     private static func extractGuidedProperties(from structDecl: StructDeclSyntax) -> [PropertyInfo] {
@@ -134,12 +134,8 @@ public struct GenerableMacro: MemberMacro, ExtensionMacro {
             {
                 if let arguments = attr.arguments?.as(LabeledExprListSyntax.self),
                     let descArg = arguments.first,
-                    let stringLiteral = descArg.expression.as(StringLiteralExprSyntax.self)
+                    let description = stringLiteralValue(from: descArg.expression)
                 {
-                    let description = stringLiteral.segments.description.trimmingCharacters(
-                        in: .init(charactersIn: "\"")
-                    )
-
                     var guides: [String] = []
                     var pattern: String? = nil
 
@@ -166,6 +162,15 @@ public struct GenerableMacro: MemberMacro, ExtensionMacro {
             }
         }
         return GuideInfo(description: nil, guides: [], pattern: nil)
+    }
+
+    private static func stringLiteralValue(from expression: ExprSyntax) -> String? {
+        guard let literal = expression.as(StringLiteralExprSyntax.self) else {
+            return nil
+        }
+        return literal.segments.compactMap { segment in
+            segment.as(StringSegmentSyntax.self)?.content.text
+        }.joined()
     }
 
     private static func topLevelColonIndex(in text: String) -> String.Index? {
@@ -751,12 +756,15 @@ public struct GenerableMacro: MemberMacro, ExtensionMacro {
                 """
         }.joined(separator: ",\n            ")
 
+        let escapedSchemaDescription = description.map(escapeSwiftStringLiteralContent(_:))
+            ?? "Generated \(structName)"
+
         return DeclSyntax(
             stringLiteral: """
                 nonisolated public static var generationSchema: Conduit.GenerationSchema {
                     return Conduit.GenerationSchema(
                         type: Self.self,
-                        description: \(description.map { "\"\($0)\"" } ?? "\"Generated \(structName)\""),
+                        description: "\(escapedSchemaDescription)",
                         properties: [\(properties.isEmpty ? "" : "\n            \(propertySchemas)\n        ")]
                     )
                 }
@@ -768,7 +776,7 @@ public struct GenerableMacro: MemberMacro, ExtensionMacro {
         return DeclSyntax(
             stringLiteral: """
                 nonisolated public func asPartiallyGenerated() -> PartiallyGenerated {
-                    return try! PartiallyGenerated(_rawGeneratedContent)
+                    return PartiallyGenerated(_rawGeneratedContent)
                 }
                 """
         )
@@ -806,7 +814,7 @@ public struct GenerableMacro: MemberMacro, ExtensionMacro {
 
                     private let rawContent: Conduit.GeneratedContent
 
-                    public init(_ generatedContent: Conduit.GeneratedContent) throws {
+                    public init(_ generatedContent: Conduit.GeneratedContent) {
                         self.id = generatedContent.id ?? Conduit.GenerationID()
                         self.rawContent = generatedContent
 
@@ -1242,12 +1250,15 @@ public struct GenerableMacro: MemberMacro, ExtensionMacro {
                                     )
                 """
 
+            let escapedSchemaDescription = description.map(escapeSwiftStringLiteralContent(_:))
+                ?? "Generated \(enumName)"
+
             return DeclSyntax(
                 stringLiteral: """
                     nonisolated public static var generationSchema: Conduit.GenerationSchema {
                         return Conduit.GenerationSchema(
                             type: Self.self,
-                            description: \(description.map { "\"\($0)\"" } ?? "\"Generated \(enumName)\""),
+                            description: "\(escapedSchemaDescription)",
                             properties: [
                                 \(caseProperty),
                                 \(valueProperty)
@@ -1259,18 +1270,28 @@ public struct GenerableMacro: MemberMacro, ExtensionMacro {
         } else {
             let caseNames = cases.map { "\"\($0.name)\"" }.joined(separator: ", ")
 
+            let escapedSchemaDescription = description.map(escapeSwiftStringLiteralContent(_:))
+                ?? "Generated \(enumName)"
+
             return DeclSyntax(
                 stringLiteral: """
                     nonisolated public static var generationSchema: Conduit.GenerationSchema {
                         return Conduit.GenerationSchema(
                             type: Self.self,
-                            description: \(description.map { "\"\($0)\"" } ?? "\"Generated \(enumName)\""),
+                            description: "\(escapedSchemaDescription)",
                             anyOf: [\(caseNames)]
                         )
                     }
                     """
             )
         }
+    }
+
+    private static func escapeSwiftStringLiteralContent(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: "\\n")
     }
 }
 
