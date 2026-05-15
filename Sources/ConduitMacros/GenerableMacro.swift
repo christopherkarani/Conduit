@@ -776,7 +776,7 @@ public struct GenerableMacro: MemberMacro, ExtensionMacro {
         return DeclSyntax(
             stringLiteral: """
                 nonisolated public func asPartiallyGenerated() -> PartiallyGenerated {
-                    return try! PartiallyGenerated(_rawGeneratedContent)
+                    return PartiallyGenerated(_rawGeneratedContent)
                 }
                 """
         )
@@ -814,7 +814,7 @@ public struct GenerableMacro: MemberMacro, ExtensionMacro {
 
                     private let rawContent: Conduit.GeneratedContent
 
-                    public init(_ generatedContent: Conduit.GeneratedContent) throws {
+                    public init(_ generatedContent: Conduit.GeneratedContent) {
                         self.id = generatedContent.id ?? Conduit.GenerationID()
                         self.rawContent = generatedContent
 
