@@ -512,6 +512,32 @@ struct AnthropicRequestBuildingTests {
             Issue.record("Expected multipart content with tool_use block")
         }
     }
+
+    @Test("Audio-only multipart user message is rejected")
+    func audioOnlyMessageRejected() async {
+        let provider = AnthropicProvider(apiKey: "sk-ant-test")
+        let audio = Message.AudioContent(base64Data: "ZmFrZS1hdWRpbw==", mimeType: "audio/wav")
+        let messages = [
+            Message(role: .user, content: .parts([.audio(audio)]))
+        ]
+
+        do {
+            _ = try await provider.buildRequestBody(
+                messages: messages,
+                model: .claudeSonnet45,
+                config: .default
+            )
+            Issue.record("Expected invalidInput for audio-only message")
+        } catch let error as AIError {
+            if case .invalidInput(let message) = error {
+                #expect(message.contains("does not support audio input"))
+            } else {
+                Issue.record("Expected invalidInput, got \(error)")
+            }
+        } catch {
+            Issue.record("Expected AIError.invalidInput, got \(error)")
+        }
+    }
 }
 
 // MARK: - Response Parsing Tests
