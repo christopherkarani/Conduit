@@ -80,6 +80,29 @@ extension AnthropicProvider {
     ) throws -> AnthropicMessagesRequest {
         try validateModel(model)
 
+        // Anthropic's Messages API does not support audio input parts.
+        // Reject audio-only multipart messages early with a clear error instead
+        // of sending empty multipart content that fails server-side validation.
+        for message in messages where (message.role == .user || message.role == .assistant) {
+            guard case .parts(let parts) = message.content else { continue }
+            let hasSupportedParts = parts.contains { part in
+                switch part {
+                case .text, .image:
+                    return true
+                case .audio:
+                    return false
+                }
+            }
+            let hasAudio = parts.contains { part in
+                if case .audio = part { return true }
+                return false
+            }
+
+            if hasAudio && !hasSupportedParts {
+                throw AIError.invalidInput("AnthropicProvider does not support audio input messages")
+            }
+        }
+
         // Convert tools early so structured-output prompt policy can account for tool usage.
         let (toolDefinitions, toolChoiceRequest) = convertToolsConfig(config)
         let toolsEnabled = toolDefinitions != nil && toolChoiceRequest != nil
